@@ -126,10 +126,19 @@ select {
 .chord-chip.active .cc-inv { color: #04231a; }
 .prog-transport { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .prog-transport button { min-width: 38px; }
-#playBtn { min-width: 78px; }
 .prog-transport .tempo { display: flex; align-items: center; gap: 8px; font-size: 0.78rem; color: var(--muted); }
-.prog-transport input[type=range] { width: 120px; accent-color: var(--triad-col); }
 .prog-empty { font-size: 0.8rem; color: var(--muted); }
+/* Metronom */
+.metro-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding-top: 4px; }
+#metroBtn { min-width: 88px; font-weight: 600; }
+#metroBtn.active { background: var(--triad-col); border-color: var(--triad-col); color: #04231a; }
+.metro-field { display: flex; align-items: center; gap: 6px; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); font-weight: 600; }
+.metro-field input[type=number] { width: 60px; background: var(--panel2); color: var(--text); border: 1px solid var(--border); padding: 6px 8px; border-radius: 7px; font-size: 0.9rem; text-transform: none; }
+.metro-field select { background: var(--panel2); color: var(--text); border: 1px solid var(--border); padding: 6px 8px; border-radius: 7px; font-size: 0.85rem; text-transform: none; }
+.beat-dots { display: flex; gap: 7px; margin-left: auto; }
+.beat-dot { width: 14px; height: 14px; border-radius: 50%; background: var(--panel2); border: 1.5px solid var(--border); transition: background 0.05s, transform 0.05s; }
+.beat-dot.lit { background: var(--scale-col); transform: scale(1.25); }
+.beat-dot.accent.lit { background: var(--root-col); }
 @media (max-width: 700px) { .bottom-row, .info-grid { grid-template-columns: 1fr; } }
 </style>
 </head>
@@ -227,11 +236,33 @@ select {
     </div>
   </div>
   <div class="prog-chips" id="progChips"><span class="prog-empty">Noch keine Progression – gib Stufen ein oder wähle eine Vorlage. Die Akkordtöne richten sich nach der gewählten Tonart.</span></div>
+
+  <div class="metro-row">
+    <button id="metroBtn" onclick="toggleMetro()" title="Metronom starten/stoppen – spielt eine geladene Progression im Takt mit">▶ Play</button>
+    <label class="metro-field">BPM
+      <input type="number" id="bpm" min="40" max="240" value="90" onchange="setBpm(this.value)">
+    </label>
+    <label class="metro-field">Taktart
+      <select id="timeSig" onchange="setTimeSig(this.value)">
+        <option value="2">2/4</option>
+        <option value="3">3/4</option>
+        <option value="4" selected>4/4</option>
+        <option value="6">6/8</option>
+      </select>
+    </label>
+    <label class="metro-field">Takte/Akkord
+      <select id="measPerChord" onchange="setMeasPerChord(this.value)">
+        <option value="1" selected>1</option>
+        <option value="2">2</option>
+        <option value="4">4</option>
+      </select>
+    </label>
+    <div id="beatDots" class="beat-dots" title="Zählzeiten"></div>
+  </div>
+
   <div class="prog-transport" id="progTransport" style="display:none">
     <button onclick="progStep(-1)" title="Vorheriger Akkord">‹ zurück</button>
-    <button id="playBtn" onclick="togglePlay()">▶ Play</button>
     <button onclick="progStep(1)" title="Nächster Akkord">weiter ›</button>
-    <div class="tempo">Tempo <input type="range" min="500" max="3000" step="100" value="1600" id="tempo" oninput="updateTempo(this.value)"><span id="tempoLbl">1.6 s</span></div>
     <div class="tempo" style="margin-left:auto" title="Auto-Modus: Triaden streng in der Box halten, oder Box um 1 Bund lockern für mehr Umkehrungen">
       Triaden-Lage
       <button id="btn-boxstrict" class="active" onclick="setBoxMode('strict')">In Box</button>
@@ -305,9 +336,11 @@ const ROLE_TXT  = { R:'#fff',    '3':'#04231a', '5':'#fff' };
 
 // ─── State ────────────────────────────────────────────────────────────────────
 const S = { key: 9, scale: 'minor', pos: 1, triad: 'none', set: 'DGB', label: 'names',
-            prog: [], progIdx: -1, playing: false, tempo: 1600, anchor: null,
-            sound: true, currentGrip: [], boxMode: 'strict', currentSet: 'DGB' };
-let playTimer = null;
+            prog: [], progIdx: -1, anchor: null,
+            sound: true, currentGrip: [], boxMode: 'strict', currentSet: 'DGB',
+            bpm: 90, beatsPerMeasure: 4, measuresPerChord: 1, metroOn: false };
+let metroTimer = null;
+const metro = { nextNote: 0, beat: 0 };
 
 // ─── Audio (Web Audio API) ────────────────────────────────────────────────────
 let actx = null, masterGain = null;
@@ -907,7 +940,7 @@ function applyProg() {
   S.anchor = null;
   // Neue Progression startet im Voice-Leading-Modus, falls Triade aus war
   if (S.prog.length && S.triad === 'none') { S.triad = 'auto'; updateTriadButtons(); }
-  if (!S.prog.length) stopPlay();
+  if (!S.prog.length) stopMetro();
   renderChips();
   render();
 }
@@ -916,7 +949,7 @@ function preset(text) {
   applyProg();
 }
 function clearProg() {
-  stopPlay();
+  stopMetro();
   document.getElementById('progInput').value = '';
   S.prog = []; S.progIdx = -1; S.anchor = null;
   renderChips();
@@ -954,26 +987,88 @@ function progStep(dir) {
   render();
   strumActive();
 }
-function togglePlay() { S.playing ? stopPlay() : startPlay(); }
-function startPlay() {
-  if (!S.prog.length) return;
-  S.playing = true;
-  document.getElementById('playBtn').textContent = '◼ Stop';
-  strumActive();                                   // aktuellen Akkord sofort anschlagen
-  playTimer = setInterval(() => progStep(1), S.tempo);
+// ─── Metronom ─────────────────────────────────────────────────────────────────
+// Kurzer Klick (akzentuierte Zählzeit 1)
+function clickSound(time, accent) {
+  const ac = audio();
+  const o = ac.createOscillator(), g = ac.createGain();
+  o.type = 'square';
+  o.frequency.value = accent ? 2000 : 1200;
+  g.gain.setValueAtTime(0.0001, time);
+  g.gain.exponentialRampToValueAtTime(accent ? 0.55 : 0.32, time + 0.001);
+  g.gain.exponentialRampToValueAtTime(0.0001, time + 0.045);
+  o.connect(g); g.connect(masterGain);
+  o.start(time); o.stop(time + 0.05);
 }
-function stopPlay() {
-  S.playing = false;
-  if (playTimer) clearInterval(playTimer);
-  playTimer = null;
-  const b = document.getElementById('playBtn');
-  if (b) b.textContent = '▶ Play';
+// Akkord-Voicing zu absoluter Audio-Zeit anschlagen (mit Aufleuchten)
+function strumGripAt(grip, whenSec) {
+  grip.forEach((gn, i) => {
+    const midi = OPEN_MIDI[gn.s] + gn.fret;
+    pluck(midi, whenSec + i * 0.02, 1.6, 0.85);
+    flashAt(gn.s, gn.fret, (whenSec + i * 0.02) * 1000, ROLE_COL[gn.role]);
+  });
 }
-function updateTempo(v) {
-  S.tempo = +v;
-  document.getElementById('tempoLbl').textContent = (S.tempo / 1000).toFixed(1) + ' s';
-  if (S.playing) { stopPlay(); startPlay(); }
+// Lookahead-Scheduler: plant Klicks und (bei geladener Progression) Akkordwechsel auf der Eins
+function metroScheduler() {
+  const ac = audio();
+  const beatsPerChord = S.beatsPerMeasure * S.measuresPerChord;
+  while (metro.nextNote < ac.currentTime + 0.12) {
+    const t = metro.nextNote;
+    const beatInMeasure = metro.beat % S.beatsPerMeasure;
+    const aheadMs = Math.max(0, (t - ac.currentTime) * 1000);
+    clickSound(t, beatInMeasure === 0);
+    // Akkordwechsel genau auf dem Beat (nur mit Progression)
+    if (S.prog.length && metro.beat % beatsPerChord === 0) {
+      const idx = (metro.beat / beatsPerChord) % S.prog.length;
+      const ch = S.prog[idx];
+      if (S.sound && ch.voice)
+        strumGripAt(voicingToGrip(ch.voice, ch.rootPc, ch.third, ch.voice.set), t - ac.currentTime);
+      setTimeout(() => { S.progIdx = idx; renderChips(); render(); }, aheadMs);
+    }
+    setTimeout(() => litBeat(beatInMeasure), aheadMs);
+    metro.nextNote += 60 / S.bpm;
+    metro.beat++;
+  }
 }
+function toggleMetro() { S.metroOn ? stopMetro() : startMetro(); }
+function startMetro() {
+  audio();
+  S.metroOn = true;
+  metro.beat = 0;
+  metro.nextNote = audio().currentTime + 0.12;
+  if (S.prog.length) { S.progIdx = 0; renderChips(); render(); }
+  const b = document.getElementById('metroBtn');
+  b.textContent = '◼ Stop'; b.classList.add('active');
+  metroTimer = setInterval(metroScheduler, 25);
+}
+function stopMetro() {
+  S.metroOn = false;
+  if (metroTimer) clearInterval(metroTimer);
+  metroTimer = null;
+  const b = document.getElementById('metroBtn');
+  if (b) { b.textContent = '▶ Play'; b.classList.remove('active'); }
+  litBeat(-1);
+}
+function setBpm(v) {
+  S.bpm = Math.min(240, Math.max(40, +v || 90));
+  document.getElementById('bpm').value = S.bpm;
+}
+function setTimeSig(v) { S.beatsPerMeasure = +v; renderBeatDots(); }
+function setMeasPerChord(v) { S.measuresPerChord = +v; }
+// Beat-Anzeige
+function renderBeatDots() {
+  const box = document.getElementById('beatDots');
+  box.innerHTML = '';
+  for (let i = 0; i < S.beatsPerMeasure; i++) {
+    const d = el2('div', 'beat-dot' + (i === 0 ? ' accent' : ''));
+    box.appendChild(d);
+  }
+}
+function litBeat(i) {
+  const dots = document.querySelectorAll('#beatDots .beat-dot');
+  dots.forEach((d, j) => d.classList.toggle('lit', j === i));
+}
+function el2(tag, cls) { const e = document.createElement(tag); e.className = cls; return e; }
 
 // Tonart/Skala-Wechsel: bestehende Progression in neuer Tonart neu interpretieren
 function reparseProg() {
@@ -994,6 +1089,7 @@ function reparseProg() {
     sel.appendChild(o);
   });
   document.getElementById('setCtrl').classList.add('disabled');
+  renderBeatDots();
   render();
 })();
 </script>
