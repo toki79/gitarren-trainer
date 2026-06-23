@@ -181,6 +181,7 @@ select {
       <option value="DGB" selected>D–G–B</option>
       <option value="ADG">A–D–G</option>
       <option value="EAD">E–A–D (tief)</option>
+      <option value="auto">Automatisch (Box-optimal)</option>
     </select>
   </div>
 
@@ -296,7 +297,7 @@ const INV = {
   inv2: { label:'2. Umkehrung',  bass:'Quinte',   hint:'Quinte im Bass – offen, schwebend.' }
 };
 const STRING_SETS = { GBe:[2,1,0], DGB:[3,2,1], ADG:[4,3,2], EAD:[5,4,3] };
-const SET_NAMES   = { GBe:'G–B–e', DGB:'D–G–B', ADG:'A–D–G', EAD:'E–A–D' };
+const SET_NAMES   = { GBe:'G–B–e', DGB:'D–G–B', ADG:'A–D–G', EAD:'E–A–D', auto:'Automatisch' };
 
 // Einheitliche Intervall-Farben für Triaden-Töne (Grundton / Terz / Quinte)
 const ROLE_COL  = { R:'#f43f5e', '3':'#22c55e', '5':'#8b5cf6' };
@@ -305,7 +306,7 @@ const ROLE_TXT  = { R:'#fff',    '3':'#04231a', '5':'#fff' };
 // ─── State ────────────────────────────────────────────────────────────────────
 const S = { key: 9, scale: 'minor', pos: 1, triad: 'none', set: 'DGB', label: 'names',
             prog: [], progIdx: -1, playing: false, tempo: 1600, anchor: null,
-            sound: true, currentGrip: [], boxMode: 'strict' };
+            sound: true, currentGrip: [], boxMode: 'strict', currentSet: 'DGB' };
 let playTimer = null;
 
 // ─── Audio (Web Audio API) ────────────────────────────────────────────────────
@@ -525,6 +526,11 @@ function boxCenterNow() {
   return 6;
 }
 
+// Erlaubte Saiten-Sets: nur das gewählte – oder alle, wenn "Automatisch" gewählt ist.
+function candidateSets() {
+  return S.set === 'auto' ? Object.keys(STRING_SETS) : [S.set];
+}
+
 // Bund-Fenster [min, max] der aktuellen Pentatonik-Box (null bei "Alle Boxen")
 function boxWindowNow() {
   if (S.pos === 0) return null;
@@ -549,12 +555,12 @@ function computePath() {
     if (S.triad === 'none') { c.voice = null; continue; }
     let pick;
     if (S.triad === 'auto' && box) {
-      // Bestes Voicing über ALLE Saiten-Sets, damit jeder Akkord in der Box greifbar ist.
-      // Bewertung: harte Grenze (×100) >> Randbereich-Strafe >> Umkehrungs-Wiederholung >> Set/Zentrierung.
-      // So bleibt alles in der Box; im Vielfalt-Modus wird der Rand nur betreten, wenn dadurch
-      // eine NEUE Umkehrung gewonnen wird.
+      // Bestes Voicing innerhalb der erlaubten Saiten-Sets (nur das gewählte, oder bei
+      // "Automatisch" alle). Bewertung: harte Grenze (×100) >> Randbereich >> Umkehrungs-
+      // Wiederholung >> Zentrierung. So bleibt alles in der Box; im Vielfalt-Modus wird der
+      // Rand nur betreten, wenn dadurch eine NEUE Umkehrung gewonnen wird.
       let best = null;
-      for (const sk of Object.keys(STRING_SETS)) {
+      for (const sk of candidateSets()) {
         for (const v of allVoicings(c.rootPc, c.third, c.fifth, sk)) {
           const hard = v.frets.reduce((a, f) =>
             a + Math.max(0, hardWin[0] - f) + Math.max(0, f - hardWin[1]), 0);
@@ -562,20 +568,19 @@ function computePath() {
           const soft = v.frets.reduce((a, f) =>
             a + Math.max(0, box[0] - f) + Math.max(0, f - box[1]), 0) - hard;
           const reusePen = usedInv.has(v.inv) ? (variety ? 12 : 4) : 0;
-          const setPen = sk === S.set ? 0 : 3;
           const ctr = (Math.min(...v.frets) + Math.max(...v.frets)) / 2;
-          const score = hard * 100 + soft * 4 + reusePen + setPen + Math.abs(ctr - center) * 0.5;
+          const score = hard * 100 + soft * 4 + reusePen + Math.abs(ctr - center) * 0.5;
           if (!best || score < best.score) best = { ...v, set: sk, score };
         }
       }
       pick = best;
       if (pick) usedInv.add(pick.inv);
     } else {
-      // Feste Umkehrung oder "Alle Boxen": auf dem gewählten Saiten-Set bleiben
-      let cands = allVoicings(c.rootPc, c.third, c.fifth, S.set);
+      // Feste Umkehrung oder "Alle Boxen": innerhalb der erlaubten Saiten-Sets bleiben
+      let cands = candidateSets().flatMap(sk =>
+        allVoicings(c.rootPc, c.third, c.fifth, sk).map(v => ({ ...v, set: sk })));
       if (S.triad !== 'auto') cands = cands.filter(v => v.inv === S.triad);
       pick = pickVoicing(cands, prev, center, box);
-      if (pick) pick.set = S.set;
     }
     c.voice = pick;
     if (pick) prev = pick.frets;
@@ -686,16 +691,21 @@ function render() {
   let grip = [];
   if (triad !== 'none') {
     if (active) {
-      // Voicing kommt aus dem vorberechneten Pfad (kann pro Akkord das Set wechseln, um in der Box zu bleiben)
-      if (active.voice) grip = voicingToGrip(active.voice, active.rootPc, active.third, active.voice.set || set);
+      // Voicing aus dem vorberechneten Pfad (bei "Automatisch" kann das Set pro Akkord wechseln)
+      if (active.voice) {
+        grip = voicingToGrip(active.voice, active.rootPc, active.third, active.voice.set);
+        S.currentSet = active.voice.set;
+      }
     } else {
-      // Einzel-Akkord (keine Progression): bestes Voicing in der Box bzw. nahe letzter Lage
+      // Einzel-Akkord (keine Progression): bestes Voicing in der Box, innerhalb der erlaubten Sets
       const target = S.anchor != null ? S.anchor : boxCenterNow();
-      let cands = allVoicings(key, THIRD[scale], 7, set);
+      let cands = candidateSets().flatMap(sk =>
+        allVoicings(key, THIRD[scale], 7, sk).map(v => ({ ...v, set: sk })));
       if (triad !== 'auto') cands = cands.filter(v => v.inv === triad);
       const pick = pickVoicing(cands, null, target, boxWindowNow());
       if (pick) {
-        grip = voicingToGrip(pick, key, THIRD[scale], set);
+        grip = voicingToGrip(pick, key, THIRD[scale], pick.set);
+        S.currentSet = pick.set;
         S.anchor = Math.round((Math.min(...pick.frets) + Math.max(...pick.frets)) / 2);
       }
     }
@@ -786,7 +796,7 @@ function updateInfo(grip) {
           ${['R','3','5'].map((role, i) => rolePill(chordTones[i], role)).join('')}
         </div>
         <div class="triad-box">
-          <div class="voicing-row">Bass: <b>${INV[invUsed].bass}</b> · Saiten-Set: <b>${SET_NAMES[(active.voice && active.voice.set) || set]}</b></div>
+          <div class="voicing-row">Bass: <b>${INV[invUsed].bass}</b> · Saiten-Set: <b>${SET_NAMES[(active.voice && active.voice.set) || S.currentSet]}</b></div>
           <div class="voicing-row" style="margin-top:4px;flex-direction:column;gap:2px">
             <span style="color:var(--text)">Griff (tief → hoch):</span>
             <span style="color:var(--muted);line-height:1.6">${gripTxt}</span>
@@ -809,7 +819,7 @@ function updateInfo(grip) {
           ${['R','3','5'].map((role, i) => rolePill(tn[i], role)).join('')}
         </div>
         <div class="triad-box">
-          <div class="voicing-row">Bass: <b>${INV[invShown].bass}</b> · Saiten-Set: <b>${SET_NAMES[set]}</b></div>
+          <div class="voicing-row">Bass: <b>${INV[invShown].bass}</b> · Saiten-Set: <b>${SET_NAMES[S.currentSet]}</b></div>
           <div class="voicing-row" style="margin-top:4px;flex-direction:column;gap:2px">
             <span style="color:var(--text)">Griff (tief → hoch):</span>
             <span style="color:var(--muted);line-height:1.6">${gripTxt}</span>
