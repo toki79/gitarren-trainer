@@ -480,16 +480,23 @@ function allVoicings(rootPc, third, fifth, setKey) {
 
 // Aus Kandidaten das Voicing wählen, das die wenigste Fingerbewegung erzeugt.
 // prevFrets = Bünde des vorigen Griffs (pro Saite); sonst Nähe zum Zielbund.
-function pickVoicing(cands, prevFrets, target) {
+// window = [minFret, maxFret] der Pentatonik-Box (optional). Voicings, die ganz
+// in der Box liegen, werden stark bevorzugt; Fingerbewegung ist sekundär.
+function pickVoicing(cands, prevFrets, target, window) {
   let best = null;
   for (const c of cands) {
-    let score;
+    let movement;
     if (prevFrets)
-      score = c.frets.reduce((a, f, i) => a + Math.abs(f - prevFrets[i]), 0);
+      movement = c.frets.reduce((a, f, i) => a + Math.abs(f - prevFrets[i]), 0);
     else {
       const center = (Math.min(...c.frets) + Math.max(...c.frets)) / 2;
-      score = Math.abs(center - target);
+      movement = Math.abs(center - target);
     }
+    let penalty = 0;
+    if (window)
+      penalty = c.frets.reduce((a, f) =>
+        a + Math.max(0, window[0] - f) + Math.max(0, f - window[1]), 0);
+    const score = penalty * 100 + movement;   // Box-Bindung dominiert, Bewegung bricht Gleichstand
     if (!best || score < best.score) best = { ...c, score };
   }
   return best;
@@ -513,17 +520,51 @@ function boxCenterNow() {
   return 6;
 }
 
+// Bund-Fenster [min, max] der aktuellen Pentatonik-Box (null bei "Alle Boxen")
+function boxWindowNow() {
+  if (S.pos === 0) return null;
+  const notes = boxNotes(S.key, S.scale, S.pos);
+  if (!notes.length) return null;
+  const frets = notes.map(n => n.fret);
+  return [Math.min(...frets), Math.max(...frets)];
+}
+
 // Optimalen Greifpfad durch die Progression berechnen (minimale Fingerbewegung).
 // Schreibt das gewählte Voicing in jeden Akkord (c.voice).
 function computePath() {
   if (!S.prog.length) return;
   const center = boxCenterNow();
+  const window = boxWindowNow();   // Triaden in der gewählten Box halten
+  const usedInv = new Set();       // für Umkehrungs-Vielfalt (alle 3 Positionen)
   let prev = null;
   for (const c of S.prog) {
     if (S.triad === 'none') { c.voice = null; continue; }
-    let cands = allVoicings(c.rootPc, c.third, c.fifth, S.set);
-    if (S.triad !== 'auto') cands = cands.filter(v => v.inv === S.triad);
-    const pick = pickVoicing(cands, prev, center);
+    let pick;
+    if (S.triad === 'auto' && window) {
+      // Triaden in der Box halten: bestes Voicing über ALLE Saiten-Sets suchen,
+      // damit auch Akkorde greifbar sind, die auf einem Set nicht in die Box passen.
+      // Zusätzlich noch nicht genutzte Umkehrungen bevorzugen → alle 3 Positionen.
+      let best = null;
+      for (const sk of Object.keys(STRING_SETS)) {
+        for (const v of allVoicings(c.rootPc, c.third, c.fifth, sk)) {
+          const outOfBox = v.frets.reduce((a, f) =>
+            a + Math.max(0, window[0] - f) + Math.max(0, f - window[1]), 0);
+          const ctr = (Math.min(...v.frets) + Math.max(...v.frets)) / 2;
+          const invPen = usedInv.has(v.inv) ? 10 : 0;  // Vielfalt der Umkehrungen
+          const setPen = sk === S.set ? 0 : 3;          // gewähltes Set bevorzugen
+          const score = outOfBox * 100 + invPen + setPen + Math.abs(ctr - center);
+          if (!best || score < best.score) best = { ...v, set: sk, score };
+        }
+      }
+      pick = best;
+      if (pick) usedInv.add(pick.inv);
+    } else {
+      // Feste Umkehrung oder "Alle Boxen": auf dem gewählten Saiten-Set bleiben
+      let cands = allVoicings(c.rootPc, c.third, c.fifth, S.set);
+      if (S.triad !== 'auto') cands = cands.filter(v => v.inv === S.triad);
+      pick = pickVoicing(cands, prev, center, window);
+      if (pick) pick.set = S.set;
+    }
     c.voice = pick;
     if (pick) prev = pick.frets;
   }
@@ -633,14 +674,14 @@ function render() {
   let grip = [];
   if (triad !== 'none') {
     if (active) {
-      // Voicing kommt aus dem vorberechneten Voice-Leading-Pfad
-      if (active.voice) grip = voicingToGrip(active.voice, active.rootPc, active.third, set);
+      // Voicing kommt aus dem vorberechneten Pfad (kann pro Akkord das Set wechseln, um in der Box zu bleiben)
+      if (active.voice) grip = voicingToGrip(active.voice, active.rootPc, active.third, active.voice.set || set);
     } else {
-      // Einzel-Akkord (keine Progression): bestes Voicing nahe der Box bzw. letzter Lage
+      // Einzel-Akkord (keine Progression): bestes Voicing in der Box bzw. nahe letzter Lage
       const target = S.anchor != null ? S.anchor : boxCenterNow();
       let cands = allVoicings(key, THIRD[scale], 7, set);
       if (triad !== 'auto') cands = cands.filter(v => v.inv === triad);
-      const pick = pickVoicing(cands, null, target);
+      const pick = pickVoicing(cands, null, target, boxWindowNow());
       if (pick) {
         grip = voicingToGrip(pick, key, THIRD[scale], set);
         S.anchor = Math.round((Math.min(...pick.frets) + Math.max(...pick.frets)) / 2);
@@ -733,7 +774,7 @@ function updateInfo(grip) {
           ${['R','3','5'].map((role, i) => rolePill(chordTones[i], role)).join('')}
         </div>
         <div class="triad-box">
-          <div class="voicing-row">Bass: <b>${INV[invUsed].bass}</b> · Saiten-Set: <b>${SET_NAMES[set]}</b></div>
+          <div class="voicing-row">Bass: <b>${INV[invUsed].bass}</b> · Saiten-Set: <b>${SET_NAMES[(active.voice && active.voice.set) || set]}</b></div>
           <div class="voicing-row" style="margin-top:4px;flex-direction:column;gap:2px">
             <span style="color:var(--text)">Griff (tief → hoch):</span>
             <span style="color:var(--muted);line-height:1.6">${gripTxt}</span>
