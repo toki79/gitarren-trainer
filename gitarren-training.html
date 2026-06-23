@@ -231,6 +231,11 @@ select {
     <button id="playBtn" onclick="togglePlay()">▶ Play</button>
     <button onclick="progStep(1)" title="Nächster Akkord">weiter ›</button>
     <div class="tempo">Tempo <input type="range" min="500" max="3000" step="100" value="1600" id="tempo" oninput="updateTempo(this.value)"><span id="tempoLbl">1.6 s</span></div>
+    <div class="tempo" style="margin-left:auto" title="Auto-Modus: Triaden streng in der Box halten, oder Box um 1 Bund lockern für mehr Umkehrungen">
+      Triaden-Lage
+      <button id="btn-boxstrict" class="active" onclick="setBoxMode('strict')">In Box</button>
+      <button id="btn-boxvariety" onclick="setBoxMode('variety')">Vielfalt ±1</button>
+    </div>
   </div>
 </div>
 
@@ -300,7 +305,7 @@ const ROLE_TXT  = { R:'#fff',    '3':'#04231a', '5':'#fff' };
 // ─── State ────────────────────────────────────────────────────────────────────
 const S = { key: 9, scale: 'minor', pos: 1, triad: 'none', set: 'DGB', label: 'names',
             prog: [], progIdx: -1, playing: false, tempo: 1600, anchor: null,
-            sound: true, currentGrip: [] };
+            sound: true, currentGrip: [], boxMode: 'strict' };
 let playTimer = null;
 
 // ─── Audio (Web Audio API) ────────────────────────────────────────────────────
@@ -534,25 +539,32 @@ function boxWindowNow() {
 function computePath() {
   if (!S.prog.length) return;
   const center = boxCenterNow();
-  const window = boxWindowNow();   // Triaden in der gewählten Box halten
-  const usedInv = new Set();       // für Umkehrungs-Vielfalt (alle 3 Positionen)
+  const box = boxWindowNow();          // echte Box-Grenzen
+  const variety = S.boxMode === 'variety';
+  // Harte Grenze: streng = Box, Vielfalt = Box ± 1 Bund (Randbereich erlaubt)
+  const hardWin = box && variety ? [box[0] - 1, box[1] + 1] : box;
+  const usedInv = new Set();           // für Umkehrungs-Vielfalt (alle 3 Positionen)
   let prev = null;
   for (const c of S.prog) {
     if (S.triad === 'none') { c.voice = null; continue; }
     let pick;
-    if (S.triad === 'auto' && window) {
-      // Triaden in der Box halten: bestes Voicing über ALLE Saiten-Sets suchen,
-      // damit auch Akkorde greifbar sind, die auf einem Set nicht in die Box passen.
-      // Zusätzlich noch nicht genutzte Umkehrungen bevorzugen → alle 3 Positionen.
+    if (S.triad === 'auto' && box) {
+      // Bestes Voicing über ALLE Saiten-Sets, damit jeder Akkord in der Box greifbar ist.
+      // Bewertung: harte Grenze (×100) >> Randbereich-Strafe >> Umkehrungs-Wiederholung >> Set/Zentrierung.
+      // So bleibt alles in der Box; im Vielfalt-Modus wird der Rand nur betreten, wenn dadurch
+      // eine NEUE Umkehrung gewonnen wird.
       let best = null;
       for (const sk of Object.keys(STRING_SETS)) {
         for (const v of allVoicings(c.rootPc, c.third, c.fifth, sk)) {
-          const outOfBox = v.frets.reduce((a, f) =>
-            a + Math.max(0, window[0] - f) + Math.max(0, f - window[1]), 0);
+          const hard = v.frets.reduce((a, f) =>
+            a + Math.max(0, hardWin[0] - f) + Math.max(0, f - hardWin[1]), 0);
+          // Bünde im erlaubten Rand, aber außerhalb der echten Box (nur Vielfalt-Modus > 0)
+          const soft = v.frets.reduce((a, f) =>
+            a + Math.max(0, box[0] - f) + Math.max(0, f - box[1]), 0) - hard;
+          const reusePen = usedInv.has(v.inv) ? (variety ? 12 : 4) : 0;
+          const setPen = sk === S.set ? 0 : 3;
           const ctr = (Math.min(...v.frets) + Math.max(...v.frets)) / 2;
-          const invPen = usedInv.has(v.inv) ? 10 : 0;  // Vielfalt der Umkehrungen
-          const setPen = sk === S.set ? 0 : 3;          // gewähltes Set bevorzugen
-          const score = outOfBox * 100 + invPen + setPen + Math.abs(ctr - center);
+          const score = hard * 100 + soft * 4 + reusePen + setPen + Math.abs(ctr - center) * 0.5;
           if (!best || score < best.score) best = { ...v, set: sk, score };
         }
       }
@@ -562,7 +574,7 @@ function computePath() {
       // Feste Umkehrung oder "Alle Boxen": auf dem gewählten Saiten-Set bleiben
       let cands = allVoicings(c.rootPc, c.third, c.fifth, S.set);
       if (S.triad !== 'auto') cands = cands.filter(v => v.inv === S.triad);
-      pick = pickVoicing(cands, prev, center, window);
+      pick = pickVoicing(cands, prev, center, box);
       if (pick) pick.set = S.set;
     }
     c.voice = pick;
@@ -863,6 +875,13 @@ function setTriad(v) {
   render();
 }
 function setStringSet(v) { S.set = v; S.anchor = null; renderChips(); render(); }
+function setBoxMode(v) {
+  S.boxMode = v;
+  document.getElementById('btn-boxstrict').classList.toggle('active', v === 'strict');
+  document.getElementById('btn-boxvariety').classList.toggle('active', v === 'variety');
+  renderChips();
+  render();
+}
 function setLabel(v) {
   S.label = v;
   document.getElementById('btn-names').classList.toggle('active', v === 'names');
