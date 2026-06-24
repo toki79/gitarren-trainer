@@ -270,10 +270,11 @@ select {
   <div class="prog-transport" id="progTransport" style="display:none">
     <button onclick="progStep(-1)" title="Vorheriger Akkord">‹ zurück</button>
     <button onclick="progStep(1)" title="Nächster Akkord">weiter ›</button>
-    <div class="tempo" style="margin-left:auto" title="Auto-Modus: Triaden streng in der Box halten, oder Box um 1 Bund lockern für mehr Umkehrungen">
+    <div class="tempo" style="margin-left:auto" title="Auto-Modus: Triaden in der Box halten (streng/±1) – oder unabhängig von der Box das Griffbrett hinauflaufen lassen">
       Triaden-Lage
       <button id="btn-boxstrict" class="active" onclick="setBoxMode('strict')">In Box</button>
       <button id="btn-boxvariety" onclick="setBoxMode('variety')">Vielfalt ±1</button>
+      <button id="btn-boxascend" onclick="setBoxMode('ascend')">Aufsteigend ↗</button>
     </div>
   </div>
 </div>
@@ -591,10 +592,22 @@ function computePath() {
   const hardWin = box && variety ? [box[0] - 1, box[1] + 1] : box;
   const usedInv = new Set();           // für Umkehrungs-Vielfalt (alle 3 Positionen)
   let prev = null;
+  let ascPrevMin = -1;                 // für Aufsteigend-Modus (letzte Lage)
   for (const c of S.prog) {
     if (S.triad === 'none') { c.voice = null; continue; }
     let pick;
-    if (S.triad === 'auto' && box) {
+    if (S.triad === 'auto' && S.boxMode === 'ascend') {
+      // Unabhängig von der Box: das Griffbrett hinauflaufen (links→rechts) – jeweils das
+      // nächsthöhere Voicing auf den erlaubten Saiten-Sets. Die Umkehrungen rotieren dabei
+      // von selbst. Oben angekommen geht es unten weiter.
+      const minF = v => Math.min(...v.frets);
+      const cands = candidateSets().flatMap(sk =>
+        allVoicings(c.rootPc, c.third, c.fifth, sk).map(v => ({ ...v, set: sk })));
+      const above = cands.filter(v => minF(v) > ascPrevMin);
+      const pool = above.length ? above : cands;        // kein höheres mehr → unten neu beginnen
+      pick = pool.reduce((a, b) => minF(b) < minF(a) ? b : a);
+      ascPrevMin = pick ? minF(pick) : ascPrevMin;
+    } else if (S.triad === 'auto' && box) {
       // Bestes Voicing innerhalb der erlaubten Saiten-Sets (nur das gewählte, oder bei
       // "Automatisch" alle). Bewertung: harte Grenze (×100) >> Randbereich >> Umkehrungs-
       // Wiederholung >> Zentrierung. So bleibt alles in der Box; im Vielfalt-Modus wird der
@@ -955,8 +968,8 @@ function setTriad(v) {
 function setStringSet(v) { S.set = v; S.anchor = null; renderChips(); render(); }
 function setBoxMode(v) {
   S.boxMode = v;
-  document.getElementById('btn-boxstrict').classList.toggle('active', v === 'strict');
-  document.getElementById('btn-boxvariety').classList.toggle('active', v === 'variety');
+  ['strict', 'variety', 'ascend'].forEach(m =>
+    document.getElementById('btn-box' + m).classList.toggle('active', v === m));
   renderChips();
   render();
 }
