@@ -124,6 +124,9 @@ select {
 .cc-name { font-size: 0.72rem; color: var(--muted); margin-top: 1px; }
 .cc-inv { font-size: 0.62rem; color: var(--triad-col); margin-top: 3px; font-weight: 600; letter-spacing: 0.3px; }
 .chord-chip.active .cc-inv { color: #04231a; }
+.cc-beats { font-size: 0.6rem; color: var(--muted); margin-top: 2px; }
+.chord-chip.active .cc-beats { color: #04231a; }
+.bar-sep { width: 2px; align-self: stretch; background: var(--border); margin: 0 3px; border-radius: 1px; }
 .prog-transport { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .prog-transport button { min-width: 38px; }
 .prog-transport .tempo { display: flex; align-items: center; gap: 8px; font-size: 0.78rem; color: var(--muted); }
@@ -139,6 +142,8 @@ select {
 .beat-dot { width: 14px; height: 14px; border-radius: 50%; background: var(--panel2); border: 1.5px solid var(--border); transition: background 0.05s, transform 0.05s; }
 .beat-dot.lit { background: var(--scale-col); transform: scale(1.25); }
 .beat-dot.accent.lit { background: var(--root-col); }
+.beat-dot.countin.lit { background: var(--muted); }   /* Einzähler-Takt optisch abgesetzt */
+#countInBtn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 @media (max-width: 700px) { .bottom-row, .info-grid { grid-template-columns: 1fr; } }
 </style>
 </head>
@@ -218,7 +223,7 @@ select {
     <div class="prog-field">
       <label>Akkord-Progression (Stufen in römischen Ziffern)</label>
       <div class="prog-input-row">
-        <input id="progInput" placeholder="z.B.  I - IV - V   ·   i - VI - VII   ·   ii - V - I"
+        <input id="progInput" placeholder="z.B.  I - IV - V   ·   I IV | V   ·   | I vi | IV V |   (| = Takt)"
                onkeydown="if(event.key==='Enter')applyProg()">
         <button onclick="applyProg()">Anwenden</button>
         <button onclick="clearProg()">Leeren</button>
@@ -232,6 +237,7 @@ select {
         <button onclick="preset('ii - V - I')">ii-V-I</button>
         <button onclick="preset('i - iv - v')">i-iv-v</button>
         <button onclick="preset('i - VI - III - VII')">i-VI-III-VII</button>
+        <button onclick="preset('I IV | V I')" title="Zwei Akkorde im ersten Takt">I IV | V I</button>
       </div>
     </div>
   </div>
@@ -257,6 +263,7 @@ select {
         <option value="4">4</option>
       </select>
     </label>
+    <button id="countInBtn" class="active" onclick="toggleCountIn()" title="Ein Takt Vorzähler vor dem ersten Akkord">Einzähler</button>
     <div id="beatDots" class="beat-dots" title="Zählzeiten"></div>
   </div>
 
@@ -338,9 +345,9 @@ const ROLE_TXT  = { R:'#fff',    '3':'#04231a', '5':'#fff' };
 const S = { key: 9, scale: 'minor', pos: 1, triad: 'none', set: 'DGB', label: 'names',
             prog: [], progIdx: -1, anchor: null,
             sound: true, currentGrip: [], boxMode: 'strict', currentSet: 'DGB',
-            bpm: 90, beatsPerMeasure: 4, measuresPerChord: 1, metroOn: false };
+            bpm: 90, beatsPerMeasure: 4, measuresPerChord: 1, metroOn: false, countIn: true };
 let metroTimer = null;
-const metro = { nextNote: 0, beat: 0 };
+const metro = { nextNote: 0, beat: 0, countInBeats: 0, sched: null };
 
 // ─── Audio (Web Audio API) ────────────────────────────────────────────────────
 let actx = null, masterGain = null;
@@ -620,27 +627,55 @@ function computePath() {
   }
 }
 
-// "I - IV - V" o.ä. in Akkorde der aktuellen Tonart übersetzen
+// Ein einzelnes Stufen-Token (z. B. "IV", "ii°", "bVII") in einen Akkord übersetzen
+function parseToken(tk, offs, key) {
+  const m = tk.match(/^(b|#)?(iii|ii|iv|vii|vi|v|i)(°|dim|o|\+|aug)?$/i);
+  if (!m) return null;
+  const [, acc, rnRaw, sym] = m;
+  const deg = ROMAN[rnRaw.toLowerCase()];
+  if (deg === undefined) return null;
+  const rootPc = mod12(key + offs[deg] + (acc === 'b' ? -1 : acc === '#' ? 1 : 0));
+  const isUpper = rnRaw === rnRaw.toUpperCase();
+  let third, fifth, q;
+  if (sym === '°' || /dim|o/i.test(sym || '')) { third = 3; fifth = 6; q = 'dim'; }
+  else if (sym === '+' || /aug/i.test(sym || '')) { third = 4; fifth = 8; q = 'aug'; }
+  else if (isUpper) { third = 4; fifth = 7; q = 'maj'; }
+  else { third = 3; fifth = 7; q = 'min'; }
+  const suffix = q === 'min' ? 'm' : q === 'dim' ? '°' : q === 'aug' ? '+' : '';
+  return { rn: tk, deg, rootPc, third, fifth, q, name: nn(rootPc, key) + suffix };
+}
+
+// "I - IV - V" → Akkorde. "|" trennt Takte; mehrere Akkorde in einem Takt teilen ihn auf.
 function parseProg(text, key, scale) {
   const offs = scale === 'major' ? MAJ_SCALE : MIN_SCALE;
+  const useBars = text.includes('|');
   const out = [];
-  for (const tk of text.split(/[\s,\-–|>]+/).filter(Boolean)) {
-    const m = tk.match(/^(b|#)?(iii|ii|iv|vii|vi|v|i)(°|dim|o|\+|aug)?$/i);
-    if (!m) continue;
-    const [, acc, rnRaw, sym] = m;
-    const deg = ROMAN[rnRaw.toLowerCase()];
-    if (deg === undefined) continue;
-    const rootPc = mod12(key + offs[deg] + (acc === 'b' ? -1 : acc === '#' ? 1 : 0));
-    const isUpper = rnRaw === rnRaw.toUpperCase();
-    let third, fifth, q;
-    if (sym === '°' || /dim|o/i.test(sym || '')) { third = 3; fifth = 6; q = 'dim'; }
-    else if (sym === '+' || /aug/i.test(sym || '')) { third = 4; fifth = 8; q = 'aug'; }
-    else if (isUpper) { third = 4; fifth = 7; q = 'maj'; }
-    else { third = 3; fifth = 7; q = 'min'; }
-    const suffix = q === 'min' ? 'm' : q === 'dim' ? '°' : q === 'aug' ? '+' : '';
-    out.push({ rn: tk, deg, rootPc, third, fifth, q, name: nn(rootPc, key) + suffix });
+  const bars = useBars ? text.split('|') : [text];
+  for (const bar of bars) {
+    const chords = bar.split(/[\s,\-–>]+/).filter(Boolean)
+      .map(tk => parseToken(tk, offs, key)).filter(Boolean);
+    if (useBars) chords.forEach((ch, i) => { ch.barCount = chords.length; ch.posInBar = i; });
+    out.push(...chords);
   }
   return out;
+}
+
+// Dauer eines Akkords in Zählzeiten – aus der Takt-Aufteilung oder Takte/Akkord
+function chordBeats(ch) {
+  const B = S.beatsPerMeasure;
+  if (ch.barCount) {                         // Akkord teilt sich einen Takt mit anderen
+    const base = Math.floor(B / ch.barCount), rem = B % ch.barCount;
+    return Math.max(1, base + (ch.posInBar < rem ? 1 : 0));
+  }
+  return B * S.measuresPerChord;             // keine Takt-Notation: Takte/Akkord
+}
+
+// Zählzeit-Fahrplan: welcher Akkord beginnt auf welcher Zählzeit + Gesamtlänge
+function buildBeatSchedule() {
+  const starts = {};
+  let beat = 0;
+  S.prog.forEach((ch, ci) => { starts[beat] = ci; beat += chordBeats(ch); });
+  return { starts, total: beat };
 }
 
 // ─── SVG ──────────────────────────────────────────────────────────────────────
@@ -938,8 +973,14 @@ function applyProg() {
   S.prog = parseProg(text, S.key, S.scale);
   S.progIdx = S.prog.length ? 0 : -1;
   S.anchor = null;
+  S.useBars = S.prog.some(c => c.barCount);
+  // "Takte/Akkord" ist bei | -Takt-Notation wirkungslos → ausgrauen
+  const mpc = document.getElementById('measPerChord');
+  mpc.disabled = S.useBars;
+  mpc.parentElement.style.opacity = S.useBars ? 0.4 : 1;
   // Neue Progression startet im Voice-Leading-Modus, falls Triade aus war
   if (S.prog.length && S.triad === 'none') { S.triad = 'auto'; updateTriadButtons(); }
+  if (S.metroOn) metro.sched = S.prog.length ? buildBeatSchedule() : null;
   if (!S.prog.length) stopMetro();
   renderChips();
   render();
@@ -968,9 +1009,12 @@ function renderChips() {
   transport.style.display = 'flex';
   box.innerHTML = S.prog.map((c, i) => {
     const tag = (S.triad !== 'none' && c.voice) ? `<div class="cc-inv">${INV_SHORT[c.voice.inv]}</div>` : '';
-    return `<div class="chord-chip ${i===S.progIdx?'active':''}" onclick="selectChord(${i})">
+    // Takt-Trenner vor dem ersten Akkord eines neuen Takts (bei | -Notation)
+    const barSep = (c.barCount && c.posInBar === 0 && i > 0) ? '<div class="bar-sep"></div>' : '';
+    const beats = c.barCount ? `<div class="cc-beats">${chordBeats(c)}♩</div>` : '';
+    return `${barSep}<div class="chord-chip ${i===S.progIdx?'active':''}" onclick="selectChord(${i})">
        <div class="cc-rn">${c.rn.toUpperCase()}</div>
-       <div class="cc-name">${c.name}</div>${tag}
+       <div class="cc-name">${c.name}</div>${tag}${beats}
      </div>`;
   }).join('');
 }
@@ -1011,21 +1055,25 @@ function strumGripAt(grip, whenSec) {
 // Lookahead-Scheduler: plant Klicks und (bei geladener Progression) Akkordwechsel auf der Eins
 function metroScheduler() {
   const ac = audio();
-  const beatsPerChord = S.beatsPerMeasure * S.measuresPerChord;
   while (metro.nextNote < ac.currentTime + 0.12) {
     const t = metro.nextNote;
     const beatInMeasure = metro.beat % S.beatsPerMeasure;
     const aheadMs = Math.max(0, (t - ac.currentTime) * 1000);
+    const m = metro.beat - metro.countInBeats;     // musikalische Zählzeit (negativ = Einzähler)
+    const isCountIn = m < 0;
     clickSound(t, beatInMeasure === 0);
-    // Akkordwechsel genau auf dem Beat (nur mit Progression)
-    if (S.prog.length && metro.beat % beatsPerChord === 0) {
-      const idx = (metro.beat / beatsPerChord) % S.prog.length;
-      const ch = S.prog[idx];
-      if (S.sound && ch.voice)
-        strumGripAt(voicingToGrip(ch.voice, ch.rootPc, ch.third, ch.voice.set), t - ac.currentTime);
-      setTimeout(() => { S.progIdx = idx; renderChips(); render(); }, aheadMs);
+    // Akkordwechsel auf der zugehörigen Zählzeit (nach dem Einzähler)
+    if (!isCountIn && S.prog.length && metro.sched) {
+      const mm = ((m % metro.sched.total) + metro.sched.total) % metro.sched.total;
+      if (mm in metro.sched.starts) {
+        const idx = metro.sched.starts[mm];
+        const ch = S.prog[idx];
+        if (S.sound && ch.voice)
+          strumGripAt(voicingToGrip(ch.voice, ch.rootPc, ch.third, ch.voice.set), t - ac.currentTime);
+        setTimeout(() => { S.progIdx = idx; renderChips(); render(); }, aheadMs);
+      }
     }
-    setTimeout(() => litBeat(beatInMeasure), aheadMs);
+    setTimeout(() => litBeat(beatInMeasure, isCountIn), aheadMs);
     metro.nextNote += 60 / S.bpm;
     metro.beat++;
   }
@@ -1035,6 +1083,8 @@ function startMetro() {
   audio();
   S.metroOn = true;
   metro.beat = 0;
+  metro.countInBeats = (S.countIn && S.prog.length) ? S.beatsPerMeasure : 0;  // ein Takt Vorzähler
+  metro.sched = S.prog.length ? buildBeatSchedule() : null;
   metro.nextNote = audio().currentTime + 0.12;
   if (S.prog.length) { S.progIdx = 0; renderChips(); render(); }
   const b = document.getElementById('metroBtn');
@@ -1053,8 +1103,12 @@ function setBpm(v) {
   S.bpm = Math.min(240, Math.max(40, +v || 90));
   document.getElementById('bpm').value = S.bpm;
 }
-function setTimeSig(v) { S.beatsPerMeasure = +v; renderBeatDots(); }
-function setMeasPerChord(v) { S.measuresPerChord = +v; }
+function setTimeSig(v) { S.beatsPerMeasure = +v; renderBeatDots(); if (S.metroOn) metro.sched = buildBeatSchedule(); }
+function setMeasPerChord(v) { S.measuresPerChord = +v; if (S.metroOn) metro.sched = buildBeatSchedule(); }
+function toggleCountIn() {
+  S.countIn = !S.countIn;
+  document.getElementById('countInBtn').classList.toggle('active', S.countIn);
+}
 // Beat-Anzeige
 function renderBeatDots() {
   const box = document.getElementById('beatDots');
@@ -1064,9 +1118,13 @@ function renderBeatDots() {
     box.appendChild(d);
   }
 }
-function litBeat(i) {
+function litBeat(i, countIn) {
   const dots = document.querySelectorAll('#beatDots .beat-dot');
-  dots.forEach((d, j) => d.classList.toggle('lit', j === i));
+  dots.forEach((d, j) => {
+    const on = j === i;
+    d.classList.toggle('lit', on);
+    d.classList.toggle('countin', on && !!countIn);
+  });
 }
 function el2(tag, cls) { const e = document.createElement(tag); e.className = cls; return e; }
 
