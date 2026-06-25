@@ -241,7 +241,7 @@ select {
         <button onclick="preset('i - VI - III - VII')">i-VI-III-VII</button>
         <button onclick="preset('I IV | V I')" title="Zwei Akkorde im ersten Takt">I IV | V I</button>
       </div>
-      <label style="font-size:0.68rem;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);font-weight:600;margin-top:4px">Übungen · Dur-Tonleiter (Stufendreiklänge)</label>
+      <label id="exLabel" style="font-size:0.68rem;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);font-weight:600;margin-top:4px">Übungen · Dur-Tonleiter (Stufendreiklänge)</label>
       <div class="btn-row">
         <button class="exercise-btn" onclick="scaleExercise()"
           title="Eine Oktave aufsteigend in einer Lage (gleitende Form übers Griffbrett)">↗ 1 Oktave</button>
@@ -976,8 +976,13 @@ function setScale(v) {
   document.getElementById('btn-minor').classList.toggle('active', v === 'minor');
   document.getElementById('btn-major').classList.toggle('active', v === 'major');
   S.anchor = null;
+  updateExerciseLabel();
   reparseProg();
   render();
+}
+function updateExerciseLabel() {
+  document.getElementById('exLabel').textContent =
+    'Übungen · ' + (S.scale === 'minor' ? 'Moll' : 'Dur') + '-Tonleiter (Stufendreiklänge)';
 }
 function setPos(v) {
   S.pos = v;
@@ -1039,22 +1044,25 @@ function preset(text) {
   document.getElementById('progInput').value = text;
   applyProg();
 }
-// Übung 1: Dur-Tonleiter als Stufendreiklänge, eine Oktave aufsteigend (eine Lage/Umkehrung)
+// Diatonische Stufendreiklänge passend zur gewählten Pentatonik:
+// Dur → I ii iii IV V vi vii° · Moll (natürlich) → i ii° III iv v VI VII
+function diatonicSeq() {
+  return S.scale === 'minor' ? 'i ii° III iv v VI VII' : 'I ii iii IV V vi vii°';
+}
+
+// Übung 1: Tonleiter als Stufendreiklänge, eine Oktave aufsteigend (eine Lage/Umkehrung)
 function scaleExercise() {
   S.exercise = null;
-  setScale('major');                                    // Dur-Tonart-Harmonie
-  document.getElementById('progInput').value = 'I ii iii IV V vi vii°';
+  document.getElementById('progInput').value = diatonicSeq();   // folgt Dur/Moll
   applyProg();
   setBoxMode('ascend');                                 // entlang des Griffbretts
 }
 
-// Baut eine Übungs-Progression mit erzwungenen Umkehrungen/Saiten-Sets (pure, ohne Render)
+// Baut eine Übungs-Progression mit erzwungenen Umkehrungen/Saiten-Sets (pure, ohne Render).
+// Folgt der gewählten Pentatonik (Dur/Moll).
 function buildExercise(type) {
   S.exercise = type;
-  S.scale = 'major';
-  document.getElementById('btn-minor').classList.remove('active');
-  document.getElementById('btn-major').classList.add('active');
-  const base = () => parseProg('I ii iii IV V vi vii°', S.key, 'major');
+  const base = () => parseProg(diatonicSeq(), S.key, S.scale);
   S.prog = [];
   if (type === 'scaleOct') {                            // 3× aufsteigend, je eine Umkehrung
     ['inv1', 'inv2', 'root'].forEach(inv =>
@@ -1068,7 +1076,7 @@ function buildExercise(type) {
   mpc.disabled = false; mpc.parentElement.style.opacity = 1;
 }
 function startExercise(type) {
-  document.getElementById('progInput').value = 'I ii iii IV V vi vii°';
+  document.getElementById('progInput').value = diatonicSeq();
   buildExercise(type);
   S.progIdx = 0; S.anchor = null;
   if (S.triad === 'none') { S.triad = 'auto'; updateTriadButtons(); }
@@ -1245,6 +1253,7 @@ function reparseProg() {
   });
   document.getElementById('setCtrl').classList.add('disabled');
   renderBeatDots();
+  updateExerciseLabel();
   render();
 })();
 </script>
