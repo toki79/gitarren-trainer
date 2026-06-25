@@ -110,6 +110,8 @@ select {
 #progInput:focus { outline: none; border-color: var(--accent); }
 .presets { display: flex; flex-direction: column; gap: 6px; }
 .presets .btn-row button { font-size: 0.74rem; padding: 5px 9px; font-family: ui-monospace, monospace; }
+.presets .exercise-btn { font-family: inherit; border-color: var(--triad-col); color: var(--triad-col); }
+.presets .exercise-btn:hover { background: rgba(34,197,94,0.12); }
 .prog-chips { display: flex; flex-wrap: wrap; gap: 8px; min-height: 4px; }
 .chord-chip {
   background: var(--panel2); border: 1.5px solid var(--border); border-radius: 9px;
@@ -238,6 +240,11 @@ select {
         <button onclick="preset('i - iv - v')">i-iv-v</button>
         <button onclick="preset('i - VI - III - VII')">i-VI-III-VII</button>
         <button onclick="preset('I IV | V I')" title="Zwei Akkorde im ersten Takt">I IV | V I</button>
+      </div>
+      <label style="font-size:0.68rem;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);font-weight:600;margin-top:4px">Übungen</label>
+      <div class="btn-row">
+        <button class="exercise-btn" onclick="scaleExercise()"
+          title="Dur-Tonleiter als Stufendreiklänge (I ii iii IV V vi vii°), aufsteigend über das Griffbrett">Dur-Tonleiter ↗ I–vii°</button>
       </div>
     </div>
   </div>
@@ -1001,6 +1008,13 @@ function applyProg() {
 function preset(text) {
   document.getElementById('progInput').value = text;
   applyProg();
+}
+// Übung: Dur-Tonleiter als Stufendreiklänge, aufsteigend über das Griffbrett
+function scaleExercise() {
+  setScale('major');                                    // Dur-Tonart-Harmonie
+  document.getElementById('progInput').value = 'I ii iii IV V vi vii°';
+  applyProg();
+  setBoxMode('ascend');                                 // entlang des Griffbretts
 }
 function clearProg() {
   stopMetro();
