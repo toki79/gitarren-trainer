@@ -145,7 +145,7 @@ select {
 .beat-dot.lit { background: var(--scale-col); transform: scale(1.25); }
 .beat-dot.accent.lit { background: var(--root-col); }
 .beat-dot.countin.lit { background: var(--muted); }   /* Einzähler-Takt optisch abgesetzt */
-#countInBtn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+#countInBtn.active, #clickBtn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 @media (max-width: 700px) { .bottom-row, .info-grid { grid-template-columns: 1fr; } }
 </style>
 </head>
@@ -274,6 +274,7 @@ select {
         <option value="4">4</option>
       </select>
     </label>
+    <button id="clickBtn" class="active" onclick="toggleClick()" title="Metronom-Klick an/aus (Akkorde spielen unabhängig davon weiter)">🔔 Klick</button>
     <button id="countInBtn" class="active" onclick="toggleCountIn()" title="Ein Takt Vorzähler vor dem ersten Akkord">Einzähler</button>
     <div id="beatDots" class="beat-dots" title="Zählzeiten"></div>
   </div>
@@ -358,7 +359,7 @@ const S = { key: 9, scale: 'minor', pos: 1, triad: 'none', set: 'DGB', label: 'n
             prog: [], progIdx: -1, anchor: null,
             sound: true, currentGrip: [], boxMode: 'strict', currentSet: 'DGB',
             bpm: 90, beatsPerMeasure: 4, measuresPerChord: 1, metroOn: false, countIn: true,
-            exercise: null };
+            exercise: null, click: true };
 let metroTimer = null;
 const metro = { nextNote: 0, beat: 0, countInBeats: 0, sched: null };
 
@@ -1150,7 +1151,7 @@ function metroScheduler() {
     const aheadMs = Math.max(0, (t - ac.currentTime) * 1000);
     const m = metro.beat - metro.countInBeats;     // musikalische Zählzeit (negativ = Einzähler)
     const isCountIn = m < 0;
-    clickSound(t, beatInMeasure === 0);
+    if (S.click) clickSound(t, beatInMeasure === 0);
     // Akkordwechsel auf der zugehörigen Zählzeit (nach dem Einzähler)
     if (!isCountIn && S.prog.length && metro.sched) {
       const mm = ((m % metro.sched.total) + metro.sched.total) % metro.sched.total;
@@ -1197,6 +1198,12 @@ function setMeasPerChord(v) { S.measuresPerChord = +v; if (S.metroOn) metro.sche
 function toggleCountIn() {
   S.countIn = !S.countIn;
   document.getElementById('countInBtn').classList.toggle('active', S.countIn);
+}
+function toggleClick() {
+  S.click = !S.click;
+  const b = document.getElementById('clickBtn');
+  b.textContent = S.click ? '🔔 Klick' : '🔕 Klick';
+  b.classList.toggle('active', S.click);
 }
 // Beat-Anzeige
 function renderBeatDots() {
