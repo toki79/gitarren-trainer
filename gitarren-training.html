@@ -241,10 +241,14 @@ select {
         <button onclick="preset('i - VI - III - VII')">i-VI-III-VII</button>
         <button onclick="preset('I IV | V I')" title="Zwei Akkorde im ersten Takt">I IV | V I</button>
       </div>
-      <label style="font-size:0.68rem;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);font-weight:600;margin-top:4px">Übungen</label>
+      <label style="font-size:0.68rem;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);font-weight:600;margin-top:4px">Übungen · Dur-Tonleiter (Stufendreiklänge)</label>
       <div class="btn-row">
         <button class="exercise-btn" onclick="scaleExercise()"
-          title="Dur-Tonleiter als Stufendreiklänge (I ii iii IV V vi vii°), aufsteigend über das Griffbrett">Dur-Tonleiter ↗ I–vii°</button>
+          title="Eine Oktave aufsteigend in einer Lage (gleitende Form übers Griffbrett)">↗ 1 Oktave</button>
+        <button class="exercise-btn" onclick="exerciseScaleOctaves()"
+          title="Dreimal aufsteigend – je einmal in 1. Umkehrung, 2. Umkehrung und Grundstellung">↗ alle Umkehrungen</button>
+        <button class="exercise-btn" onclick="exerciseScaleSets()"
+          title="Gleiche Lage, über alle Saiten-Sets von der tiefen zur hohen Saitengruppe">⇄ alle Saiten</button>
       </div>
     </div>
   </div>
@@ -353,7 +357,8 @@ const ROLE_TXT  = { R:'#fff',    '3':'#04231a', '5':'#fff' };
 const S = { key: 9, scale: 'minor', pos: 1, triad: 'none', set: 'DGB', label: 'names',
             prog: [], progIdx: -1, anchor: null,
             sound: true, currentGrip: [], boxMode: 'strict', currentSet: 'DGB',
-            bpm: 90, beatsPerMeasure: 4, measuresPerChord: 1, metroOn: false, countIn: true };
+            bpm: 90, beatsPerMeasure: 4, measuresPerChord: 1, metroOn: false, countIn: true,
+            exercise: null };
 let metroTimer = null;
 const metro = { nextNote: 0, beat: 0, countInBeats: 0, sched: null };
 
@@ -600,9 +605,32 @@ function computePath() {
   const usedInv = new Set();           // für Umkehrungs-Vielfalt (alle 3 Positionen)
   let prev = null;
   let ascPrevMin = -1;                 // für Aufsteigend-Modus (letzte Lage)
+  let lastForceInv = null;             // Durchgangs-Wechsel im Übungsmodus erkennen
   for (const c of S.prog) {
     if (S.triad === 'none') { c.voice = null; continue; }
     let pick;
+    if (c.forceInv || c.forceSet) {
+      // Übungsmodus: erzwungene Umkehrung (aufsteigender Lauf) bzw. erzwungenes Saiten-Set (feste Lage)
+      const minF = v => Math.min(...v.frets);
+      const sets = c.forceSet ? [c.forceSet] : candidateSets();
+      let cands = sets.flatMap(sk =>
+        allVoicings(c.rootPc, c.third, c.fifth, sk).map(v => ({ ...v, set: sk })));
+      if (c.forceInv) cands = cands.filter(v => v.inv === c.forceInv);
+      if (cands.length) {
+        if (c.forceInv) {                              // aufsteigend in dieser Umkehrung
+          if (c.forceInv !== lastForceInv) { ascPrevMin = -1; lastForceInv = c.forceInv; }  // Durchgang beginnt unten
+          const above = cands.filter(v => minF(v) > ascPrevMin);
+          const pool = above.length ? above : cands;   // oben angekommen → unten neu
+          pick = pool.reduce((a, b) => minF(b) < minF(a) ? b : a);
+          ascPrevMin = minF(pick);
+        } else {                                        // feste Saitengruppe, gleiche Lage
+          pick = pickVoicing(cands, null, center, null);
+        }
+      } else pick = null;
+      c.voice = pick;
+      if (pick) prev = pick.frets;
+      continue;
+    }
     if (S.triad === 'auto' && S.boxMode === 'ascend') {
       // Unabhängig von der Box: das Griffbrett hinauflaufen (links→rechts) – jeweils das
       // nächsthöhere Voicing auf den erlaubten Saiten-Sets. Die Umkehrungen rotieren dabei
@@ -990,6 +1018,7 @@ function setLabel(v) {
 // ─── Progression ──────────────────────────────────────────────────────────────
 function applyProg() {
   const text = document.getElementById('progInput').value;
+  S.exercise = null;                                    // manuelle Eingabe verlässt den Übungsmodus
   S.prog = parseProg(text, S.key, S.scale);
   S.progIdx = S.prog.length ? 0 : -1;
   S.anchor = null;
@@ -1009,17 +1038,50 @@ function preset(text) {
   document.getElementById('progInput').value = text;
   applyProg();
 }
-// Übung: Dur-Tonleiter als Stufendreiklänge, aufsteigend über das Griffbrett
+// Übung 1: Dur-Tonleiter als Stufendreiklänge, eine Oktave aufsteigend (eine Lage/Umkehrung)
 function scaleExercise() {
+  S.exercise = null;
   setScale('major');                                    // Dur-Tonart-Harmonie
   document.getElementById('progInput').value = 'I ii iii IV V vi vii°';
   applyProg();
   setBoxMode('ascend');                                 // entlang des Griffbretts
 }
+
+// Baut eine Übungs-Progression mit erzwungenen Umkehrungen/Saiten-Sets (pure, ohne Render)
+function buildExercise(type) {
+  S.exercise = type;
+  S.scale = 'major';
+  document.getElementById('btn-minor').classList.remove('active');
+  document.getElementById('btn-major').classList.add('active');
+  const base = () => parseProg('I ii iii IV V vi vii°', S.key, 'major');
+  S.prog = [];
+  if (type === 'scaleOct') {                            // 3× aufsteigend, je eine Umkehrung
+    ['inv1', 'inv2', 'root'].forEach(inv =>
+      base().forEach(ch => { ch.forceInv = inv; S.prog.push(ch); }));
+  } else if (type === 'scaleSets') {                    // gleiche Lage, tiefe→hohe Saitengruppe
+    ['EAD', 'ADG', 'DGB', 'GBe'].forEach(set =>
+      base().forEach(ch => { ch.forceSet = set; S.prog.push(ch); }));
+  }
+  S.useBars = false;
+  const mpc = document.getElementById('measPerChord');
+  mpc.disabled = false; mpc.parentElement.style.opacity = 1;
+}
+function startExercise(type) {
+  document.getElementById('progInput').value = 'I ii iii IV V vi vii°';
+  buildExercise(type);
+  S.progIdx = 0; S.anchor = null;
+  if (S.triad === 'none') { S.triad = 'auto'; updateTriadButtons(); }
+  if (S.metroOn) metro.sched = buildBeatSchedule();
+  renderChips();
+  render();
+}
+function exerciseScaleOctaves() { startExercise('scaleOct'); }
+function exerciseScaleSets() { startExercise('scaleSets'); }
+
 function clearProg() {
   stopMetro();
   document.getElementById('progInput').value = '';
-  S.prog = []; S.progIdx = -1; S.anchor = null;
+  S.prog = []; S.progIdx = -1; S.anchor = null; S.exercise = null;
   renderChips();
   render();
 }
@@ -1158,6 +1220,7 @@ function el2(tag, cls) { const e = document.createElement(tag); e.className = cl
 // Tonart/Skala-Wechsel: bestehende Progression in neuer Tonart neu interpretieren
 function reparseProg() {
   if (!S.prog.length) return;
+  if (S.exercise) { buildExercise(S.exercise); renderChips(); return; }  // Übung in neuer Tonart neu aufbauen
   const text = document.getElementById('progInput').value;
   S.prog = parseProg(text, S.key, S.scale);
   if (S.progIdx >= S.prog.length) S.progIdx = S.prog.length - 1;
