@@ -112,6 +112,8 @@ select {
 .presets .btn-row button { font-size: 0.74rem; padding: 5px 9px; font-family: ui-monospace, monospace; }
 .presets .exercise-btn { font-family: inherit; border-color: var(--triad-col); color: var(--triad-col); }
 .presets .exercise-btn:hover { background: rgba(34,197,94,0.12); }
+.presets .blues-btn { font-family: inherit; border-color: var(--root-col); color: var(--root-col); }
+.presets .blues-btn:hover { background: rgba(245,158,11,0.12); }
 .prog-chips { display: flex; flex-wrap: wrap; gap: 8px; min-height: 4px; }
 .chord-chip {
   background: var(--panel2); border: 1.5px solid var(--border); border-radius: 9px;
@@ -253,6 +255,14 @@ select {
           title="Dreimal aufsteigend – je einmal in 1. Umkehrung, 2. Umkehrung und Grundstellung">↗ alle Umkehrungen</button>
         <button class="exercise-btn" onclick="exerciseScaleSets()"
           title="Gleiche Lage, über alle Saiten-Sets von der tiefen zur hohen Saitengruppe">⇄ alle Saiten</button>
+      </div>
+      <label style="font-size:0.68rem;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);font-weight:600;margin-top:4px">Blues-Backing (Shuffle)</label>
+      <div class="btn-row">
+        <button class="blues-btn" onclick="blues12()" title="Klassischer 12-Takt-Blues: I I I I · IV IV I I · V IV I V">12-Takt</button>
+        <button class="blues-btn" onclick="bluesQuick()" title="12-Takt mit Quick Change: IV schon im 2. Takt">Quick Change</button>
+        <button class="blues-btn" onclick="bluesMinor()" title="12-Takt Moll-Blues (z. B. „The Thrill Is Gone“): i i i i · iv iv i i · VI V i V">Moll-Blues</button>
+        <button class="blues-btn" onclick="blues8()" title="8-Takt-Blues (z. B. „Key to the Highway“): I V IV IV · I V I V">8-Takt</button>
+        <button class="blues-btn" onclick="bluesSlow()" title="Langsamer 12-Takt-Blues (Quick Change) bei 60 BPM">🐢 Slow Blues</button>
       </div>
     </div>
   </div>
@@ -1115,6 +1125,29 @@ function startExercise(type) {
 }
 function exerciseScaleOctaves() { startExercise('scaleOct'); }
 function exerciseScaleSets() { startExercise('scaleSets'); }
+
+// ─── Blues-Backing-Presets ───────────────────────────────────────────────────
+// Klassische Blues-Formen als Takt-Notation. Hinweis: die App spielt Dreiklänge
+// (keine Dominantsepten) – als Backing zum Üben von Pentatonik/Triaden gedacht.
+const BLUES_FORMS = {
+  standard: 'I | I | I | I | IV | IV | I | I | V | IV | I | V',
+  quick:    'I | IV | I | I | IV | IV | I | I | V | IV | I | V',
+  minor:    'i | i | i | i | iv | iv | i | i | VI | V | i | V',
+  eight:    'I | V | IV | IV | I | V | I | V'
+};
+function bluesPreset(form, minor, bpm) {
+  setScale(minor ? 'minor' : 'major');       // vor dem Parsen: Stufen beziehen sich auf die Skala
+  setTimeSig('4'); document.getElementById('timeSig').value = '4';
+  setBpm(bpm);
+  document.getElementById('progInput').value = BLUES_FORMS[form];
+  applyProg();
+  setGroove('shuffle');                       // Blues lebt vom Shuffle-Feel
+}
+function blues12()    { bluesPreset('standard', false, 100); }
+function bluesQuick() { bluesPreset('quick',    false, 100); }
+function bluesMinor() { bluesPreset('minor',    true,   80); }
+function blues8()     { bluesPreset('eight',    false, 100); }
+function bluesSlow()  { bluesPreset('quick',    false,  60); }
 
 function clearProg() {
   stopMetro();
