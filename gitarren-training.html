@@ -256,13 +256,12 @@ select {
         <button class="exercise-btn" onclick="exerciseScaleSets()"
           title="Gleiche Lage, über alle Saiten-Sets von der tiefen zur hohen Saitengruppe">⇄ alle Saiten</button>
       </div>
-      <label style="font-size:0.68rem;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);font-weight:600;margin-top:4px">Blues-Backing (Shuffle)</label>
+      <label style="font-size:0.68rem;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);font-weight:600;margin-top:4px">Blues-Backing (Shuffle) · folgt Dur/Moll</label>
       <div class="btn-row">
-        <button class="blues-btn" onclick="blues12()" title="Klassischer 12-Takt-Blues: I I I I · IV IV I I · V IV I V">12-Takt</button>
-        <button class="blues-btn" onclick="bluesQuick()" title="12-Takt mit Quick Change: IV schon im 2. Takt">Quick Change</button>
-        <button class="blues-btn" onclick="bluesMinor()" title="12-Takt Moll-Blues (z. B. „The Thrill Is Gone“): i i i i · iv iv i i · VI V i V">Moll-Blues</button>
+        <button class="blues-btn" onclick="blues12()" title="Klassischer 12-Takt-Blues – Dur: I I I I · IV IV I I · V IV I V / Moll: i i i i · iv iv i i · VI V i V">12-Takt</button>
+        <button class="blues-btn" onclick="bluesQuick()" title="12-Takt mit Quick Change: die IV. Stufe schon im 2. Takt">Quick Change</button>
         <button class="blues-btn" onclick="blues8()" title="8-Takt-Blues (z. B. „Key to the Highway“): I V IV IV · I V I V">8-Takt</button>
-        <button class="blues-btn" onclick="bluesSlow()" title="Langsamer 12-Takt-Blues (Quick Change) bei 60 BPM">🐢 Slow Blues</button>
+        <span class="hint" style="align-self:center">Tempo frei über BPM · Slow Blues ≈ 60</span>
       </div>
     </div>
   </div>
@@ -391,7 +390,7 @@ const S = { key: 9, scale: 'minor', pos: 1, triad: 'none', set: 'DGB', label: 'n
             prog: [], progIdx: -1, anchor: null,
             sound: true, currentGrip: [], boxMode: 'strict', currentSet: 'DGB',
             bpm: 90, beatsPerMeasure: 4, measuresPerChord: 1, metroOn: false, countIn: true,
-            exercise: null, click: true, drums: true, bass: true,
+            exercise: null, bluesForm: null, click: true, drums: true, bass: true,
             groove: 'straight', vol: { click: 1, drums: 1, bass: 1, guitar: 1 } };
 let metroTimer = null;
 const metro = { nextNote: 0, beat: 0, countInBeats: 0, sched: null };
@@ -1063,7 +1062,8 @@ function setLabel(v) {
 // ─── Progression ──────────────────────────────────────────────────────────────
 function applyProg() {
   const text = document.getElementById('progInput').value;
-  S.exercise = null;                                    // manuelle Eingabe verlässt den Übungsmodus
+  S.exercise = null;                                    // manuelle Eingabe verlässt den Übungs-/Blues-Modus
+  S.bluesForm = null;
   S.prog = parseProg(text, S.key, S.scale);
   S.progIdx = S.prog.length ? 0 : -1;
   S.anchor = null;
@@ -1127,27 +1127,28 @@ function exerciseScaleOctaves() { startExercise('scaleOct'); }
 function exerciseScaleSets() { startExercise('scaleSets'); }
 
 // ─── Blues-Backing-Presets ───────────────────────────────────────────────────
-// Klassische Blues-Formen als Takt-Notation. Hinweis: die App spielt Dreiklänge
-// (keine Dominantsepten) – als Backing zum Üben von Pentatonik/Triaden gedacht.
+// Klassische Blues-Formen als Takt-Notation, jeweils in Dur- und Moll-Variante.
+// Welche Variante geladen wird, folgt der gewählten Pentatonik (Dur/Moll).
+// Hinweis: die App spielt Dreiklänge (keine Dominantsepten).
 const BLUES_FORMS = {
-  standard: 'I | I | I | I | IV | IV | I | I | V | IV | I | V',
-  quick:    'I | IV | I | I | IV | IV | I | I | V | IV | I | V',
-  minor:    'i | i | i | i | iv | iv | i | i | VI | V | i | V',
-  eight:    'I | V | IV | IV | I | V | I | V'
+  standard: { major: 'I | I | I | I | IV | IV | I | I | V | IV | I | V',
+              minor: 'i | i | i | i | iv | iv | i | i | VI | V | i | V' },
+  quick:    { major: 'I | IV | I | I | IV | IV | I | I | V | IV | I | V',
+              minor: 'i | iv | i | i | iv | iv | i | i | VI | V | i | V' },
+  eight:    { major: 'I | V | IV | IV | I | V | I | V',
+              minor: 'i | V | iv | iv | i | V | i | V' }
 };
-function bluesPreset(form, minor, bpm) {
-  setScale(minor ? 'minor' : 'major');       // vor dem Parsen: Stufen beziehen sich auf die Skala
-  setTimeSig('4'); document.getElementById('timeSig').value = '4';
-  setBpm(bpm);
-  document.getElementById('progInput').value = BLUES_FORMS[form];
+const bluesVariant = form => BLUES_FORMS[form][S.scale === 'minor' ? 'minor' : 'major'];
+function bluesPreset(form) {
+  setTimeSig('4'); document.getElementById('timeSig').value = '4';   // Blues-Formen sind 4/4
+  document.getElementById('progInput').value = bluesVariant(form);
   applyProg();
+  S.bluesForm = form;                        // nach applyProg setzen (das räumt es auf)
   setGroove('shuffle');                       // Blues lebt vom Shuffle-Feel
 }
-function blues12()    { bluesPreset('standard', false, 100); }
-function bluesQuick() { bluesPreset('quick',    false, 100); }
-function bluesMinor() { bluesPreset('minor',    true,   80); }
-function blues8()     { bluesPreset('eight',    false, 100); }
-function bluesSlow()  { bluesPreset('quick',    false,  60); }
+function blues12()    { bluesPreset('standard'); }
+function bluesQuick() { bluesPreset('quick'); }
+function blues8()     { bluesPreset('eight'); }
 
 function clearProg() {
   stopMetro();
@@ -1411,6 +1412,8 @@ function el2(tag, cls) { const e = document.createElement(tag); e.className = cl
 function reparseProg() {
   if (!S.prog.length) return;
   if (S.exercise) { buildExercise(S.exercise); renderChips(); return; }  // Übung in neuer Tonart neu aufbauen
+  // Blues-Form folgt der Pentatonik: bei Dur/Moll-Wechsel die passende Variante laden
+  if (S.bluesForm) document.getElementById('progInput').value = bluesVariant(S.bluesForm);
   const text = document.getElementById('progInput').value;
   S.prog = parseProg(text, S.key, S.scale);
   if (S.progIdx >= S.prog.length) S.progIdx = S.prog.length - 1;
