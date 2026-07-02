@@ -146,6 +146,10 @@ select {
 .beat-dot.accent.lit { background: var(--root-col); }
 .beat-dot.countin.lit { background: var(--muted); }   /* Einzähler-Takt optisch abgesetzt */
 #countInBtn.active, #clickBtn.active, #drumsBtn.active, #bassBtn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.mixer { display: flex; align-items: center; gap: 12px; margin-left: auto; flex-wrap: wrap; }
+.mix-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); font-weight: 600; }
+.mix-field { display: flex; align-items: center; gap: 4px; font-size: 0.9rem; cursor: default; }
+.mix-field input[type=range] { width: 68px; accent-color: var(--scale-col); }
 @media (max-width: 700px) { .bottom-row, .info-grid { grid-template-columns: 1fr; } }
 </style>
 </head>
@@ -281,6 +285,22 @@ select {
     <div id="beatDots" class="beat-dots" title="Zählzeiten"></div>
   </div>
 
+  <div class="metro-row" style="padding-top:0">
+    <label class="metro-field">Groove
+      <span class="btn-row">
+        <button id="btn-grstraight" class="active" onclick="setGroove('straight')" title="Gerade Achtel">Gerade</button>
+        <button id="btn-grshuffle" onclick="setGroove('shuffle')" title="Triolisches Achtel-Feel (Swing/Blues)">Shuffle</button>
+      </span>
+    </label>
+    <div class="mixer" title="Lautstärke-Balance der Spuren">
+      <span class="mix-label">Mixer</span>
+      <label class="mix-field" title="Metronom-Klick">🔔<input type="range" min="0" max="100" value="100" oninput="setVol('click', this.value)"></label>
+      <label class="mix-field" title="Drums">🥁<input type="range" min="0" max="100" value="100" oninput="setVol('drums', this.value)"></label>
+      <label class="mix-field" title="Bass">🎸<input type="range" min="0" max="100" value="100" oninput="setVol('bass', this.value)"></label>
+      <label class="mix-field" title="Gitarre (Akkorde & angeklickte Töne)">🎼<input type="range" min="0" max="100" value="100" oninput="setVol('guitar', this.value)"></label>
+    </div>
+  </div>
+
   <div class="prog-transport" id="progTransport" style="display:none">
     <button onclick="progStep(-1)" title="Vorheriger Akkord">‹ zurück</button>
     <button onclick="progStep(1)" title="Nächster Akkord">weiter ›</button>
@@ -361,18 +381,25 @@ const S = { key: 9, scale: 'minor', pos: 1, triad: 'none', set: 'DGB', label: 'n
             prog: [], progIdx: -1, anchor: null,
             sound: true, currentGrip: [], boxMode: 'strict', currentSet: 'DGB',
             bpm: 90, beatsPerMeasure: 4, measuresPerChord: 1, metroOn: false, countIn: true,
-            exercise: null, click: true, drums: true, bass: true };
+            exercise: null, click: true, drums: true, bass: true,
+            groove: 'straight', vol: { click: 1, drums: 1, bass: 1, guitar: 1 } };
 let metroTimer = null;
 const metro = { nextNote: 0, beat: 0, countInBeats: 0, sched: null };
 
 // ─── Audio (Web Audio API) ────────────────────────────────────────────────────
 let actx = null, masterGain = null;
+const trackGain = {};                      // Mixer: eigene Lautstärke pro Spur
 function audio() {
   if (!actx) {
     actx = new (window.AudioContext || window.webkitAudioContext)();
     masterGain = actx.createGain();
     masterGain.gain.value = 0.9;
     masterGain.connect(actx.destination);
+    ['click', 'drums', 'bass', 'guitar'].forEach(k => {
+      trackGain[k] = actx.createGain();
+      trackGain[k].gain.value = S.vol[k];
+      trackGain[k].connect(masterGain);
+    });
   }
   if (actx.state === 'suspended') actx.resume();
   return actx;
@@ -385,7 +412,7 @@ function pluck(midi, when = 0, dur = 1.1, gainMul = 1) {
   const t0 = ac.currentTime + when;
   const freq = midiToFreq(midi);
   const out = ac.createGain();
-  out.connect(masterGain);
+  out.connect(trackGain.guitar);
   out.gain.setValueAtTime(0.0001, t0);
   out.gain.exponentialRampToValueAtTime(0.25 * gainMul, t0 + 0.006);
   out.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
@@ -1141,7 +1168,7 @@ function clickSound(time, accent) {
   g.gain.setValueAtTime(0.0001, time);
   g.gain.exponentialRampToValueAtTime(accent ? 0.55 : 0.32, time + 0.001);
   g.gain.exponentialRampToValueAtTime(0.0001, time + 0.045);
-  o.connect(g); g.connect(masterGain);
+  o.connect(g); g.connect(trackGain.click);
   o.start(time); o.stop(time + 0.05);
 }
 // Akkord-Voicing zu absoluter Audio-Zeit anschlagen (mit Aufleuchten)
@@ -1172,7 +1199,7 @@ function kick(t) {
   o.frequency.exponentialRampToValueAtTime(45, t + 0.12);
   g.gain.setValueAtTime(0.8, t);
   g.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
-  o.connect(g); g.connect(masterGain);
+  o.connect(g); g.connect(trackGain.drums);
   o.start(t); o.stop(t + 0.2);
 }
 function snare(t) {
@@ -1182,13 +1209,13 @@ function snare(t) {
   const g = ac.createGain();
   g.gain.setValueAtTime(0.4, t);
   g.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
-  src.connect(hp); hp.connect(g); g.connect(masterGain);
+  src.connect(hp); hp.connect(g); g.connect(trackGain.drums);
   src.start(t); src.stop(t + 0.13);
   const o = ac.createOscillator(); o.type = 'triangle'; o.frequency.value = 190;
   const g2 = ac.createGain();
   g2.gain.setValueAtTime(0.25, t);
   g2.gain.exponentialRampToValueAtTime(0.0001, t + 0.08);
-  o.connect(g2); g2.connect(masterGain);
+  o.connect(g2); g2.connect(trackGain.drums);
   o.start(t); o.stop(t + 0.1);
 }
 function hihat(t, gainMul = 1) {
@@ -1198,7 +1225,7 @@ function hihat(t, gainMul = 1) {
   const g = ac.createGain();
   g.gain.setValueAtTime(0.12 * gainMul, t);
   g.gain.exponentialRampToValueAtTime(0.0001, t + 0.04);
-  src.connect(hp); hp.connect(g); g.connect(masterGain);
+  src.connect(hp); hp.connect(g); g.connect(trackGain.drums);
   src.start(t); src.stop(t + 0.05);
 }
 function bassNote(midi, t, dur) {
@@ -1211,7 +1238,7 @@ function bassNote(midi, t, dur) {
   g.gain.setValueAtTime(0.0001, t);
   g.gain.exponentialRampToValueAtTime(0.45, t + 0.012);
   g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  o.connect(lp); o2.connect(lp); lp.connect(g); g.connect(masterGain);
+  o.connect(lp); o2.connect(lp); lp.connect(g); g.connect(trackGain.bass);
   o.start(t); o.stop(t + dur + 0.05);
   o2.start(t); o2.stop(t + dur + 0.05);
 }
@@ -1224,7 +1251,8 @@ function scheduleDrums(t, beat) {
   if ((KICK_BEATS[S.beatsPerMeasure] || [0]).includes(beat)) kick(t);
   if ((SNARE_BEATS[S.beatsPerMeasure] || []).includes(beat)) snare(t);
   hihat(t, beat === 0 ? 1 : 0.75);
-  hihat(t + spb / 2, 0.5);                     // Achtel-Offbeat
+  // Offbeat-Achtel: gerade = Taktmitte, Shuffle = triolisch (2/3 des Beats)
+  hihat(t + spb * (S.groove === 'shuffle' ? 2 / 3 : 1 / 2), 0.5);
 }
 // Akkord, der auf Zählzeit mm aktiv ist (letzter Start <= mm)
 function chordAtBeat(mm) {
@@ -1317,6 +1345,15 @@ function toggleDrums() {
 function toggleBass() {
   S.bass = !S.bass;
   document.getElementById('bassBtn').classList.toggle('active', S.bass);
+}
+function setGroove(v) {
+  S.groove = v;
+  document.getElementById('btn-grstraight').classList.toggle('active', v === 'straight');
+  document.getElementById('btn-grshuffle').classList.toggle('active', v === 'shuffle');
+}
+function setVol(track, v) {
+  S.vol[track] = v / 100;
+  if (trackGain[track]) trackGain[track].gain.value = S.vol[track];
 }
 // Beat-Anzeige
 function renderBeatDots() {
