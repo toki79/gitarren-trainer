@@ -159,6 +159,8 @@ select {
 #lickLoopBtn.active { background: #22d3ee; border-color: #22d3ee; color: #083344; }
 #trainBtn.active { background: var(--triad-col); border-color: var(--triad-col); color: #04231a; }
 .train-dot { width: 10px; height: 10px; border-radius: 50%; background: #22c55e; animation: recblink 1.2s infinite; flex-shrink: 0; }
+.mic-meter { width: 80px; height: 9px; background: var(--panel2); border: 1px solid var(--border); border-radius: 5px; overflow: hidden; flex-shrink: 0; }
+#micLevel { display: block; height: 100%; width: 0%; background: #6b7280; transition: width 0.06s; }
 .rec-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .rec-dot { width: 10px; height: 10px; border-radius: 50%; background: #dc2626; animation: recblink 1s infinite; flex-shrink: 0; }
 @keyframes recblink { 0%,100% { opacity: 1; } 50% { opacity: 0.25; } }
@@ -379,7 +381,11 @@ select {
   </div>
   <div id="trainRow" class="rec-row" style="display:none">
     <span class="train-dot"></span>
+    <span class="mic-meter" title="Eingangspegel – muss beim Spielen ausschlagen und grün werden"><span id="micLevel"></span></span>
     <span style="font-size:0.85rem">Gehört: <b id="micNote">–</b></span>
+    <label class="mix-field" title="Schwelle: niedriger = empfindlicher (reagiert auf leisere Töne, aber auch auf mehr Nebengeräusche)">
+      🎚<input type="range" min="1" max="30" value="4" oninput="setMicGate(this.value)">
+    </label>
     <span id="trainStatus" class="hint" style="flex:1 1 200px"></span>
     <span class="hint">💡 Einzeltöne sauber anschlagen · Backing über Kopfhörer</span>
   </div>
@@ -453,7 +459,7 @@ const S = { key: 9, scale: 'minor', pos: 1, triad: 'none', set: 'DGB', label: 'n
             exercise: null, bluesForm: null, click: true, drums: true, bass: true,
             groove: 'straight', vol: { click: 1, drums: 1, bass: 1, guitar: 1 },
             licks: [], recording: false, lickRec: [], selectedLick: null, lickLoop: false,
-            trainer: null };
+            trainer: null, micGate: 0.004 };
 let metroTimer = null;
 const metro = { nextNote: 0, beat: 0, countInBeats: 0, sched: null, lickNextBeat: 0 };
 
@@ -1439,11 +1445,11 @@ const heard = { midi: null, frames: 0, silent: 0, lastFired: null };
 
 // Klassische normalisierte Autokorrelation (nach Chris Wilsons PitchDetect).
 // Liefert die Grundfrequenz in Hz oder -1 (zu leise / kein stabiler Ton).
-function autoCorrelate(buf, sampleRate) {
+function autoCorrelate(buf, sampleRate, gate = 0.004) {
   let SIZE = buf.length, rms = 0;
   for (let i = 0; i < SIZE; i++) rms += buf[i] * buf[i];
   rms = Math.sqrt(rms / SIZE);
-  if (rms < 0.015) return -1;                     // Rausch-Schwelle
+  if (rms < gate) return -1;                      // Rausch-Schwelle (einstellbar)
   let r1 = 0, r2 = SIZE - 1;
   const thres = 0.2;
   for (let i = 0; i < SIZE / 2; i++) if (Math.abs(buf[i]) < thres) { r1 = i; break; }
@@ -1468,8 +1474,10 @@ function autoCorrelate(buf, sampleRate) {
 async function startMic() {
   if (micStream) return true;
   try {
+    // AGC an: hebt leise Signale (Amp auf Zimmerlautstärke, Laptop-Mikro) auf nutzbaren Pegel.
+    // EchoCancellation/NoiseSuppression aus: die verstümmeln Instrumentensignale.
     micStream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: true }
     });
   } catch (e) { alert('Mikrofon-Zugriff nicht möglich: ' + e.message); return false; }
   const ac = audio();
@@ -1491,7 +1499,16 @@ function stopMic() {
 function pollPitch() {
   if (!micAnalyser) return;
   micAnalyser.getFloatTimeDomainData(micBuf);
-  const f = autoCorrelate(micBuf, actx.sampleRate);
+  // Live-Pegelmeter: zeigt, ob überhaupt Signal ankommt (Wurzel-Skala für leise Pegel)
+  let rms = 0;
+  for (let i = 0; i < micBuf.length; i++) rms += micBuf[i] * micBuf[i];
+  rms = Math.sqrt(rms / micBuf.length);
+  const lv = document.getElementById('micLevel');
+  if (lv) {
+    lv.style.width = Math.min(100, Math.sqrt(rms) * 300) + '%';
+    lv.style.background = rms >= S.micGate ? '#22c55e' : '#6b7280';   // grün = über der Schwelle
+  }
+  const f = autoCorrelate(micBuf, actx.sampleRate, S.micGate);
   if (f < 0) {
     heard.frames = 0; heard.midi = null; heard.silent++;
     if (heard.silent >= 2) heard.lastFired = null;   // Pause → gleicher Ton darf erneut zählen
@@ -1512,6 +1529,7 @@ function updateMicNote(midi) {
   const el = document.getElementById('micNote');
   if (el) el.textContent = midi == null ? '–' : nn(mod12(midi), S.key) + (Math.floor(midi / 12) - 1);
 }
+function setMicGate(v) { S.micGate = v / 1000; }   // Slider 1–30 → Schwelle 0.001–0.03
 
 // ─── Lick-Trainer: Nachspielen mit Ton-für-Ton-Feedback ─────────────────────
 function trainerTargets() {
