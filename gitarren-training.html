@@ -383,9 +383,10 @@ select {
     <span class="train-dot"></span>
     <span class="mic-meter" title="Eingangspegel – muss beim Spielen ausschlagen und grün werden"><span id="micLevel"></span></span>
     <span style="font-size:0.85rem">Gehört: <b id="micNote">–</b></span>
-    <label class="mix-field" title="Schwelle: niedriger = empfindlicher (reagiert auf leisere Töne, aber auch auf mehr Nebengeräusche)">
-      🎚<input type="range" min="1" max="30" value="4" oninput="setMicGate(this.value)">
+    <label class="mix-field" title="Boost: verstärkt das Mikrofonsignal in der App – erhöhen, bis der Balken beim Spielen grün ausschlägt">
+      🔊<input type="range" min="1" max="40" value="8" oninput="setMicBoost(this.value)">
     </label>
+    <select id="micSelect" onchange="switchMic(this.value)" title="Eingabegerät wählen – falls der Browser das falsche Mikrofon nutzt" style="max-width:170px;font-size:0.75rem"></select>
     <span id="trainStatus" class="hint" style="flex:1 1 200px"></span>
     <span class="hint">💡 Einzeltöne sauber anschlagen · Backing über Kopfhörer</span>
   </div>
@@ -459,7 +460,7 @@ const S = { key: 9, scale: 'minor', pos: 1, triad: 'none', set: 'DGB', label: 'n
             exercise: null, bluesForm: null, click: true, drums: true, bass: true,
             groove: 'straight', vol: { click: 1, drums: 1, bass: 1, guitar: 1 },
             licks: [], recording: false, lickRec: [], selectedLick: null, lickLoop: false,
-            trainer: null, micGate: 0.004 };
+            trainer: null, micGate: 0.004, micBoost: 8 };
 let metroTimer = null;
 const metro = { nextNote: 0, beat: 0, countInBeats: 0, sched: null, lickNextBeat: 0 };
 
@@ -1441,7 +1442,8 @@ function renderLickPanel() {
 
 // ─── Mikrofon & Tonhöhen-Erkennung (monophon, Autokorrelation) ───────────────
 let micStream = null, micAnalyser = null, micTimer = null, micBuf = null;
-const heard = { midi: null, frames: 0, silent: 0, lastFired: null };
+let micSrc = null, micGainNode = null;          // Referenzen halten (GC-Schutz)
+const heard = { midi: null, frames: 0, silent: 0, lastFired: null, everHeard: false, quiet: 0 };
 
 // Klassische normalisierte Autokorrelation (nach Chris Wilsons PitchDetect).
 // Liefert die Grundfrequenz in Hz oder -1 (zu leise / kein stabiler Ton).
@@ -1471,30 +1473,55 @@ function autoCorrelate(buf, sampleRate, gate = 0.004) {
   return (f > 60 && f < 1500) ? f : -1;           // Gitarren-Bereich
 }
 
-async function startMic() {
-  if (micStream) return true;
+async function startMic(deviceId) {
+  stopMic();                                      // ggf. laufenden Stream ersetzen (Gerätewechsel)
   try {
     // AGC an: hebt leise Signale (Amp auf Zimmerlautstärke, Laptop-Mikro) auf nutzbaren Pegel.
     // EchoCancellation/NoiseSuppression aus: die verstümmeln Instrumentensignale.
     micStream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: true }
+      audio: {
+        deviceId: deviceId ? { exact: deviceId } : undefined,
+        echoCancellation: false, noiseSuppression: false, autoGainControl: true
+      }
     });
   } catch (e) { alert('Mikrofon-Zugriff nicht möglich: ' + e.message); return false; }
   const ac = audio();
-  const src = ac.createMediaStreamSource(micStream);
+  micSrc = ac.createMediaStreamSource(micStream);
+  micGainNode = ac.createGain();                  // Software-Boost VOR der Analyse
+  micGainNode.gain.value = S.micBoost;
   micAnalyser = ac.createAnalyser();
   micAnalyser.fftSize = 2048;
   micBuf = new Float32Array(2048);
-  src.connect(micAnalyser);                       // nur analysieren, nicht ausgeben (kein Feedback)
+  micSrc.connect(micGainNode);
+  micGainNode.connect(micAnalyser);               // nur analysieren, nicht ausgeben (kein Feedback)
   heard.midi = null; heard.frames = 0; heard.silent = 0; heard.lastFired = null;
+  heard.everHeard = false; heard.quiet = 0;
   micTimer = setInterval(pollPitch, 50);
+  populateMicDevices();
   return true;
 }
 function stopMic() {
   if (micTimer) clearInterval(micTimer);
   micTimer = null;
   if (micStream) micStream.getTracks().forEach(t => t.stop());
-  micStream = null; micAnalyser = null;
+  micStream = null; micAnalyser = null; micSrc = null; micGainNode = null;
+}
+// Eingabegeräte auflisten (Labels sind nach erteilter Berechtigung verfügbar)
+async function populateMicDevices() {
+  const sel = document.getElementById('micSelect');
+  if (!sel || !navigator.mediaDevices.enumerateDevices) return;
+  try {
+    const devs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'audioinput');
+    const track = micStream && micStream.getAudioTracks()[0];
+    const curId = track && track.getSettings().deviceId;
+    sel.innerHTML = devs.map((d, i) =>
+      `<option value="${d.deviceId}" ${d.deviceId === curId ? 'selected' : ''}>${(d.label || 'Mikrofon ' + (i + 1)).replace(/</g, '&lt;')}</option>`).join('');
+  } catch { /* Geräteliste nicht verfügbar – Dropdown bleibt leer */ }
+}
+function switchMic(id) { startMic(id); }
+function setMicBoost(v) {
+  S.micBoost = +v;
+  if (micGainNode) micGainNode.gain.value = S.micBoost;
 }
 function pollPitch() {
   if (!micAnalyser) return;
@@ -1508,6 +1535,10 @@ function pollPitch() {
     lv.style.width = Math.min(100, Math.sqrt(rms) * 300) + '%';
     lv.style.background = rms >= S.micGate ? '#22c55e' : '#6b7280';   // grün = über der Schwelle
   }
+  // Diagnose: kam seit Start noch NIE ein verwertbarer Pegel an, nach ~5 s Hinweis zeigen
+  if (rms >= S.micGate) heard.everHeard = true;
+  if (S.trainer && !heard.everHeard && ++heard.quiet === 100)
+    setTrainerStatus('Kein Signal: Eingabegerät im Dropdown wechseln, 🔊 Boost erhöhen – oder macOS-Freigabe prüfen (Systemeinstellungen → Datenschutz & Sicherheit → Mikrofon → Browser).');
   const f = autoCorrelate(micBuf, actx.sampleRate, S.micGate);
   if (f < 0) {
     heard.frames = 0; heard.midi = null; heard.silent++;
@@ -1529,7 +1560,6 @@ function updateMicNote(midi) {
   const el = document.getElementById('micNote');
   if (el) el.textContent = midi == null ? '–' : nn(mod12(midi), S.key) + (Math.floor(midi / 12) - 1);
 }
-function setMicGate(v) { S.micGate = v / 1000; }   // Slider 1–30 → Schwelle 0.001–0.03
 
 // ─── Lick-Trainer: Nachspielen mit Ton-für-Ton-Feedback ─────────────────────
 function trainerTargets() {
