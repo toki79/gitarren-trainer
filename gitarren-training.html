@@ -157,6 +157,8 @@ select {
 .lick-head > label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); font-weight: 600; }
 #recBtn.active { background: #dc2626; border-color: #dc2626; color: #fff; }
 #lickLoopBtn.active { background: #22d3ee; border-color: #22d3ee; color: #083344; }
+#trainBtn.active { background: var(--triad-col); border-color: var(--triad-col); color: #04231a; }
+.train-dot { width: 10px; height: 10px; border-radius: 50%; background: #22c55e; animation: recblink 1.2s infinite; flex-shrink: 0; }
 .rec-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .rec-dot { width: 10px; height: 10px; border-radius: 50%; background: #dc2626; animation: recblink 1s infinite; flex-shrink: 0; }
 @keyframes recblink { 0%,100% { opacity: 1; } 50% { opacity: 0.25; } }
@@ -359,6 +361,7 @@ select {
       <button id="recBtn" onclick="toggleRecording()" title="Aufnahme starten – dann Töne am Griffbrett anklicken (alle Bünde klickbar, auch Blue Notes)">● Aufnehmen</button>
       <button onclick="playSelectedLick()" title="Ausgewählten Lick im BPM-Tempo abspielen (mit aufgenommenem Rhythmus)">▶ Lick</button>
       <button id="lickLoopBtn" onclick="toggleLickLoop()" title="Lick taktsynchron zum Metronom/Backing wiederholen – startet mit ▶ Play">🔁 Loop</button>
+      <button id="trainBtn" onclick="toggleTrainer()" title="Nachspielen mit echter Gitarre: Mikrofon hört mit und hakt Ton für Ton ab. Tipp: Backing über Kopfhörer.">🎤 Nachspielen</button>
       <button onclick="exportLicks()" title="Sammlung als JSON-Datei herunterladen (Backup)">⬇ Export</button>
       <button onclick="document.getElementById('lickFile').click()" title="Sammlung aus JSON-Datei laden (wird zur bestehenden hinzugefügt)">⬆ Import</button>
       <input type="file" id="lickFile" accept=".json,application/json" style="display:none"
@@ -373,6 +376,12 @@ select {
            onkeydown="if(event.key==='Enter')saveLick()">
     <button onclick="saveLick()">💾 Speichern</button>
     <button onclick="discardRec()">✖ Verwerfen</button>
+  </div>
+  <div id="trainRow" class="rec-row" style="display:none">
+    <span class="train-dot"></span>
+    <span style="font-size:0.85rem">Gehört: <b id="micNote">–</b></span>
+    <span id="trainStatus" class="hint" style="flex:1 1 200px"></span>
+    <span class="hint">💡 Einzeltöne sauber anschlagen · Backing über Kopfhörer</span>
   </div>
   <div id="lickList" class="lick-list"></div>
 </div>
@@ -443,7 +452,8 @@ const S = { key: 9, scale: 'minor', pos: 1, triad: 'none', set: 'DGB', label: 'n
             bpm: 90, beatsPerMeasure: 4, measuresPerChord: 1, metroOn: false, countIn: true,
             exercise: null, bluesForm: null, click: true, drums: true, bass: true,
             groove: 'straight', vol: { click: 1, drums: 1, bass: 1, guitar: 1 },
-            licks: [], recording: false, lickRec: [], selectedLick: null, lickLoop: false };
+            licks: [], recording: false, lickRec: [], selectedLick: null, lickLoop: false,
+            trainer: null };
 let metroTimer = null;
 const metro = { nextNote: 0, beat: 0, countInBeats: 0, sched: null, lickNextBeat: 0 };
 
@@ -1002,6 +1012,9 @@ function render() {
     }
     lickNotes.forEach((n, i) => {
       const x = fx(n.fret), y = sy(n.s);
+      // Trainer aktiv: aktuellen Zielton grün umranden
+      if (S.trainer && !S.recording && i === S.trainer.idx)
+        svg.appendChild(el('circle', { cx:x, cy:y, r:13, fill:'none', stroke:'#22c55e', 'stroke-width':2.5, 'stroke-dasharray':'4 3' }));
       const c = el('circle', { cx:x, cy:y, r:8.5, fill:'#22d3ee', stroke:'#083344', 'stroke-width':1.5 });
       c.style.cursor = 'pointer';
       c.addEventListener('click', () => {
@@ -1274,7 +1287,7 @@ function transposeLick(lick) {
 
 function toggleRecording() {
   S.recording = !S.recording;
-  if (S.recording) { S.lickRec = []; S.selectedLick = null; }
+  if (S.recording) { S.lickRec = []; S.selectedLick = null; if (S.trainer) stopTrainer(); }
   document.getElementById('recBtn').classList.toggle('active', S.recording);
   document.getElementById('recRow').style.display = S.recording ? 'flex' : 'none';
   updateRecInfo();
@@ -1326,6 +1339,10 @@ function saveLick() {
 }
 function selectLick(id) {
   S.selectedLick = S.selectedLick === id ? null : id;
+  if (S.trainer) {
+    if (!S.selectedLick) { stopTrainer(); }
+    else { S.trainer.idx = 0; S.trainer.hits = 0; S.trainer.misses = 0; setTrainerStatus('Neuer Lick – spiele Ton 1.'); }
+  }
   renderLickPanel();
   render();
 }
@@ -1333,7 +1350,7 @@ function deleteLick(id) {
   const lk = S.licks.find(l => l.id === id);
   if (!lk || !confirm(`Lick „${lk.name}“ wirklich löschen?`)) return;
   S.licks = S.licks.filter(l => l.id !== id);
-  if (S.selectedLick === id) S.selectedLick = null;
+  if (S.selectedLick === id) { S.selectedLick = null; if (S.trainer) stopTrainer(); }
   saveLicks();
   renderLickPanel();
   render();
@@ -1414,6 +1431,143 @@ function renderLickPanel() {
       <button onclick="event.stopPropagation(); deleteLick('${l.id}')" title="Löschen">🗑</button>
     </div>`;
   }).join('');
+}
+
+// ─── Mikrofon & Tonhöhen-Erkennung (monophon, Autokorrelation) ───────────────
+let micStream = null, micAnalyser = null, micTimer = null, micBuf = null;
+const heard = { midi: null, frames: 0, silent: 0, lastFired: null };
+
+// Klassische normalisierte Autokorrelation (nach Chris Wilsons PitchDetect).
+// Liefert die Grundfrequenz in Hz oder -1 (zu leise / kein stabiler Ton).
+function autoCorrelate(buf, sampleRate) {
+  let SIZE = buf.length, rms = 0;
+  for (let i = 0; i < SIZE; i++) rms += buf[i] * buf[i];
+  rms = Math.sqrt(rms / SIZE);
+  if (rms < 0.015) return -1;                     // Rausch-Schwelle
+  let r1 = 0, r2 = SIZE - 1;
+  const thres = 0.2;
+  for (let i = 0; i < SIZE / 2; i++) if (Math.abs(buf[i]) < thres) { r1 = i; break; }
+  for (let i = 1; i < SIZE / 2; i++) if (Math.abs(buf[SIZE - i]) < thres) { r2 = SIZE - i; break; }
+  buf = buf.slice(r1, r2);
+  SIZE = buf.length;
+  const c = new Array(SIZE).fill(0);
+  for (let i = 0; i < SIZE; i++)
+    for (let j = 0; j < SIZE - i; j++) c[i] += buf[j] * buf[j + i];
+  let d = 0; while (c[d] > c[d + 1]) d++;
+  let maxval = -1, maxpos = -1;
+  for (let i = d; i < SIZE; i++) if (c[i] > maxval) { maxval = c[i]; maxpos = i; }
+  let T0 = maxpos;
+  if (T0 <= 0) return -1;
+  const x1 = c[T0 - 1], x2 = c[T0], x3 = c[T0 + 1];
+  const a = (x1 + x3 - 2 * x2) / 2, b = (x3 - x1) / 2;
+  if (a) T0 = T0 - b / (2 * a);                   // parabolische Verfeinerung
+  const f = sampleRate / T0;
+  return (f > 60 && f < 1500) ? f : -1;           // Gitarren-Bereich
+}
+
+async function startMic() {
+  if (micStream) return true;
+  try {
+    micStream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+    });
+  } catch (e) { alert('Mikrofon-Zugriff nicht möglich: ' + e.message); return false; }
+  const ac = audio();
+  const src = ac.createMediaStreamSource(micStream);
+  micAnalyser = ac.createAnalyser();
+  micAnalyser.fftSize = 2048;
+  micBuf = new Float32Array(2048);
+  src.connect(micAnalyser);                       // nur analysieren, nicht ausgeben (kein Feedback)
+  heard.midi = null; heard.frames = 0; heard.silent = 0; heard.lastFired = null;
+  micTimer = setInterval(pollPitch, 50);
+  return true;
+}
+function stopMic() {
+  if (micTimer) clearInterval(micTimer);
+  micTimer = null;
+  if (micStream) micStream.getTracks().forEach(t => t.stop());
+  micStream = null; micAnalyser = null;
+}
+function pollPitch() {
+  if (!micAnalyser) return;
+  micAnalyser.getFloatTimeDomainData(micBuf);
+  const f = autoCorrelate(micBuf, actx.sampleRate);
+  if (f < 0) {
+    heard.frames = 0; heard.midi = null; heard.silent++;
+    if (heard.silent >= 2) heard.lastFired = null;   // Pause → gleicher Ton darf erneut zählen
+    updateMicNote(null);
+    return;
+  }
+  heard.silent = 0;
+  const midi = Math.round(69 + 12 * Math.log2(f / 440));
+  heard.frames = (midi === heard.midi) ? heard.frames + 1 : 1;
+  heard.midi = midi;
+  if (heard.frames >= 2 && heard.lastFired !== midi) {  // 2 stabile Frames = Noten-Event
+    heard.lastFired = midi;
+    trainerHearNote(midi);
+  }
+  updateMicNote(midi);
+}
+function updateMicNote(midi) {
+  const el = document.getElementById('micNote');
+  if (el) el.textContent = midi == null ? '–' : nn(mod12(midi), S.key) + (Math.floor(midi / 12) - 1);
+}
+
+// ─── Lick-Trainer: Nachspielen mit Ton-für-Ton-Feedback ─────────────────────
+function trainerTargets() {
+  const lk = S.licks.find(l => l.id === S.selectedLick);
+  if (!lk) return null;
+  const notes = transposeLick(lk);
+  return notes && notes.map(n => ({ ...n, midi: OPEN_MIDI[n.s] + n.fret }));
+}
+function toggleTrainer() {
+  if (S.trainer) { stopTrainer(); return; }
+  if (!S.selectedLick) { alert('Erst einen Lick auswählen, dann Nachspielen starten.'); return; }
+  startMic().then(ok => {
+    if (!ok) return;
+    S.trainer = { idx: 0, hits: 0, misses: 0 };
+    document.getElementById('trainBtn').classList.add('active');
+    document.getElementById('trainRow').style.display = 'flex';
+    setTrainerStatus('Spiele Ton 1 – der Zielton ist grün umrandet.');
+    render();
+  });
+}
+function stopTrainer() {
+  S.trainer = null;
+  stopMic();
+  const b = document.getElementById('trainBtn');
+  if (b) b.classList.remove('active');
+  const r = document.getElementById('trainRow');
+  if (r) r.style.display = 'none';
+  render();
+}
+function setTrainerStatus(txt) {
+  const el = document.getElementById('trainStatus');
+  if (el) el.textContent = txt;
+}
+function trainerHearNote(midi) {
+  if (!S.trainer) return;
+  const tg = trainerTargets();
+  if (!tg || !tg.length) return;
+  const cur = tg[S.trainer.idx];
+  // Oktav-Toleranz: die Erkennung springt bei Gitarren gern eine Oktave (starke Obertöne)
+  const ok = midi === cur.midi || Math.abs(midi - cur.midi) === 12;
+  if (ok) {
+    S.trainer.hits++;
+    flashAt(cur.s, cur.fret, 0, '#22c55e');
+    S.trainer.idx++;
+    if (S.trainer.idx >= tg.length) {
+      setTrainerStatus(`✔ Geschafft – ${S.trainer.hits} Treffer, ${S.trainer.misses} Fehler. Nochmal von vorn!`);
+      S.trainer.idx = 0; S.trainer.hits = 0; S.trainer.misses = 0;
+    } else {
+      setTrainerStatus(`Richtig! Weiter mit Ton ${S.trainer.idx + 1}/${tg.length}`);
+    }
+    render();
+  } else {
+    S.trainer.misses++;
+    flashAt(cur.s, cur.fret, 0, '#ef4444');
+    setTrainerStatus(`Gehört: ${nn(mod12(midi), S.key)} · erwartet: ${nn(mod12(cur.midi), S.key)} (Ton ${S.trainer.idx + 1}/${tg.length})`);
+  }
 }
 
 function clearProg() {
