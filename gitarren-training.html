@@ -156,6 +156,7 @@ select {
 .lick-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .lick-head > label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); font-weight: 600; }
 #recBtn.active { background: #dc2626; border-color: #dc2626; color: #fff; }
+#lickLoopBtn.active { background: #22d3ee; border-color: #22d3ee; color: #083344; }
 .rec-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .rec-dot { width: 10px; height: 10px; border-radius: 50%; background: #dc2626; animation: recblink 1s infinite; flex-shrink: 0; }
 @keyframes recblink { 0%,100% { opacity: 1; } 50% { opacity: 0.25; } }
@@ -281,7 +282,7 @@ select {
         <button class="exercise-btn" onclick="exerciseScaleSets()"
           title="Gleiche Lage, über alle Saiten-Sets von der tiefen zur hohen Saitengruppe">⇄ alle Saiten</button>
       </div>
-      <label style="font-size:0.68rem;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);font-weight:600;margin-top:4px">Blues-Backing (Shuffle) · folgt Dur/Moll</label>
+      <label style="font-size:0.68rem;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);font-weight:600;margin-top:4px">Blues-Backing · folgt Dur/Moll · Preset aktiviert Shuffle-Groove</label>
       <div class="btn-row">
         <button class="blues-btn" onclick="blues12()" title="Klassischer 12-Takt-Blues – Dur: I I I I · IV IV I I · V IV I V / Moll: i i i i · iv iv i i · VI V i V">12-Takt</button>
         <button class="blues-btn" onclick="bluesQuick()" title="12-Takt mit Quick Change: die IV. Stufe schon im 2. Takt">Quick Change</button>
@@ -356,7 +357,8 @@ select {
     <label>Licks · eigene Sammlung</label>
     <div class="btn-row">
       <button id="recBtn" onclick="toggleRecording()" title="Aufnahme starten – dann Töne am Griffbrett anklicken (alle Bünde klickbar, auch Blue Notes)">● Aufnehmen</button>
-      <button onclick="playSelectedLick()" title="Ausgewählten Lick im BPM-Tempo abspielen (Achtel)">▶ Lick</button>
+      <button onclick="playSelectedLick()" title="Ausgewählten Lick im BPM-Tempo abspielen (mit aufgenommenem Rhythmus)">▶ Lick</button>
+      <button id="lickLoopBtn" onclick="toggleLickLoop()" title="Lick taktsynchron zum Metronom/Backing wiederholen – startet mit ▶ Play">🔁 Loop</button>
       <button onclick="exportLicks()" title="Sammlung als JSON-Datei herunterladen (Backup)">⬇ Export</button>
       <button onclick="document.getElementById('lickFile').click()" title="Sammlung aus JSON-Datei laden (wird zur bestehenden hinzugefügt)">⬆ Import</button>
       <input type="file" id="lickFile" accept=".json,application/json" style="display:none"
@@ -441,9 +443,9 @@ const S = { key: 9, scale: 'minor', pos: 1, triad: 'none', set: 'DGB', label: 'n
             bpm: 90, beatsPerMeasure: 4, measuresPerChord: 1, metroOn: false, countIn: true,
             exercise: null, bluesForm: null, click: true, drums: true, bass: true,
             groove: 'straight', vol: { click: 1, drums: 1, bass: 1, guitar: 1 },
-            licks: [], recording: false, lickRec: [], selectedLick: null };
+            licks: [], recording: false, lickRec: [], selectedLick: null, lickLoop: false };
 let metroTimer = null;
-const metro = { nextNote: 0, beat: 0, countInBeats: 0, sched: null };
+const metro = { nextNote: 0, beat: 0, countInBeats: 0, sched: null, lickNextBeat: 0 };
 
 // ─── Audio (Web Audio API) ────────────────────────────────────────────────────
 let actx = null, masterGain = null;
@@ -1280,10 +1282,25 @@ function toggleRecording() {
   render();
 }
 function recordNote(s, fret) {
-  S.lickRec.push({ s, fret });
+  S.lickRec.push({ s, fret, t: performance.now() });   // Zeitpunkt für Rhythmus-Erkennung
   playNote(OPEN_MIDI[s] + fret, s, fret, '#22d3ee');
   updateRecInfo();
   render();
+}
+
+// Rhythmus aus den Klick-Zeitpunkten ableiten: Abstände relativ zum Median-Abstand,
+// quantisiert auf halbe Einheiten (1 Einheit = 1 Achtel bei der Wiedergabe).
+// Gleichmäßiges Klicken ergibt also durchgehende Achtel; doppelt so lange Pause = Viertel usw.
+function quantizeRec(rec) {
+  if (rec.length < 2) return rec.map(n => ({ s: n.s, fret: n.fret, d: 1 }));
+  const gaps = [];
+  for (let i = 0; i < rec.length - 1; i++) gaps.push(rec[i + 1].t - rec[i].t);
+  const med = gaps.slice().sort((a, b) => a - b)[Math.floor(gaps.length / 2)] || 1;
+  return rec.map((n, i) => {
+    const g = i < gaps.length ? gaps[i] : med;          // letzter Ton: 1 Einheit
+    const d = Math.min(4, Math.max(0.5, Math.round((g / med) * 2) / 2));
+    return { s: n.s, fret: n.fret, d };
+  });
 }
 function undoRecNote() { S.lickRec.pop(); updateRecInfo(); render(); }
 function updateRecInfo() {
@@ -1298,7 +1315,7 @@ function saveLick() {
   S.licks.push({
     id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
     name, key: S.key, scale: S.scale,
-    notes: S.lickRec.slice(),
+    notes: quantizeRec(S.lickRec),
     created: new Date().toISOString()
   });
   if (saveLicks()) {
@@ -1321,18 +1338,30 @@ function deleteLick(id) {
   renderLickPanel();
   render();
 }
+// Lick mit seinen Notenwerten abspielen (1 Einheit = Achtel im aktuellen BPM).
+// delaySec verschiebt den Start (für taktsynchronen Loop). Liefert die Länge in Achteln.
+function playLickAt(lick, delaySec, quiet) {
+  const notes = transposeLick(lick);
+  if (!notes) { if (!quiet) alert('Lick passt in dieser Tonart nicht aufs Griffbrett.'); return 0; }
+  const dt = 60 / S.bpm / 2;
+  let off = 0;
+  notes.forEach((n, i) => {
+    const d = lick.notes[i].d || 1;
+    pluck(OPEN_MIDI[n.s] + n.fret, delaySec + off * dt, Math.max(dt * d * 1.1, 0.3), 0.95);
+    flashAt(n.s, n.fret, (delaySec + off * dt) * 1000, '#22d3ee');
+    off += d;
+  });
+  return off;
+}
 function playLickById(id) {
   const lk = S.licks.find(l => l.id === id);
-  if (!lk) return;
-  const notes = transposeLick(lk);
-  if (!notes) { alert('Lick passt in dieser Tonart nicht aufs Griffbrett.'); return; }
-  const dt = 60 / S.bpm / 2;                  // Achtel im aktuellen Tempo
-  notes.forEach((n, i) => {
-    pluck(OPEN_MIDI[n.s] + n.fret, i * dt, dt * 1.8, 0.95);
-    flashAt(n.s, n.fret, i * dt * 1000, '#22d3ee');
-  });
+  if (lk) playLickAt(lk, 0);
 }
 function playSelectedLick() { if (S.selectedLick) playLickById(S.selectedLick); }
+function toggleLickLoop() {
+  S.lickLoop = !S.lickLoop;
+  document.getElementById('lickLoopBtn').classList.toggle('active', S.lickLoop);
+}
 
 function exportLicks() {
   const blob = new Blob([JSON.stringify(S.licks, null, 2)], { type: 'application/json' });
@@ -1494,7 +1523,7 @@ function hihat(t, gainMul = 1) {
   const src = ac.createBufferSource(); src.buffer = noiseBuf();
   const hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 7000;
   const g = ac.createGain();
-  g.gain.setValueAtTime(0.12 * gainMul, t);
+  g.gain.setValueAtTime(0.22 * gainMul, t);
   g.gain.exponentialRampToValueAtTime(0.0001, t + 0.04);
   src.connect(hp); hp.connect(g); g.connect(trackGain.drums);
   src.start(t); src.stop(t + 0.05);
@@ -1521,9 +1550,11 @@ function scheduleDrums(t, beat) {
   const spb = 60 / S.bpm;
   if ((KICK_BEATS[S.beatsPerMeasure] || [0]).includes(beat)) kick(t);
   if ((SNARE_BEATS[S.beatsPerMeasure] || []).includes(beat)) snare(t);
-  hihat(t, beat === 0 ? 1 : 0.75);
-  // Offbeat-Achtel: gerade = Taktmitte, Shuffle = triolisch (2/3 des Beats)
-  hihat(t + spb * (S.groove === 'shuffle' ? 2 / 3 : 1 / 2), 0.5);
+  hihat(t, beat === 0 ? 1 : 0.8);
+  // Offbeat-Achtel: gerade = Taktmitte, Shuffle = triolisch (2/3 des Beats).
+  // Im Shuffle ist das Offbeat fast so laut wie der Beat – das macht das Feel hörbar.
+  const shuffle = S.groove === 'shuffle';
+  hihat(t + spb * (shuffle ? 2 / 3 : 1 / 2), shuffle ? 0.9 : 0.45);
 }
 // Akkord, der auf Zählzeit mm aktiv ist (letzter Start <= mm)
 function chordAtBeat(mm) {
@@ -1558,6 +1589,15 @@ function metroScheduler() {
     if (!isCountIn) {
       if (S.drums) scheduleDrums(t, beatInMeasure);
       if (S.bass && mm >= 0 && S.prog.length) scheduleBass(t, beatInMeasure, mm);
+      // Lick-Loop: ausgewählten Lick an Taktgrenzen wiederholen (Länge in ganzen Takten)
+      if (S.lickLoop && S.selectedLick && beatInMeasure === 0 && m >= metro.lickNextBeat) {
+        const lk = S.licks.find(l => l.id === S.selectedLick);
+        if (lk) {
+          const total = playLickAt(lk, t - ac.currentTime, true);   // Länge in Achteln
+          const meas = Math.max(1, Math.ceil(total / (S.beatsPerMeasure * 2)));
+          metro.lickNextBeat = m + meas * S.beatsPerMeasure;
+        }
+      }
     }
     // Akkordwechsel auf der zugehörigen Zählzeit (nach dem Einzähler)
     if (mm >= 0 && S.prog.length && mm in metro.sched.starts) {
@@ -1579,6 +1619,7 @@ function startMetro() {
   metro.beat = 0;
   metro.countInBeats = (S.countIn && S.prog.length) ? S.beatsPerMeasure : 0;  // ein Takt Vorzähler
   metro.sched = S.prog.length ? buildBeatSchedule() : null;
+  metro.lickNextBeat = 0;                                                     // Lick-Loop neu starten
   metro.nextNote = audio().currentTime + 0.12;
   if (S.prog.length) { S.progIdx = 0; renderChips(); render(); }
   const b = document.getElementById('metroBtn');
