@@ -148,6 +148,31 @@ select {
 .beat-dot.accent.lit { background: var(--root-col); }
 .beat-dot.countin.lit { background: var(--muted); }   /* Einzähler-Takt optisch abgesetzt */
 #countInBtn.active, #clickBtn.active, #drumsBtn.active, #bassBtn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+/* Licks */
+.lick-bar {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+  padding: 14px 18px; margin-bottom: 16px; display: flex; flex-direction: column; gap: 10px;
+}
+.lick-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.lick-head > label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); font-weight: 600; }
+#recBtn.active { background: #dc2626; border-color: #dc2626; color: #fff; }
+.rec-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.rec-dot { width: 10px; height: 10px; border-radius: 50%; background: #dc2626; animation: recblink 1s infinite; flex-shrink: 0; }
+@keyframes recblink { 0%,100% { opacity: 1; } 50% { opacity: 0.25; } }
+#lickName { flex: 1 1 180px; background: var(--panel2); color: var(--text); border: 1px solid var(--border); padding: 7px 10px; border-radius: 7px; font-size: 0.85rem; }
+#lickName:focus { outline: none; border-color: var(--accent); }
+.lick-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.lick-chip {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--panel2); border: 1.5px solid var(--border); border-radius: 9px;
+  padding: 7px 11px; cursor: pointer; transition: border-color 0.15s, opacity 0.15s;
+}
+.lick-chip:hover { border-color: var(--muted); }
+.lick-chip.active { border-color: #22d3ee; background: rgba(34,211,238,0.1); }
+.lick-chip.dim { opacity: 0.45; }
+.lk-name { font-weight: 600; font-size: 0.85rem; }
+.lk-meta { font-size: 0.7rem; color: var(--muted); }
+.lick-chip button { padding: 3px 7px; font-size: 0.75rem; min-width: 0; }
 .mixer { display: flex; align-items: center; gap: 12px; margin-left: auto; flex-wrap: wrap; }
 .mix-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); font-weight: 600; }
 .mix-field { display: flex; align-items: center; gap: 4px; font-size: 0.9rem; cursor: default; }
@@ -326,6 +351,30 @@ select {
   <svg id="fb" viewBox="0 0 920 235"></svg>
 </div>
 
+<div class="lick-bar">
+  <div class="lick-head">
+    <label>Licks · eigene Sammlung</label>
+    <div class="btn-row">
+      <button id="recBtn" onclick="toggleRecording()" title="Aufnahme starten – dann Töne am Griffbrett anklicken (alle Bünde klickbar, auch Blue Notes)">● Aufnehmen</button>
+      <button onclick="playSelectedLick()" title="Ausgewählten Lick im BPM-Tempo abspielen (Achtel)">▶ Lick</button>
+      <button onclick="exportLicks()" title="Sammlung als JSON-Datei herunterladen (Backup)">⬇ Export</button>
+      <button onclick="document.getElementById('lickFile').click()" title="Sammlung aus JSON-Datei laden (wird zur bestehenden hinzugefügt)">⬆ Import</button>
+      <input type="file" id="lickFile" accept=".json,application/json" style="display:none"
+             onchange="importLicks(this.files[0]); this.value=''">
+    </div>
+  </div>
+  <div id="recRow" class="rec-row" style="display:none">
+    <span class="rec-dot"></span>
+    <span id="recInfo">0 Töne</span>
+    <button onclick="undoRecNote()" title="Letzten Ton entfernen">↩ letzter Ton</button>
+    <input id="lickName" placeholder="Name des Licks (z. B. „Box-1-Turnaround“)"
+           onkeydown="if(event.key==='Enter')saveLick()">
+    <button onclick="saveLick()">💾 Speichern</button>
+    <button onclick="discardRec()">✖ Verwerfen</button>
+  </div>
+  <div id="lickList" class="lick-list"></div>
+</div>
+
 <div class="bottom-row">
   <div class="legend">
     <h3>Pentatonik</h3>
@@ -391,7 +440,8 @@ const S = { key: 9, scale: 'minor', pos: 1, triad: 'none', set: 'DGB', label: 'n
             sound: true, currentGrip: [], boxMode: 'strict', currentSet: 'DGB',
             bpm: 90, beatsPerMeasure: 4, measuresPerChord: 1, metroOn: false, countIn: true,
             exercise: null, bluesForm: null, click: true, drums: true, bass: true,
-            groove: 'straight', vol: { click: 1, drums: 1, bass: 1, guitar: 1 } };
+            groove: 'straight', vol: { click: 1, drums: 1, bass: 1, guitar: 1 },
+            licks: [], recording: false, lickRec: [], selectedLick: null };
 let metroTimer = null;
 const metro = { nextNote: 0, beat: 0, countInBeats: 0, sched: null };
 
@@ -868,12 +918,26 @@ function render() {
   const gripKey = (s, f) => `${s}:${f}`;
   const gripMap = new Map(grip.map(g => [gripKey(g.s, g.fret), g]));
 
-  // Anklickbaren Ton-Punkt erzeugen (spielt beim Klick den Ton + leuchtet auf)
+  // Anklickbaren Ton-Punkt erzeugen (spielt beim Klick den Ton + leuchtet auf;
+  // während der Lick-Aufnahme wird der Ton stattdessen aufgezeichnet)
   function dot(x, y, r, attrs, midi, s, fret, color) {
     const c = el('circle', { cx:x, cy:y, r, ...attrs });
     c.style.cursor = 'pointer';
-    c.addEventListener('click', () => playNote(midi, s, fret, color));
+    c.addEventListener('click', () => {
+      if (S.recording) recordNote(s, fret);
+      else playNote(midi, s, fret, color);
+    });
     svg.appendChild(c);
+  }
+
+  // Lick-Aufnahme: ALLE Positionen klickbar machen (auch außerhalb der Pentatonik,
+  // z. B. für Blue Notes). Skalen-Punkte werden danach oben drauf gezeichnet.
+  if (S.recording) {
+    for (let s = 0; s < 6; s++)
+      for (let f = 0; f <= FRETS; f++)
+        dot(fx(f), sy(s), DR - 2,
+          { fill:'rgba(34,211,238,0.10)', stroke:'rgba(34,211,238,0.25)', 'stroke-width':1 },
+          OPEN_MIDI[s] + f, s, f, '#22d3ee');
   }
 
   // Pentatonik-Punkte
@@ -916,6 +980,38 @@ function render() {
         'text-anchor':'middle', 'dominant-baseline':'middle', style:'user-select:none;pointer-events:none'
       }, txt));
     }
+  }
+
+  // Lick anzeigen: nummerierte Töne mit Verbindungslinie (cyan).
+  // Während der Aufnahme die bisher eingespielten Töne, sonst der ausgewählte Lick.
+  let lickNotes = null;
+  if (S.recording && S.lickRec.length) lickNotes = S.lickRec;
+  else if (!S.recording && S.selectedLick) {
+    const lk = S.licks.find(l => l.id === S.selectedLick);
+    if (lk) lickNotes = transposeLick(lk);
+  }
+  if (lickNotes) {
+    for (let i = 0; i < lickNotes.length - 1; i++) {
+      const a = lickNotes[i], b = lickNotes[i + 1];
+      svg.appendChild(el('line', {
+        x1:fx(a.fret), y1:sy(a.s), x2:fx(b.fret), y2:sy(b.s),
+        stroke:'rgba(34,211,238,0.45)', 'stroke-width':1.5, 'stroke-dasharray':'2 3'
+      }));
+    }
+    lickNotes.forEach((n, i) => {
+      const x = fx(n.fret), y = sy(n.s);
+      const c = el('circle', { cx:x, cy:y, r:8.5, fill:'#22d3ee', stroke:'#083344', 'stroke-width':1.5 });
+      c.style.cursor = 'pointer';
+      c.addEventListener('click', () => {
+        if (S.recording) recordNote(n.s, n.fret);
+        else playNote(OPEN_MIDI[n.s] + n.fret, n.s, n.fret, '#22d3ee');
+      });
+      svg.appendChild(c);
+      svg.appendChild(el('text', {
+        x, y, fill:'#083344', 'font-size':8.5, 'font-weight':'bold',
+        'text-anchor':'middle', 'dominant-baseline':'middle', style:'user-select:none;pointer-events:none'
+      }, String(i + 1)));
+    });
   }
 
   S.currentGrip = grip;
@@ -1016,6 +1112,7 @@ function setScale(v) {
   S.anchor = null;
   updateExerciseLabel();
   reparseProg();
+  renderLickPanel();
   render();
 }
 function updateExerciseLabel() {
@@ -1149,6 +1246,146 @@ function bluesPreset(form) {
 function blues12()    { bluesPreset('standard'); }
 function bluesQuick() { bluesPreset('quick'); }
 function blues8()     { bluesPreset('eight'); }
+
+// ─── Licks: eigene Sammlung (localStorage + Export/Import) ───────────────────
+const LICK_KEY = 'gitarrenTraining.licks';
+function loadLicks() {
+  try { S.licks = JSON.parse(localStorage.getItem(LICK_KEY)) || []; }
+  catch { S.licks = []; }
+  if (!Array.isArray(S.licks)) S.licks = [];
+}
+function saveLicks() {
+  try { localStorage.setItem(LICK_KEY, JSON.stringify(S.licks)); return true; }
+  catch (e) { alert('Speichern fehlgeschlagen: ' + e.message + '\nNutze ⬇ Export als Sicherung.'); return false; }
+}
+
+// Lick in die aktuelle Tonart transponieren (kleinstmögliche Verschiebung, in Bund 0–15 gehalten)
+function transposeLick(lick) {
+  let d = ((S.key - lick.key) % 12 + 12) % 12;
+  if (d > 6) d -= 12;
+  let notes = lick.notes.map(n => ({ s: n.s, fret: n.fret + d }));
+  while (notes.some(n => n.fret < 0))  notes = notes.map(n => ({ s: n.s, fret: n.fret + 12 }));
+  while (notes.some(n => n.fret > FRETS)) notes = notes.map(n => ({ s: n.s, fret: n.fret - 12 }));
+  if (notes.some(n => n.fret < 0 || n.fret > FRETS)) return null;   // passt nicht aufs Brett
+  return notes;
+}
+
+function toggleRecording() {
+  S.recording = !S.recording;
+  if (S.recording) { S.lickRec = []; S.selectedLick = null; }
+  document.getElementById('recBtn').classList.toggle('active', S.recording);
+  document.getElementById('recRow').style.display = S.recording ? 'flex' : 'none';
+  updateRecInfo();
+  renderLickPanel();
+  render();
+}
+function recordNote(s, fret) {
+  S.lickRec.push({ s, fret });
+  playNote(OPEN_MIDI[s] + fret, s, fret, '#22d3ee');
+  updateRecInfo();
+  render();
+}
+function undoRecNote() { S.lickRec.pop(); updateRecInfo(); render(); }
+function updateRecInfo() {
+  const el = document.getElementById('recInfo');
+  if (el) el.textContent = S.lickRec.length + (S.lickRec.length === 1 ? ' Ton' : ' Töne');
+}
+function discardRec() { S.lickRec = []; if (S.recording) toggleRecording(); }
+function saveLick() {
+  if (!S.lickRec.length) { alert('Noch keine Töne aufgenommen – klicke Töne am Griffbrett an.'); return; }
+  const name = (document.getElementById('lickName').value || '').trim()
+    || 'Lick ' + (S.licks.length + 1);
+  S.licks.push({
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    name, key: S.key, scale: S.scale,
+    notes: S.lickRec.slice(),
+    created: new Date().toISOString()
+  });
+  if (saveLicks()) {
+    document.getElementById('lickName').value = '';
+    S.selectedLick = S.licks[S.licks.length - 1].id;
+    toggleRecording();                        // beendet Aufnahme, rendert Panel + Brett
+  }
+}
+function selectLick(id) {
+  S.selectedLick = S.selectedLick === id ? null : id;
+  renderLickPanel();
+  render();
+}
+function deleteLick(id) {
+  const lk = S.licks.find(l => l.id === id);
+  if (!lk || !confirm(`Lick „${lk.name}“ wirklich löschen?`)) return;
+  S.licks = S.licks.filter(l => l.id !== id);
+  if (S.selectedLick === id) S.selectedLick = null;
+  saveLicks();
+  renderLickPanel();
+  render();
+}
+function playLickById(id) {
+  const lk = S.licks.find(l => l.id === id);
+  if (!lk) return;
+  const notes = transposeLick(lk);
+  if (!notes) { alert('Lick passt in dieser Tonart nicht aufs Griffbrett.'); return; }
+  const dt = 60 / S.bpm / 2;                  // Achtel im aktuellen Tempo
+  notes.forEach((n, i) => {
+    pluck(OPEN_MIDI[n.s] + n.fret, i * dt, dt * 1.8, 0.95);
+    flashAt(n.s, n.fret, i * dt * 1000, '#22d3ee');
+  });
+}
+function playSelectedLick() { if (S.selectedLick) playLickById(S.selectedLick); }
+
+function exportLicks() {
+  const blob = new Blob([JSON.stringify(S.licks, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'gitarren-licks.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function importLicks(file) {
+  if (!file) return;
+  const rd = new FileReader();
+  rd.onload = () => {
+    try {
+      const arr = JSON.parse(rd.result);
+      if (!Array.isArray(arr)) throw new Error('kein Lick-Array');
+      const valid = arr.filter(l => l && Array.isArray(l.notes) && l.notes.length &&
+        l.notes.every(n => Number.isInteger(n.s) && n.s >= 0 && n.s <= 5 && Number.isInteger(n.fret)));
+      const existing = new Set(S.licks.map(l => l.id));
+      let added = 0;
+      for (const l of valid) {
+        if (existing.has(l.id)) continue;      // Duplikate (gleiche id) überspringen
+        S.licks.push({ ...l, key: mod12(l.key || 0), scale: l.scale === 'major' ? 'major' : 'minor' });
+        added++;
+      }
+      saveLicks();
+      renderLickPanel();
+      alert(`${added} Lick(s) importiert (${valid.length - added} übersprungen).`);
+    } catch (e) { alert('Import fehlgeschlagen: ' + e.message); }
+  };
+  rd.readAsText(file);
+}
+
+function renderLickPanel() {
+  const box = document.getElementById('lickList');
+  if (!S.licks.length) {
+    box.innerHTML = '<span class="prog-empty">Noch keine Licks – klicke „● Aufnehmen“ und spiele den Lick durch Klicken am Griffbrett ein. Gespeicherte Licks werden automatisch in die gewählte Tonart transponiert.</span>';
+    return;
+  }
+  box.innerHTML = S.licks.map(l => {
+    const match = l.scale === S.scale;
+    return `<div class="lick-chip ${S.selectedLick === l.id ? 'active' : ''} ${match ? '' : 'dim'}"
+                 onclick="selectLick('${l.id}')"
+                 title="${match ? 'Passt zur gewählten Pentatonik' : 'Anderes Tongeschlecht (' + (l.scale === 'minor' ? 'Moll' : 'Dur') + ')'}">
+      <div>
+        <div class="lk-name">${l.name.replace(/</g, '&lt;')}</div>
+        <div class="lk-meta">${l.scale === 'minor' ? 'Moll' : 'Dur'} · ${l.notes.length} Töne · aus ${nn(l.key, l.key)}</div>
+      </div>
+      <button onclick="event.stopPropagation(); playLickById('${l.id}')" title="Abspielen">▶</button>
+      <button onclick="event.stopPropagation(); deleteLick('${l.id}')" title="Löschen">🗑</button>
+    </div>`;
+  }).join('');
+}
 
 function clearProg() {
   stopMetro();
@@ -1432,6 +1669,8 @@ function reparseProg() {
   document.getElementById('setCtrl').classList.add('disabled');
   renderBeatDots();
   updateExerciseLabel();
+  loadLicks();
+  renderLickPanel();
   render();
 })();
 </script>
