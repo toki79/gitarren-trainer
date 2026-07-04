@@ -167,8 +167,11 @@ select {
 #lickName { flex: 1 1 180px; background: var(--panel2); color: var(--text); border: 1px solid var(--border); padding: 7px 10px; border-radius: 7px; font-size: 0.85rem; }
 #lickName:focus { outline: none; border-color: var(--accent); }
 .lick-list { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; }
-.lib-label { width: 100%; font-size: 0.66rem; text-transform: uppercase; letter-spacing: 1.2px; color: var(--muted); font-weight: 600; margin: 2px 0; }
+.lib-label { width: 100%; display: flex; align-items: center; gap: 10px; font-size: 0.66rem; text-transform: uppercase; letter-spacing: 1.2px; color: var(--muted); font-weight: 600; margin: 2px 0; }
+.lib-cat { width: 100%; font-size: 0.72rem; color: var(--scale-col); font-weight: 600; margin: 6px 0 1px; }
 .lick-chip.lib { border-color: rgba(34,211,238,0.4); }
+button.mini { padding: 2px 8px; font-size: 0.68rem; min-width: 0; text-transform: none; letter-spacing: 0; }
+button.mini.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 .lick-chip {
   display: flex; align-items: center; gap: 8px;
   background: var(--panel2); border: 1.5px solid var(--border); border-radius: 9px;
@@ -486,7 +489,8 @@ const S = { key: 9, scale: 'minor', pos: 1, triad: 'none', set: 'DGB', label: 'n
             exercise: null, bluesForm: null, click: true, drums: true, bass: true,
             groove: 'straight', tripletFeel: false, vol: { click: 1, drums: 1, bass: 1, guitar: 1 },
             licks: [], recording: false, lickRec: [], selectedLick: null, lickLoop: false,
-            trainer: null, micGate: 0.004, micBoost: 8, blue: false, blueArrows: false };
+            trainer: null, micGate: 0.004, micBoost: 8, blue: false, blueArrows: false,
+            lickOnlyMatch: true };
 let metroTimer = null;
 const metro = { nextNote: 0, beat: 0, countInBeats: 0, sched: null, lickNextBeat: 0 };
 
@@ -1227,6 +1231,7 @@ function setPos(v) {
   S.anchor = null;
   document.querySelectorAll('#posBtns button').forEach(b => b.classList.toggle('active', +b.dataset.pos === v));
   renderChips();
+  renderLickPanel();     // Box-Filter der Lick-Bibliothek aktualisieren
   render();
 }
 function updateTriadButtons() {
@@ -1361,24 +1366,48 @@ function blues12()    { bluesPreset('standard'); }
 function bluesQuick() { bluesPreset('quick'); }
 function blues8()     { bluesPreset('eight'); }
 
-// ─── Lick-Bibliothek: gängige Phrasen mit Rhythmus (Notenwerte in Achteln) ──
-// Referenz A (key 9), Box 1. Moll-Penta-Box liegt bei Bund 5–8, Dur-Penta-Box bei 2–5.
-// notes: {s:Saite (0=hohe e … 5=tiefe E), fret, d:Dauer in Achteln}. Werden transponiert
-// und beim Abspielen dem Groove folgend geswingt.
+// ─── Lick-Bibliothek: gängige Phrasen mit Rhythmus, Box- und Kategorie-Tag ──
+// Referenz A (key 9). notes: [Saite (0=hohe e … 5=tiefe E), fret, Dauer in Achteln].
+// box = Pentatonik-Box, in der der Lick liegt; cat = Kategorie. Werden in die Tonart
+// transponiert und beim Abspielen dem Groove folgend geswingt.
+const _lk = (id, name, scale, box, cat, notes) =>
+  ({ id, name, scale, box, cat, key: 9, builtin: true, notes: notes.map(([s, fret, d]) => ({ s, fret, d })) });
 const BUILTIN_LICKS = [
-  { id: 'lib-m1', name: 'Moll-Abwärtslauf', key: 9, scale: 'minor', builtin: true,
-    notes: [[0,8,1],[0,5,1],[1,8,1],[1,5,1],[2,7,1],[2,5,1],[3,7,1],[3,5,1]].map(([s,fret,d])=>({s,fret,d})) },
-  { id: 'lib-m2', name: '♭5-Blues-Lick', key: 9, scale: 'minor', builtin: true,
-    notes: [[2,7,1],[2,5,1],[4,7,1],[4,6,1],[4,5,1],[5,5,3]].map(([s,fret,d])=>({s,fret,d})) },
-  { id: 'lib-m3', name: 'Moll-Aufwärts-Frage', key: 9, scale: 'minor', builtin: true,
-    notes: [[5,5,1],[5,8,1],[4,5,1],[4,7,1],[3,5,1],[3,7,1],[2,5,1],[2,7,1]].map(([s,fret,d])=>({s,fret,d})) },
-  { id: 'lib-m4', name: 'Call & Response (2 Takte)', key: 9, scale: 'minor', builtin: true,
-    notes: [[3,7,1],[3,5,1],[4,7,2],[2,5,1],[2,7,1],[3,5,2],
-            [4,7,1],[4,6,1],[4,5,1],[2,5,1],[5,5,4]].map(([s,fret,d])=>({s,fret,d})) },
-  { id: 'lib-d1', name: 'Dur-Aufwärtslauf', key: 9, scale: 'major', builtin: true,
-    notes: [[5,2,1],[5,5,1],[4,2,1],[4,4,1],[3,2,1],[3,4,1],[2,2,1],[2,4,1]].map(([s,fret,d])=>({s,fret,d})) },
-  { id: 'lib-d2', name: 'Dur-Lick mit Auflösung', key: 9, scale: 'major', builtin: true,
-    notes: [[2,4,1],[2,2,1],[3,4,1],[3,2,1],[4,4,2],[4,2,1],[5,5,1]].map(([s,fret,d])=>({s,fret,d})) }
+  // ── Läufe & Sequenzen ──
+  _lk('m-b1-seqdn', 'Abwärts-Sequenz (4er)', 'minor', 1, 'Läufe & Sequenzen',
+    [[0,8,1],[0,5,1],[1,8,1],[1,5,1],[0,5,1],[1,8,1],[1,5,1],[2,7,1],[1,8,1],[1,5,1],[2,7,1],[2,5,1],[1,5,1],[2,7,1],[2,5,1],[3,7,1]]),
+  _lk('m-b1-asc', 'Aufwärts-Sequenz (3er)', 'minor', 1, 'Läufe & Sequenzen',
+    [[5,5,1],[5,8,1],[4,5,1],[5,8,1],[4,5,1],[4,7,1],[3,5,1],[3,7,1]]),
+  _lk('m-b2-run', 'Box-2-Lauf abwärts', 'minor', 2, 'Läufe & Sequenzen',
+    [[0,10,1],[0,8,1],[1,10,1],[1,8,1],[2,9,1],[2,7,1],[3,10,1],[3,7,1]]),
+  _lk('m-b3-run', 'Box-3-Lauf', 'minor', 3, 'Läufe & Sequenzen',
+    [[0,12,1],[0,10,1],[1,10,1],[2,12,1],[2,9,1],[3,10,1],[4,10,1],[4,12,1]]),
+  _lk('m-b4-run', 'Box-4-Lauf', 'minor', 4, 'Läufe & Sequenzen',
+    [[0,15,1],[0,12,1],[1,15,1],[1,13,1],[2,14,1],[2,12,1],[3,14,1],[4,12,1]]),
+  _lk('m-b5-run', 'Box-5-Lauf', 'minor', 5, 'Läufe & Sequenzen',
+    [[0,5,1],[0,3,1],[1,5,1],[1,3,1],[2,5,1],[2,2,1],[3,5,1],[3,2,1]]),
+  _lk('d-b1-run', 'Dur-Lauf aufwärts', 'major', 1, 'Läufe & Sequenzen',
+    [[5,2,1],[5,5,1],[4,2,1],[4,4,1],[3,2,1],[3,4,1],[2,2,1],[2,4,1]]),
+  // ── Blues-Licks & Blue Notes ──
+  _lk('m-b1-blue1', '♭5-Anlauf zur 5', 'minor', 1, 'Blues-Licks & Blue Notes',
+    [[3,7,1],[2,5,1],[2,7,1],[4,6,1],[4,7,2],[3,5,1],[5,5,1]]),
+  _lk('m-b1-blue2', 'Synkopierte Blues-Frage', 'minor', 1, 'Blues-Licks & Blue Notes',
+    [[3,5,1],[3,7,1.5],[2,5,0.5],[2,7,1],[4,6,1],[4,7,3]]),
+  _lk('m-b2-blue', 'Box-2 durch die ♭5', 'minor', 2, 'Blues-Licks & Blue Notes',
+    [[4,7,1],[3,7,1],[2,7,1],[2,8,1],[2,9,2],[1,8,2]]),
+  _lk('m-b3-blue', 'Box-3 Blue Note oben', 'minor', 3, 'Blues-Licks & Blue Notes',
+    [[2,9,1],[3,10,1],[0,11,1],[0,12,2],[0,10,1],[1,10,2]]),
+  _lk('d-b1-maj3', 'Dur-Blues ♭3→3', 'major', 1, 'Blues-Licks & Blue Notes',
+    [[4,2,1],[4,3,0.5],[4,4,0.5],[3,4,1],[2,2,1],[2,4,1],[3,2,3]]),
+  // ── Phrasen (BB-Box) ──
+  _lk('m-b2-bb', 'BB-Box Money-Note', 'minor', 2, 'Phrasen (BB-Box)',
+    [[1,8,1],[1,10,1],[0,8,2],[1,10,1],[1,8,1],[2,9,2]]),
+  _lk('m-b1-call', 'Call & Response (2 Takte)', 'minor', 1, 'Phrasen (BB-Box)',
+    [[3,7,1],[3,5,1],[4,7,2],[2,5,1],[2,7,1],[3,5,2],[4,7,1],[4,6,1],[4,5,1],[2,5,1],[5,5,4]]),
+  _lk('m-b1-repeat', 'Repeating-Lick (Sequenz)', 'minor', 1, 'Phrasen (BB-Box)',
+    [[0,8,1],[0,5,1],[1,8,1],[1,5,1],[0,8,1],[0,5,1],[1,8,1],[1,5,1]]),
+  _lk('d-b1-country', 'Dur-Lick mit Auflösung', 'major', 1, 'Phrasen (BB-Box)',
+    [[2,4,1],[2,2,1],[3,4,1],[3,2,1],[4,4,2],[4,2,1],[5,5,1]])
 ];
 function findLick(id) {
   return S.licks.find(l => l.id === id) || BUILTIN_LICKS.find(l => l.id === id) || null;
@@ -1545,15 +1574,21 @@ function importLicks(file) {
   rd.readAsText(file);
 }
 
+// Passt der Lick zur aktuellen Auswahl? (Tongeschlecht immer, Box nur bei Bibliotheks-Licks)
+function lickMatches(l, lib) {
+  return l.scale === S.scale && (!lib || S.pos === 0 || l.box === S.pos);
+}
 function lickChip(l, lib) {
-  const match = l.scale === S.scale;
-  const beats = l.notes.reduce((a, n) => a + (n.d || 1), 0) / 2;   // Länge in Vierteln
+  const match = lickMatches(l, lib);
+  const beats = +(l.notes.reduce((a, n) => a + (n.d || 1), 0) / 2).toFixed(1);   // Länge in Vierteln
+  const badge = lib ? `Box ${l.box} · ` : '';
+  const title = match ? 'Passt zur aktuellen Auswahl' :
+    (l.scale !== S.scale ? 'Anderes Tongeschlecht (' + (l.scale === 'minor' ? 'Moll' : 'Dur') + ')' : 'Andere Box – umschalten oder „alle Boxen“');
   return `<div class="lick-chip ${lib ? 'lib' : ''} ${S.selectedLick === l.id ? 'active' : ''} ${match ? '' : 'dim'}"
-               onclick="selectLick('${l.id}')"
-               title="${match ? 'Passt zur gewählten Pentatonik' : 'Anderes Tongeschlecht (' + (l.scale === 'minor' ? 'Moll' : 'Dur') + ')'}">
+               onclick="selectLick('${l.id}')" title="${title}">
     <div>
       <div class="lk-name">${l.name.replace(/</g, '&lt;')}</div>
-      <div class="lk-meta">${l.scale === 'minor' ? 'Moll' : 'Dur'} · ${l.notes.length} Töne · ${(+beats.toFixed(1))} Schläge</div>
+      <div class="lk-meta">${badge}${l.scale === 'minor' ? 'Moll' : 'Dur'} · ${beats} Schläge</div>
     </div>
     <button onclick="event.stopPropagation(); playLickById('${l.id}')" title="Abspielen (folgt Groove & Tempo)">▶</button>
     ${lib
@@ -1561,12 +1596,23 @@ function lickChip(l, lib) {
       : `<button onclick="event.stopPropagation(); deleteLick('${l.id}')" title="Löschen">🗑</button>`}
   </div>`;
 }
+function toggleLickFilter() { S.lickOnlyMatch = !S.lickOnlyMatch; renderLickPanel(); }
 function renderLickPanel() {
-  document.getElementById('lickLib').innerHTML =
-    '<div class="lib-label">Bibliothek · gängige Licks (transponiert in die Tonart, folgt Groove & Tempo)</div>' +
-    BUILTIN_LICKS.map(l => lickChip(l, true)).join('');
-  const box = document.getElementById('lickList');
-  box.innerHTML = '<div class="lib-label">Eigene Sammlung</div>' + (S.licks.length
+  const boxTxt = S.pos === 0 ? 'alle Boxen' : 'Box ' + S.pos;
+  let html = `<div class="lib-label">Bibliothek · gängige Licks
+    <button class="mini ${S.lickOnlyMatch ? 'active' : ''}" onclick="toggleLickFilter()"
+      title="Nur Licks zeigen, die zur gewählten Pentatonik und Box passen">${S.lickOnlyMatch ? '🔎 nur ' + boxTxt + ' / ' + (S.scale === 'minor' ? 'Moll' : 'Dur') : 'alle anzeigen'}</button></div>`;
+  const cats = [...new Set(BUILTIN_LICKS.map(l => l.cat))];
+  let shownAny = false;
+  for (const cat of cats) {
+    const lst = BUILTIN_LICKS.filter(l => l.cat === cat && (!S.lickOnlyMatch || lickMatches(l, true)));
+    if (!lst.length) continue;
+    shownAny = true;
+    html += `<div class="lib-cat">${cat}</div>` + lst.map(l => lickChip(l, true)).join('');
+  }
+  if (!shownAny) html += `<span class="prog-empty">Keine Bibliotheks-Licks für ${boxTxt} · ${S.scale === 'minor' ? 'Moll' : 'Dur'}. Schalte die Box um oder klicke „alle anzeigen“.</span>`;
+  document.getElementById('lickLib').innerHTML = html;
+  document.getElementById('lickList').innerHTML = '<div class="lib-label">Eigene Sammlung</div>' + (S.licks.length
     ? S.licks.map(l => lickChip(l, false)).join('')
     : '<span class="prog-empty">Noch keine eigenen Licks – „● Aufnehmen“ und am Griffbrett einspielen, oder ein Bibliotheks-Lick mit ＋ kopieren.</span>');
 }
