@@ -247,6 +247,14 @@ select {
   </div>
 
   <div class="ctrl">
+    <label>Blue Notes (Spannung)</label>
+    <div class="btn-row">
+      <button id="btn-blue" onclick="toggleBlue()" title="Blues-Skala: ♭5 (Moll) bzw. ♭3 (Dur) zusätzlich zur Pentatonik anzeigen – die Spannungstöne zum Ausbrechen aus den Triaden">♦ Blues-Skala</button>
+      <button id="btn-bluearr" onclick="toggleBlueArrows()" title="Auflösungs-Pfeile: zeigen, wohin sich der Blue Note auflöst (½ Ton hoch/runter zum stabilen Ton)">→ Auflösung</button>
+    </div>
+  </div>
+
+  <div class="ctrl">
     <label>Klang</label>
     <div class="btn-row">
       <button id="btn-sound" class="active" onclick="toggleSound()">🔊 An</button>
@@ -391,6 +399,7 @@ select {
       <button id="tr-find" onclick="startTrainerMode('find')" title="Griffbrett-Kenntnis: die App nennt einen Ton, du findest ihn – beliebige Lage und Oktave">🔎 Ton finden</button>
       <button id="tr-call" onclick="startTrainerMode('call')" title="Gehörtraining: die App spielt eine kurze Phrase aus der Box vor, du spielst sie nach Gehör nach">👂 Call & Response</button>
       <button id="tr-lick" onclick="startTrainerMode('lick')" title="Den ausgewählten Lick nachspielen – Ton für Ton abgehakt">🎵 Lick nachspielen</button>
+      <button id="tr-target" onclick="startTrainerMode('target')" title="Spannung & Auflösung: über dem Backing frei spielen (Blue Notes erlaubt), aber auf jede Eins einen Akkordton landen – die App prüft es. Backing (▶ Play) muss laufen.">🎯 Zielton auf die 1</button>
       <button onclick="stopTrainer()" title="Trainer beenden, Mikrofon aus">■ Stop</button>
     </div>
   </div>
@@ -474,7 +483,7 @@ const S = { key: 9, scale: 'minor', pos: 1, triad: 'none', set: 'DGB', label: 'n
             exercise: null, bluesForm: null, click: true, drums: true, bass: true,
             groove: 'straight', tripletFeel: false, vol: { click: 1, drums: 1, bass: 1, guitar: 1 },
             licks: [], recording: false, lickRec: [], selectedLick: null, lickLoop: false,
-            trainer: null, micGate: 0.004, micBoost: 8 };
+            trainer: null, micGate: 0.004, micBoost: 8, blue: false, blueArrows: false };
 let metroTimer = null;
 const metro = { nextNote: 0, beat: 0, countInBeats: 0, sched: null, lickNextBeat: 0 };
 
@@ -597,6 +606,10 @@ const mod12 = n => ((n % 12) + 12) % 12;
 const nn = (pc, key) => (USE_FLAT[mod12(key)] ? FLAT : SHARP)[mod12(pc)];
 const scaleSet = (key, scale) => PENTA[scale].map(i => mod12(key + i));
 const triadSet = (key, scale) => [0, THIRD[scale], 7].map(i => mod12(key + i));
+// Blue Note: Moll-Pentatonik → ♭5 (Blues-Skala), Dur-Pentatonik → ♭3 (Dur-Blues)
+const blueNotePc = () => mod12(S.key + (S.scale === 'minor' ? 6 : 3));
+const blueNoteLabel = () => (S.scale === 'minor' ? '♭5' : '♭3');
+const BLUE_COL = '#ec4899';
 
 // Grundton-Bund auf tiefer E-Saite. Bei Dur-Pentatonik nutzen wir die
 // Geometrie der parallelen Moll-Box (relatives Moll = Tonart - 3 HT).
@@ -962,6 +975,24 @@ function render() {
     });
     svg.appendChild(c);
   }
+  // Blue Note als Raute (klar von den Skalen-/Triaden-Kreisen unterscheidbar)
+  function blueDiamond(x, y, midi, s, fret) {
+    const p = el('polygon', { points:`${x},${y-DR} ${x+DR},${y} ${x},${y+DR} ${x-DR},${y}`,
+      fill:BLUE_COL, stroke:'rgba(255,255,255,0.35)', 'stroke-width':1.5 });
+    p.style.cursor = 'pointer';
+    p.addEventListener('click', () => {
+      if (S.recording) recordNote(s, fret);
+      else playNote(midi, s, fret, BLUE_COL);
+    });
+    svg.appendChild(p);
+  }
+  // Auflösungs-Pfeil auf derselben Saite (½ Ton zum benachbarten stabilen Ton)
+  function blueArrow(fromFret, toFret, s) {
+    const y = sy(s), dir = toFret > fromFret ? 1 : -1;
+    const sx = fx(fromFret) + dir * (DR + 2), ex = fx(toFret) - dir * (DR - 1);
+    svg.appendChild(el('line', { x1:sx, y1:y, x2:ex, y2:y, stroke:'rgba(236,72,153,0.75)', 'stroke-width':2 }));
+    svg.appendChild(el('polygon', { points:`${ex},${y} ${ex - dir*5},${y-3} ${ex - dir*5},${y+3}`, fill:'rgba(236,72,153,0.95)' }));
+  }
 
   // Lick-Aufnahme: ALLE Positionen klickbar machen (auch außerhalb der Pentatonik,
   // z. B. für Blue Notes). Skalen-Punkte werden danach oben drauf gezeichnet.
@@ -990,6 +1021,29 @@ function render() {
         'font-size': txt.length > 1 ? 8.5 : 10, 'font-weight':'bold',
         'text-anchor':'middle', 'dominant-baseline':'middle', style:'user-select:none;pointer-events:none'
       }, txt));
+  }
+
+  // Blue Notes (Blues-Skala) + optionale Auflösungs-Pfeile
+  if (S.blue) {
+    const bpc = blueNotePc();
+    const win = boxWindowNow();                 // null bei "Alle Boxen" → ganzes Griffbrett
+    const lo = win ? win[0] : 0, hi = win ? win[1] : FRETS;
+    const blues = [];
+    for (let s = 0; s < 6; s++)
+      for (let f = lo; f <= hi; f++)
+        if (mod12(OPEN_PC[s] + f) === bpc) blues.push({ s, f });
+    if (S.blueArrows)                           // ½ Ton runter (zur 4/2) und hoch (zur 5/3)
+      for (const b of blues)
+        [-1, 1].forEach(d => { if (b.f + d >= 0 && b.f + d <= FRETS) blueArrow(b.f, b.f + d, b.s); });
+    for (const b of blues) {
+      const x = fx(b.f), y = sy(b.s);
+      blueDiamond(x, y, OPEN_MIDI[b.s] + b.f, b.s, b.f);
+      const txt = label === 'names' ? nn(bpc, k) : blueNoteLabel();
+      svg.appendChild(el('text', {
+        x, y, fill:'#fff', 'font-size': txt.length > 1 ? 8 : 9.5, 'font-weight':'bold',
+        'text-anchor':'middle', 'dominant-baseline':'middle', style:'user-select:none;pointer-events:none'
+      }, txt));
+    }
   }
 
   // Triaden-Griff zeichnen (oben drauf, mit Ring)
@@ -1199,6 +1253,17 @@ function setLabel(v) {
   S.label = v;
   document.getElementById('btn-names').classList.toggle('active', v === 'names');
   document.getElementById('btn-degrees').classList.toggle('active', v === 'degrees');
+  render();
+}
+function toggleBlue() {
+  S.blue = !S.blue;
+  document.getElementById('btn-blue').classList.toggle('active', S.blue);
+  render();
+}
+function toggleBlueArrows() {
+  S.blueArrows = !S.blueArrows;
+  if (S.blueArrows && !S.blue) toggleBlue();       // Pfeile brauchen die Blue Notes
+  document.getElementById('btn-bluearr').classList.toggle('active', S.blueArrows);
   render();
 }
 
@@ -1629,16 +1694,17 @@ function playPhrase(seq) {                        // Phrase vorspielen, Dauer in
 }
 
 function markTrainerBtns() {
-  ['box', 'arp', 'find', 'call', 'lick'].forEach(m => {
+  ['box', 'arp', 'find', 'call', 'lick', 'target'].forEach(m => {
     const b = document.getElementById('tr-' + m);
     if (b) b.classList.toggle('active', !!S.trainer && S.trainer.mode === m);
   });
 }
 function startTrainerMode(mode) {
   if (mode === 'lick' && !S.selectedLick) { alert('Erst einen Lick in der Sammlung auswählen.'); return; }
+  if (mode === 'target' && !S.prog.length) { alert('„Zielton auf die 1“ braucht ein Backing – lade eine Progression oder ein Blues-Preset.'); return; }
   startMic().then(ok => {
     if (!ok) return;
-    S.trainer = { mode, idx: 0, hits: 0, misses: 0, targets: null, findPc: null, muteUntil: 0, phraseMisses: 0 };
+    S.trainer = { mode, idx: 0, hits: 0, misses: 0, targets: null, findPc: null, muteUntil: 0, phraseMisses: 0, window: null };
     trainerSetup();
     if (!S.trainer) return;                       // Setup kann abbrechen (z. B. keine Triade)
     markTrainerBtns();
@@ -1672,6 +1738,12 @@ function trainerSetup() {
     const dur = playPhrase(tr.targets);
     tr.muteUntil = performance.now() + dur * 1000 + 400;   // eigenes Vorspiel nicht selbst "hören"
     setTrainerStatus('👂 Hör zu … und spiele die 4 Töne nach Gehör nach (keine Anzeige).');
+  } else if (tr.mode === 'target') {
+    tr.window = null;
+    if (S.blue) { /* Blue Notes bleiben sichtbar – ideal für diese Übung */ }
+    setTrainerStatus(S.metroOn
+      ? 'Spiele frei (Blue Notes erlaubt) – lande auf JEDER Eins einen Akkordton. Die App prüft die 1.'
+      : '▶ Play starten – dann auf jede Eins einen Akkordton landen (Blue Notes dazwischen frei).');
   }
 }
 function stopTrainer() {
@@ -1690,6 +1762,24 @@ function trainerHearNote(midi) {
   const tr = S.trainer;
   if (!tr) return;
   if (tr.muteUntil && performance.now() < tr.muteUntil) return;   // App spielt gerade selbst vor
+  // Modus "Zielton auf die 1": nur im Fenster um die Eins wird geprüft; dazwischen frei (Blue Notes)
+  if (tr.mode === 'target') {
+    const w = tr.window;
+    if (!w || performance.now() > w.until || w.judged) return;   // außerhalb der Eins → nicht bewerten
+    w.judged = true;
+    const ch = w.chord;
+    const pcs = [mod12(ch.rootPc), mod12(ch.rootPc + ch.third), mod12(ch.rootPc + ch.fifth)];
+    const hp = mod12(midi);
+    if (pcs.includes(hp)) {
+      tr.hits++;
+      const role = hp === pcs[0] ? 'Grundton' : hp === pcs[1] ? 'Terz' : 'Quinte';
+      setTrainerStatus(`✔ Auf der 1: ${nn(hp, S.key)} (${role} von ${ch.name}) – stabil gelandet! [${tr.hits}✓ / ${tr.misses}✗]`);
+    } else {
+      tr.misses++;
+      setTrainerStatus(`✗ Auf der 1: ${nn(hp, S.key)} – kein Akkordton von ${ch.name} (${pcs.map(p => nn(p, S.key)).join(' · ')}). [${tr.hits}✓ / ${tr.misses}✗]`);
+    }
+    return;
+  }
   // Modus "Ton finden": Tonklasse zählt, Oktave egal
   if (tr.mode === 'find') {
     if (mod12(midi) === tr.findPc) {
@@ -1941,6 +2031,15 @@ function metroScheduler() {
           const meas = Math.max(1, Math.ceil(total / (S.beatsPerMeasure * 2)));
           metro.lickNextBeat = m + meas * S.beatsPerMeasure;
         }
+      }
+      // Zielton-Trainer: auf jeder Eins ein Prüf-Fenster öffnen (etwas vor dem Beat, damit
+      // ein knapp zu früh gespielter Ton noch zählt); der Akkord dieser Zählzeit ist das Ziel.
+      if (S.trainer && S.trainer.mode === 'target' && beatInMeasure === 0 && mm >= 0) {
+        const ch = chordAtBeat(mm);
+        if (ch) setTimeout(() => {
+          if (S.trainer && S.trainer.mode === 'target')
+            S.trainer.window = { chord: ch, until: performance.now() + 370, judged: false };
+        }, Math.max(0, aheadMs - 120));
       }
     }
     // Akkordwechsel auf der zugehörigen Zählzeit (nach dem Einzähler)
