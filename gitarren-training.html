@@ -166,7 +166,9 @@ select {
 @keyframes recblink { 0%,100% { opacity: 1; } 50% { opacity: 0.25; } }
 #lickName { flex: 1 1 180px; background: var(--panel2); color: var(--text); border: 1px solid var(--border); padding: 7px 10px; border-radius: 7px; font-size: 0.85rem; }
 #lickName:focus { outline: none; border-color: var(--accent); }
-.lick-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.lick-list { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; }
+.lib-label { width: 100%; font-size: 0.66rem; text-transform: uppercase; letter-spacing: 1.2px; color: var(--muted); font-weight: 600; margin: 2px 0; }
+.lick-chip.lib { border-color: rgba(34,211,238,0.4); }
 .lick-chip {
   display: flex; align-items: center; gap: 8px;
   background: var(--panel2); border: 1.5px solid var(--border); border-radius: 9px;
@@ -387,6 +389,7 @@ select {
     <button onclick="saveLick()">💾 Speichern</button>
     <button onclick="discardRec()">✖ Verwerfen</button>
   </div>
+  <div id="lickLib" class="lick-list"></div>
   <div id="lickList" class="lick-list"></div>
 </div>
 
@@ -1074,7 +1077,7 @@ function render() {
   let lickNotes = null;
   if (S.recording && S.lickRec.length) lickNotes = S.lickRec;
   else if (!S.recording && S.selectedLick) {
-    const lk = S.licks.find(l => l.id === S.selectedLick);
+    const lk = findLick(S.selectedLick);
     if (lk) lickNotes = transposeLick(lk);
   }
   if (lickNotes) {
@@ -1358,6 +1361,29 @@ function blues12()    { bluesPreset('standard'); }
 function bluesQuick() { bluesPreset('quick'); }
 function blues8()     { bluesPreset('eight'); }
 
+// ─── Lick-Bibliothek: gängige Phrasen mit Rhythmus (Notenwerte in Achteln) ──
+// Referenz A (key 9), Box 1. Moll-Penta-Box liegt bei Bund 5–8, Dur-Penta-Box bei 2–5.
+// notes: {s:Saite (0=hohe e … 5=tiefe E), fret, d:Dauer in Achteln}. Werden transponiert
+// und beim Abspielen dem Groove folgend geswingt.
+const BUILTIN_LICKS = [
+  { id: 'lib-m1', name: 'Moll-Abwärtslauf', key: 9, scale: 'minor', builtin: true,
+    notes: [[0,8,1],[0,5,1],[1,8,1],[1,5,1],[2,7,1],[2,5,1],[3,7,1],[3,5,1]].map(([s,fret,d])=>({s,fret,d})) },
+  { id: 'lib-m2', name: '♭5-Blues-Lick', key: 9, scale: 'minor', builtin: true,
+    notes: [[2,7,1],[2,5,1],[4,7,1],[4,6,1],[4,5,1],[5,5,3]].map(([s,fret,d])=>({s,fret,d})) },
+  { id: 'lib-m3', name: 'Moll-Aufwärts-Frage', key: 9, scale: 'minor', builtin: true,
+    notes: [[5,5,1],[5,8,1],[4,5,1],[4,7,1],[3,5,1],[3,7,1],[2,5,1],[2,7,1]].map(([s,fret,d])=>({s,fret,d})) },
+  { id: 'lib-m4', name: 'Call & Response (2 Takte)', key: 9, scale: 'minor', builtin: true,
+    notes: [[3,7,1],[3,5,1],[4,7,2],[2,5,1],[2,7,1],[3,5,2],
+            [4,7,1],[4,6,1],[4,5,1],[2,5,1],[5,5,4]].map(([s,fret,d])=>({s,fret,d})) },
+  { id: 'lib-d1', name: 'Dur-Aufwärtslauf', key: 9, scale: 'major', builtin: true,
+    notes: [[5,2,1],[5,5,1],[4,2,1],[4,4,1],[3,2,1],[3,4,1],[2,2,1],[2,4,1]].map(([s,fret,d])=>({s,fret,d})) },
+  { id: 'lib-d2', name: 'Dur-Lick mit Auflösung', key: 9, scale: 'major', builtin: true,
+    notes: [[2,4,1],[2,2,1],[3,4,1],[3,2,1],[4,4,2],[4,2,1],[5,5,1]].map(([s,fret,d])=>({s,fret,d})) }
+];
+function findLick(id) {
+  return S.licks.find(l => l.id === id) || BUILTIN_LICKS.find(l => l.id === id) || null;
+}
+
 // ─── Licks: eigene Sammlung (localStorage + Export/Import) ───────────────────
 const LICK_KEY = 'gitarrenTraining.licks';
 function loadLicks() {
@@ -1453,21 +1479,32 @@ function deleteLick(id) {
 }
 // Lick mit seinen Notenwerten abspielen (1 Einheit = Achtel im aktuellen BPM).
 // delaySec verschiebt den Start (für taktsynchronen Loop). Liefert die Länge in Achteln.
+// Groove-abhängiges Timing: bei Shuffle/12-8 werden die Achtel geswingt (Triolen-Feel).
+function swingActive() { return S.groove === 'shuffle' || S.tripletFeel; }
+// Wandelt eine Position in Achteln (off) in Sekunden um; swingt die Off-Achtel auf 2/3 des Beats.
+function eighthTime(off, spb) {
+  if (!swingActive()) return off * spb / 2;
+  const beat = Math.floor(off / 2), frac = off - beat * 2;   // frac: 0..2 Achtel im Beat
+  const within = frac <= 1 ? frac * (2 / 3) : 2 / 3 + (frac - 1) * (1 / 3);
+  return (beat + within) * spb;
+}
 function playLickAt(lick, delaySec, quiet) {
   const notes = transposeLick(lick);
   if (!notes) { if (!quiet) alert('Lick passt in dieser Tonart nicht aufs Griffbrett.'); return 0; }
-  const dt = 60 / S.bpm / 2;
+  const spb = 60 / S.bpm;
   let off = 0;
   notes.forEach((n, i) => {
     const d = lick.notes[i].d || 1;
-    pluck(OPEN_MIDI[n.s] + n.fret, delaySec + off * dt, Math.max(dt * d * 1.1, 0.3), 0.95);
-    flashAt(n.s, n.fret, (delaySec + off * dt) * 1000, '#22d3ee');
+    const start = delaySec + eighthTime(off, spb);
+    const dur = Math.max((eighthTime(off + d, spb) - eighthTime(off, spb)) * 1.05, 0.18);
+    pluck(OPEN_MIDI[n.s] + n.fret, start, dur, 0.95);
+    flashAt(n.s, n.fret, start * 1000, '#22d3ee');
     off += d;
   });
-  return off;
+  return off;                                    // Gesamtlänge in Achteln (für Loop-Ausrichtung)
 }
 function playLickById(id) {
-  const lk = S.licks.find(l => l.id === id);
+  const lk = findLick(id);
   if (lk) playLickAt(lk, 0);
 }
 function playSelectedLick() { if (S.selectedLick) playLickById(S.selectedLick); }
@@ -1508,25 +1545,38 @@ function importLicks(file) {
   rd.readAsText(file);
 }
 
+function lickChip(l, lib) {
+  const match = l.scale === S.scale;
+  const beats = l.notes.reduce((a, n) => a + (n.d || 1), 0) / 2;   // Länge in Vierteln
+  return `<div class="lick-chip ${lib ? 'lib' : ''} ${S.selectedLick === l.id ? 'active' : ''} ${match ? '' : 'dim'}"
+               onclick="selectLick('${l.id}')"
+               title="${match ? 'Passt zur gewählten Pentatonik' : 'Anderes Tongeschlecht (' + (l.scale === 'minor' ? 'Moll' : 'Dur') + ')'}">
+    <div>
+      <div class="lk-name">${l.name.replace(/</g, '&lt;')}</div>
+      <div class="lk-meta">${l.scale === 'minor' ? 'Moll' : 'Dur'} · ${l.notes.length} Töne · ${(+beats.toFixed(1))} Schläge</div>
+    </div>
+    <button onclick="event.stopPropagation(); playLickById('${l.id}')" title="Abspielen (folgt Groove & Tempo)">▶</button>
+    ${lib
+      ? `<button onclick="event.stopPropagation(); copyLibLick('${l.id}')" title="In eigene Sammlung kopieren">＋</button>`
+      : `<button onclick="event.stopPropagation(); deleteLick('${l.id}')" title="Löschen">🗑</button>`}
+  </div>`;
+}
 function renderLickPanel() {
+  document.getElementById('lickLib').innerHTML =
+    '<div class="lib-label">Bibliothek · gängige Licks (transponiert in die Tonart, folgt Groove & Tempo)</div>' +
+    BUILTIN_LICKS.map(l => lickChip(l, true)).join('');
   const box = document.getElementById('lickList');
-  if (!S.licks.length) {
-    box.innerHTML = '<span class="prog-empty">Noch keine Licks – klicke „● Aufnehmen“ und spiele den Lick durch Klicken am Griffbrett ein. Gespeicherte Licks werden automatisch in die gewählte Tonart transponiert.</span>';
-    return;
-  }
-  box.innerHTML = S.licks.map(l => {
-    const match = l.scale === S.scale;
-    return `<div class="lick-chip ${S.selectedLick === l.id ? 'active' : ''} ${match ? '' : 'dim'}"
-                 onclick="selectLick('${l.id}')"
-                 title="${match ? 'Passt zur gewählten Pentatonik' : 'Anderes Tongeschlecht (' + (l.scale === 'minor' ? 'Moll' : 'Dur') + ')'}">
-      <div>
-        <div class="lk-name">${l.name.replace(/</g, '&lt;')}</div>
-        <div class="lk-meta">${l.scale === 'minor' ? 'Moll' : 'Dur'} · ${l.notes.length} Töne · aus ${nn(l.key, l.key)}</div>
-      </div>
-      <button onclick="event.stopPropagation(); playLickById('${l.id}')" title="Abspielen">▶</button>
-      <button onclick="event.stopPropagation(); deleteLick('${l.id}')" title="Löschen">🗑</button>
-    </div>`;
-  }).join('');
+  box.innerHTML = '<div class="lib-label">Eigene Sammlung</div>' + (S.licks.length
+    ? S.licks.map(l => lickChip(l, false)).join('')
+    : '<span class="prog-empty">Noch keine eigenen Licks – „● Aufnehmen“ und am Griffbrett einspielen, oder ein Bibliotheks-Lick mit ＋ kopieren.</span>');
+}
+function copyLibLick(id) {
+  const src = BUILTIN_LICKS.find(l => l.id === id);
+  if (!src) return;
+  S.licks.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    name: src.name, key: src.key, scale: src.scale,
+    notes: src.notes.map(n => ({ ...n })), created: new Date().toISOString() });
+  if (saveLicks()) renderLickPanel();
 }
 
 // ─── Mikrofon & Tonhöhen-Erkennung (monophon, Autokorrelation) ───────────────
@@ -1652,7 +1702,7 @@ function updateMicNote(midi) {
 
 // ─── Trainer: fünf Übungs-Modi mit Mikrofon-Feedback ────────────────────────
 function trainerTargets() {                       // Modus 'lick': Ziele aus dem gewählten Lick
-  const lk = S.licks.find(l => l.id === S.selectedLick);
+  const lk = findLick(S.selectedLick);
   if (!lk) return null;
   const notes = transposeLick(lk);
   return notes && notes.map(n => ({ ...n, midi: OPEN_MIDI[n.s] + n.fret }));
@@ -2025,7 +2075,7 @@ function metroScheduler() {
       if (S.bass && mm >= 0 && S.prog.length) scheduleBass(t, beatInMeasure, mm);
       // Lick-Loop: ausgewählten Lick an Taktgrenzen wiederholen (Länge in ganzen Takten)
       if (S.lickLoop && S.selectedLick && beatInMeasure === 0 && m >= metro.lickNextBeat) {
-        const lk = S.licks.find(l => l.id === S.selectedLick);
+        const lk = findLick(S.selectedLick);
         if (lk) {
           const total = playLickAt(lk, t - ac.currentTime, true);   // Länge in Achteln
           const meas = Math.max(1, Math.ceil(total / (S.beatsPerMeasure * 2)));
