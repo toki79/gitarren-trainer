@@ -157,7 +157,7 @@ select {
 .lick-head > label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); font-weight: 600; }
 #recBtn.active { background: #dc2626; border-color: #dc2626; color: #fff; }
 #lickLoopBtn.active { background: #22d3ee; border-color: #22d3ee; color: #083344; }
-#trainBtn.active { background: var(--triad-col); border-color: var(--triad-col); color: #04231a; }
+#trainerBar .lick-head button.active { background: var(--triad-col); border-color: var(--triad-col); color: #04231a; }
 .train-dot { width: 10px; height: 10px; border-radius: 50%; background: #22c55e; animation: recblink 1.2s infinite; flex-shrink: 0; }
 .mic-meter { width: 80px; height: 9px; background: var(--panel2); border: 1px solid var(--border); border-radius: 5px; overflow: hidden; flex-shrink: 0; }
 #micLevel { display: block; height: 100%; width: 0%; background: #6b7280; transition: width 0.06s; }
@@ -308,6 +308,7 @@ select {
         <option value="3">3/4</option>
         <option value="4" selected>4/4</option>
         <option value="6">6/8</option>
+        <option value="12-8">12/8 (Slow Blues)</option>
       </select>
     </label>
     <label class="metro-field">Takte/Akkord
@@ -325,7 +326,7 @@ select {
   </div>
 
   <div class="metro-row" style="padding-top:0">
-    <label class="metro-field">Groove
+    <label class="metro-field" id="grooveField">Groove
       <span class="btn-row">
         <button id="btn-grstraight" class="active" onclick="setGroove('straight')" title="Gerade Achtel">Gerade</button>
         <button id="btn-grshuffle" onclick="setGroove('shuffle')" title="Triolisches Achtel-Feel (Swing/Blues)">Shuffle</button>
@@ -363,7 +364,6 @@ select {
       <button id="recBtn" onclick="toggleRecording()" title="Aufnahme starten – dann Töne am Griffbrett anklicken (alle Bünde klickbar, auch Blue Notes)">● Aufnehmen</button>
       <button onclick="playSelectedLick()" title="Ausgewählten Lick im BPM-Tempo abspielen (mit aufgenommenem Rhythmus)">▶ Lick</button>
       <button id="lickLoopBtn" onclick="toggleLickLoop()" title="Lick taktsynchron zum Metronom/Backing wiederholen – startet mit ▶ Play">🔁 Loop</button>
-      <button id="trainBtn" onclick="toggleTrainer()" title="Nachspielen mit echter Gitarre: Mikrofon hört mit und hakt Ton für Ton ab. Tipp: Backing über Kopfhörer.">🎤 Nachspielen</button>
       <button onclick="exportLicks()" title="Sammlung als JSON-Datei herunterladen (Backup)">⬇ Export</button>
       <button onclick="document.getElementById('lickFile').click()" title="Sammlung aus JSON-Datei laden (wird zur bestehenden hinzugefügt)">⬆ Import</button>
       <input type="file" id="lickFile" accept=".json,application/json" style="display:none"
@@ -379,6 +379,21 @@ select {
     <button onclick="saveLick()">💾 Speichern</button>
     <button onclick="discardRec()">✖ Verwerfen</button>
   </div>
+  <div id="lickList" class="lick-list"></div>
+</div>
+
+<div class="lick-bar" id="trainerBar">
+  <div class="lick-head">
+    <label>🎤 Trainer · mit echter Gitarre</label>
+    <div class="btn-row">
+      <button id="tr-box" onclick="startTrainerMode('box')" title="Die Pentatonik-Box Ton für Ton auf- und absteigend nachspielen – der Zielton ist grün umrandet">📦 Box auf & ab</button>
+      <button id="tr-arp" onclick="startTrainerMode('arp')" title="Die aktive Triade als Arpeggio spielen (tief → hoch); bei Progression schaltet jeder geschaffte Akkord weiter">🎶 Triaden-Arpeggio</button>
+      <button id="tr-find" onclick="startTrainerMode('find')" title="Griffbrett-Kenntnis: die App nennt einen Ton, du findest ihn – beliebige Lage und Oktave">🔎 Ton finden</button>
+      <button id="tr-call" onclick="startTrainerMode('call')" title="Gehörtraining: die App spielt eine kurze Phrase aus der Box vor, du spielst sie nach Gehör nach">👂 Call & Response</button>
+      <button id="tr-lick" onclick="startTrainerMode('lick')" title="Den ausgewählten Lick nachspielen – Ton für Ton abgehakt">🎵 Lick nachspielen</button>
+      <button onclick="stopTrainer()" title="Trainer beenden, Mikrofon aus">■ Stop</button>
+    </div>
+  </div>
   <div id="trainRow" class="rec-row" style="display:none">
     <span class="train-dot"></span>
     <span class="mic-meter" title="Eingangspegel – muss beim Spielen ausschlagen und grün werden"><span id="micLevel"></span></span>
@@ -390,7 +405,6 @@ select {
     <span id="trainStatus" class="hint" style="flex:1 1 200px"></span>
     <span class="hint">💡 Einzeltöne sauber anschlagen · Backing über Kopfhörer</span>
   </div>
-  <div id="lickList" class="lick-list"></div>
 </div>
 
 <div class="bottom-row">
@@ -458,7 +472,7 @@ const S = { key: 9, scale: 'minor', pos: 1, triad: 'none', set: 'DGB', label: 'n
             sound: true, currentGrip: [], boxMode: 'strict', currentSet: 'DGB',
             bpm: 90, beatsPerMeasure: 4, measuresPerChord: 1, metroOn: false, countIn: true,
             exercise: null, bluesForm: null, click: true, drums: true, bass: true,
-            groove: 'straight', vol: { click: 1, drums: 1, bass: 1, guitar: 1 },
+            groove: 'straight', tripletFeel: false, vol: { click: 1, drums: 1, bass: 1, guitar: 1 },
             licks: [], recording: false, lickRec: [], selectedLick: null, lickLoop: false,
             trainer: null, micGate: 0.004, micBoost: 8 };
 let metroTimer = null;
@@ -1019,8 +1033,8 @@ function render() {
     }
     lickNotes.forEach((n, i) => {
       const x = fx(n.fret), y = sy(n.s);
-      // Trainer aktiv: aktuellen Zielton grün umranden
-      if (S.trainer && !S.recording && i === S.trainer.idx)
+      // Lick-Trainer aktiv: aktuellen Zielton grün umranden
+      if (S.trainer && S.trainer.mode === 'lick' && !S.recording && i === S.trainer.idx)
         svg.appendChild(el('circle', { cx:x, cy:y, r:13, fill:'none', stroke:'#22c55e', 'stroke-width':2.5, 'stroke-dasharray':'4 3' }));
       const c = el('circle', { cx:x, cy:y, r:8.5, fill:'#22d3ee', stroke:'#083344', 'stroke-width':1.5 });
       c.style.cursor = 'pointer';
@@ -1034,6 +1048,16 @@ function render() {
         'text-anchor':'middle', 'dominant-baseline':'middle', style:'user-select:none;pointer-events:none'
       }, String(i + 1)));
     });
+  }
+
+  // Trainer-Zielton (Box-/Arpeggio-Übung) grün markieren; "Ton finden" und
+  // "Call & Response" zeigen bewusst nichts an (Griffbrett-Kenntnis / Gehör).
+  if (S.trainer && S.trainer.targets && ['box', 'arp'].includes(S.trainer.mode) && !S.recording) {
+    const cur = S.trainer.targets[S.trainer.idx];
+    if (cur) svg.appendChild(el('circle', {
+      cx: fx(cur.fret), cy: sy(cur.s), r: 13,
+      fill: 'none', stroke: '#22c55e', 'stroke-width': 2.5, 'stroke-dasharray': '4 3'
+    }));
   }
 
   S.currentGrip = grip;
@@ -1346,7 +1370,7 @@ function saveLick() {
 }
 function selectLick(id) {
   S.selectedLick = S.selectedLick === id ? null : id;
-  if (S.trainer) {
+  if (S.trainer && S.trainer.mode === 'lick') {
     if (!S.selectedLick) { stopTrainer(); }
     else { S.trainer.idx = 0; S.trainer.hits = 0; S.trainer.misses = 0; setTrainerStatus('Neuer Lick – spiele Ton 1.'); }
   }
@@ -1357,7 +1381,7 @@ function deleteLick(id) {
   const lk = S.licks.find(l => l.id === id);
   if (!lk || !confirm(`Lick „${lk.name}“ wirklich löschen?`)) return;
   S.licks = S.licks.filter(l => l.id !== id);
-  if (S.selectedLick === id) { S.selectedLick = null; if (S.trainer) stopTrainer(); }
+  if (S.selectedLick === id) { S.selectedLick = null; if (S.trainer && S.trainer.mode === 'lick') stopTrainer(); }
   saveLicks();
   renderLickPanel();
   render();
@@ -1561,30 +1585,99 @@ function updateMicNote(midi) {
   if (el) el.textContent = midi == null ? '–' : nn(mod12(midi), S.key) + (Math.floor(midi / 12) - 1);
 }
 
-// ─── Lick-Trainer: Nachspielen mit Ton-für-Ton-Feedback ─────────────────────
-function trainerTargets() {
+// ─── Trainer: fünf Übungs-Modi mit Mikrofon-Feedback ────────────────────────
+function trainerTargets() {                       // Modus 'lick': Ziele aus dem gewählten Lick
   const lk = S.licks.find(l => l.id === S.selectedLick);
   if (!lk) return null;
   const notes = transposeLick(lk);
   return notes && notes.map(n => ({ ...n, midi: OPEN_MIDI[n.s] + n.fret }));
 }
-function toggleTrainer() {
-  if (S.trainer) { stopTrainer(); return; }
-  if (!S.selectedLick) { alert('Erst einen Lick auswählen, dann Nachspielen starten.'); return; }
+// Box auf- und absteigend (ohne Wiederholung des Spitzentons)
+function boxTargets() {
+  const asc = boxNotes(S.key, S.scale, S.pos || 1)
+    .map(n => ({ s: n.s, fret: n.fret, midi: OPEN_MIDI[n.s] + n.fret }))
+    .sort((a, b) => a.midi - b.midi);
+  return [...asc, ...asc.slice(0, -1).reverse()];
+}
+function arpTargets() {                           // aktive Triade, tief → hoch
+  return S.currentGrip.map(g => ({ s: g.s, fret: g.fret, midi: OPEN_MIDI[g.s] + g.fret }));
+}
+function randomFindPc(avoid) {                    // Tonklasse aus der Skala, nie zweimal dieselbe
+  const pcs = scaleSet(S.key, S.scale).filter(pc => pc !== avoid);
+  return pcs[Math.floor(Math.random() * pcs.length)];
+}
+function randomPhrase(len) {                      // melodische Zufallsphrase aus der Box
+  const pool = boxNotes(S.key, S.scale, S.pos || 1)
+    .map(n => ({ s: n.s, fret: n.fret, midi: OPEN_MIDI[n.s] + n.fret }))
+    .sort((a, b) => a.midi - b.midi);
+  const seq = [];
+  let i = 2 + Math.floor(Math.random() * (pool.length - 4));
+  for (let k = 0; k < len; k++) {
+    const jump = [-2, -1, 1, 1, 2][Math.floor(Math.random() * 5)];   // Schritte bevorzugen
+    i = Math.min(pool.length - 1, Math.max(0, i + jump));
+    seq.push(pool[i]);
+  }
+  return seq;
+}
+function playPhrase(seq) {                        // Phrase vorspielen, Dauer in Sekunden
+  const dt = 60 / S.bpm / 2;
+  seq.forEach((n, i) => {
+    pluck(n.midi, i * dt, dt * 1.8, 0.95);
+    flashAt(n.s, n.fret, i * dt * 1000, '#22d3ee');
+  });
+  return seq.length * dt;
+}
+
+function markTrainerBtns() {
+  ['box', 'arp', 'find', 'call', 'lick'].forEach(m => {
+    const b = document.getElementById('tr-' + m);
+    if (b) b.classList.toggle('active', !!S.trainer && S.trainer.mode === m);
+  });
+}
+function startTrainerMode(mode) {
+  if (mode === 'lick' && !S.selectedLick) { alert('Erst einen Lick in der Sammlung auswählen.'); return; }
   startMic().then(ok => {
     if (!ok) return;
-    S.trainer = { idx: 0, hits: 0, misses: 0 };
-    document.getElementById('trainBtn').classList.add('active');
+    S.trainer = { mode, idx: 0, hits: 0, misses: 0, targets: null, findPc: null, muteUntil: 0, phraseMisses: 0 };
+    trainerSetup();
+    if (!S.trainer) return;                       // Setup kann abbrechen (z. B. keine Triade)
+    markTrainerBtns();
     document.getElementById('trainRow').style.display = 'flex';
-    setTrainerStatus('Spiele Ton 1 – der Zielton ist grün umrandet.');
     render();
   });
+}
+// Ziele und Start-Status je Modus aufbauen
+function trainerSetup() {
+  const tr = S.trainer;
+  tr.idx = 0;
+  if (tr.mode === 'lick') {
+    setTrainerStatus('Spiele Ton 1 – der Zielton ist grün umrandet.');
+  } else if (tr.mode === 'box') {
+    tr.targets = boxTargets();
+    setTrainerStatus(`Box ${S.pos || 1} auf & ab (${tr.targets.length} Töne) – der Zielton ist grün umrandet.`);
+  } else if (tr.mode === 'arp') {
+    tr.targets = arpTargets();
+    if (!tr.targets.length) {
+      alert('Keine Triade aktiv – erst Triade einschalten oder eine Progression laden.');
+      stopTrainer(); return;
+    }
+    const name = (S.prog.length && S.progIdx >= 0) ? S.prog[S.progIdx].name : nn(S.key, S.key);
+    setTrainerStatus(`Arpeggio zu ${name}: spiele die ${tr.targets.length} Triaden-Töne von tief nach hoch.`);
+  } else if (tr.mode === 'find') {
+    tr.findPc = randomFindPc(tr.findPc);
+    setTrainerStatus(`Spiele ein ${nn(tr.findPc, S.key)} – beliebige Lage, beliebige Oktave.`);
+  } else if (tr.mode === 'call') {
+    tr.targets = randomPhrase(4);
+    tr.phraseMisses = 0;
+    const dur = playPhrase(tr.targets);
+    tr.muteUntil = performance.now() + dur * 1000 + 400;   // eigenes Vorspiel nicht selbst "hören"
+    setTrainerStatus('👂 Hör zu … und spiele die 4 Töne nach Gehör nach (keine Anzeige).');
+  }
 }
 function stopTrainer() {
   S.trainer = null;
   stopMic();
-  const b = document.getElementById('trainBtn');
-  if (b) b.classList.remove('active');
+  markTrainerBtns();
   const r = document.getElementById('trainRow');
   if (r) r.style.display = 'none';
   render();
@@ -1594,27 +1687,70 @@ function setTrainerStatus(txt) {
   if (el) el.textContent = txt;
 }
 function trainerHearNote(midi) {
-  if (!S.trainer) return;
-  const tg = trainerTargets();
+  const tr = S.trainer;
+  if (!tr) return;
+  if (tr.muteUntil && performance.now() < tr.muteUntil) return;   // App spielt gerade selbst vor
+  // Modus "Ton finden": Tonklasse zählt, Oktave egal
+  if (tr.mode === 'find') {
+    if (mod12(midi) === tr.findPc) {
+      tr.hits++;
+      const found = nn(tr.findPc, S.key);
+      tr.findPc = randomFindPc(tr.findPc);
+      setTrainerStatus(`✔ ${found} gefunden (${tr.hits} Treffer, ${tr.misses} Fehler). Jetzt: Spiele ein ${nn(tr.findPc, S.key)}.`);
+    } else {
+      tr.misses++;
+      setTrainerStatus(`Das war ${nn(mod12(midi), S.key)} – gesucht ist ${nn(tr.findPc, S.key)}.`);
+    }
+    return;
+  }
+  const tg = tr.mode === 'lick' ? trainerTargets() : tr.targets;
   if (!tg || !tg.length) return;
-  const cur = tg[S.trainer.idx];
+  const cur = tg[tr.idx];
   // Oktav-Toleranz: die Erkennung springt bei Gitarren gern eine Oktave (starke Obertöne)
   const ok = midi === cur.midi || Math.abs(midi - cur.midi) === 12;
   if (ok) {
-    S.trainer.hits++;
-    flashAt(cur.s, cur.fret, 0, '#22c55e');
-    S.trainer.idx++;
-    if (S.trainer.idx >= tg.length) {
-      setTrainerStatus(`✔ Geschafft – ${S.trainer.hits} Treffer, ${S.trainer.misses} Fehler. Nochmal von vorn!`);
-      S.trainer.idx = 0; S.trainer.hits = 0; S.trainer.misses = 0;
-    } else {
-      setTrainerStatus(`Richtig! Weiter mit Ton ${S.trainer.idx + 1}/${tg.length}`);
-    }
+    tr.hits++;
+    if (tr.mode !== 'call') flashAt(cur.s, cur.fret, 0, '#22c55e');
+    tr.idx++;
+    if (tr.idx >= tg.length) trainerRoundDone(tr, tg);
+    else if (tr.mode !== 'call') setTrainerStatus(`Richtig! Weiter mit Ton ${tr.idx + 1}/${tg.length}`);
+    else setTrainerStatus(`Richtig – noch ${tg.length - tr.idx} Töne.`);
     render();
   } else {
-    S.trainer.misses++;
-    flashAt(cur.s, cur.fret, 0, '#ef4444');
-    setTrainerStatus(`Gehört: ${nn(mod12(midi), S.key)} · erwartet: ${nn(mod12(cur.midi), S.key)} (Ton ${S.trainer.idx + 1}/${tg.length})`);
+    tr.misses++;
+    if (tr.mode === 'call') {
+      // Gehörtraining: Ziel nicht verraten; nach 3 Fehlern Phrase erneut vorspielen
+      if (++tr.phraseMisses >= 3) {
+        tr.phraseMisses = 0;
+        const dur = playPhrase(tg);
+        tr.muteUntil = performance.now() + dur * 1000 + 400;
+        setTrainerStatus('🔁 Nochmal anhören … (Phrase startet bei Ton 1)');
+        tr.idx = 0;
+      } else {
+        setTrainerStatus(`${nn(mod12(midi), S.key)} war nicht Ton ${tr.idx + 1} – versuch's weiter.`);
+      }
+    } else {
+      flashAt(cur.s, cur.fret, 0, '#ef4444');
+      setTrainerStatus(`Gehört: ${nn(mod12(midi), S.key)} · erwartet: ${nn(mod12(cur.midi), S.key)} (Ton ${tr.idx + 1}/${tg.length})`);
+    }
+  }
+}
+// Runde geschafft: je Modus fortsetzen
+function trainerRoundDone(tr, tg) {
+  const stats = `${tr.hits} Treffer, ${tr.misses} Fehler`;
+  if (tr.mode === 'arp' && S.prog.length) {
+    S.progIdx = (S.progIdx + 1) % S.prog.length;   // ohne Anschlag – Mikrofon nicht stören
+    renderChips(); render();
+    tr.targets = arpTargets();
+    tr.idx = 0;
+    setTrainerStatus(`✔ Weiter: Arpeggio zu ${S.prog[S.progIdx].name} (${stats})`);
+  } else if (tr.mode === 'call') {
+    tr.idx = 0;
+    setTrainerStatus(`✔ Nachgespielt! (${stats}) Neue Phrase …`);
+    setTimeout(() => { if (S.trainer === tr) trainerSetup(); }, 900);
+  } else {
+    setTrainerStatus(`✔ Geschafft – ${stats}. Nochmal von vorn!`);
+    tr.idx = 0; tr.hits = 0; tr.misses = 0;
   }
 }
 
@@ -1753,10 +1889,16 @@ function scheduleDrums(t, beat) {
   if ((KICK_BEATS[S.beatsPerMeasure] || [0]).includes(beat)) kick(t);
   if ((SNARE_BEATS[S.beatsPerMeasure] || []).includes(beat)) snare(t);
   hihat(t, beat === 0 ? 1 : 0.8);
-  // Offbeat-Achtel: gerade = Taktmitte, Shuffle = triolisch (2/3 des Beats).
-  // Im Shuffle ist das Offbeat fast so laut wie der Beat – das macht das Feel hörbar.
-  const shuffle = S.groove === 'shuffle';
-  hihat(t + spb * (shuffle ? 2 / 3 : 1 / 2), shuffle ? 0.9 : 0.45);
+  if (S.tripletFeel) {
+    // 12/8: alle drei Triolen-Achtel durchspielen – das typische Slow-Blues-Wiegen
+    hihat(t + spb / 3, 0.5);
+    hihat(t + 2 * spb / 3, 0.7);
+  } else {
+    // Offbeat-Achtel: gerade = Taktmitte, Shuffle = triolisch (2/3 des Beats).
+    // Im Shuffle ist das Offbeat fast so laut wie der Beat – das macht das Feel hörbar.
+    const shuffle = S.groove === 'shuffle';
+    hihat(t + spb * (shuffle ? 2 / 3 : 1 / 2), shuffle ? 0.9 : 0.45);
+  }
 }
 // Akkord, der auf Zählzeit mm aktiv ist (letzter Start <= mm)
 function chordAtBeat(mm) {
@@ -1840,7 +1982,16 @@ function setBpm(v) {
   S.bpm = Math.min(240, Math.max(40, +v || 90));
   document.getElementById('bpm').value = S.bpm;
 }
-function setTimeSig(v) { S.beatsPerMeasure = +v; renderBeatDots(); if (S.metroOn) metro.sched = buildBeatSchedule(); }
+function setTimeSig(v) {
+  // 12/8 = 4 Hauptschläge mit Triolen-HiHat (Slow-Blues-Feel); sonst v Klicks pro Takt
+  if (v === '12-8') { S.beatsPerMeasure = 4; S.tripletFeel = true; }
+  else { S.beatsPerMeasure = +v; S.tripletFeel = false; }
+  // Groove-Schalter im 12/8 wirkungslos (Triolen sind fest) → ausgrauen
+  document.getElementById('grooveField').style.opacity = S.tripletFeel ? 0.4 : 1;
+  document.getElementById('grooveField').style.pointerEvents = S.tripletFeel ? 'none' : 'auto';
+  renderBeatDots();
+  if (S.metroOn) metro.sched = buildBeatSchedule();
+}
 function setMeasPerChord(v) { S.measuresPerChord = +v; if (S.metroOn) metro.sched = buildBeatSchedule(); }
 function toggleCountIn() {
   S.countIn = !S.countIn;
