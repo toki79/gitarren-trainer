@@ -260,6 +260,22 @@ button.mini.active { background: var(--accent); border-color: var(--accent); col
   </div>
 
   <div class="ctrl">
+    <label>Obere Struktur (Triaden-Trick)</label>
+    <div class="btn-row">
+      <select id="superSel" onchange="setSuper(this.value)" title="Eine andere Triade über den aktuellen Akkord legen, um Extensions (9, 11, 13 …) zu erzeugen. Die Töne erscheinen orange mit Intervall-Label.">
+        <option value="none">Aus</option>
+        <option value="v9">Moll +5 → 9-Sound</option>
+        <option value="b7">Dur ♭7 → 9·11</option>
+        <option value="II">Dur +2 → Lydian ♯11</option>
+        <option value="IV">Dur +5 → 11·13</option>
+        <option value="vi">Moll +9 → 13-Sound</option>
+      </select>
+      <button onclick="playSuper()" title="Akkord + überlagerte Triade zusammen hören">♪ Farbe</button>
+    </div>
+    <div id="superInfo" class="hint" style="margin-top:5px"></div>
+  </div>
+
+  <div class="ctrl">
     <label>Klang</label>
     <div class="btn-row">
       <button id="btn-sound" class="active" onclick="toggleSound()">🔊 An</button>
@@ -490,7 +506,7 @@ const S = { key: 9, scale: 'minor', pos: 1, triad: 'none', set: 'DGB', label: 'n
             groove: 'straight', tripletFeel: false, vol: { click: 1, drums: 1, bass: 1, guitar: 1 },
             licks: [], recording: false, lickRec: [], selectedLick: null, lickLoop: false,
             trainer: null, micGate: 0.004, micBoost: 8, blue: false, blueArrows: false,
-            lickOnlyMatch: true };
+            lickOnlyMatch: true, superId: 'none' };
 let metroTimer = null;
 const metro = { nextNote: 0, beat: 0, countInBeats: 0, sched: null, lickNextBeat: 0 };
 
@@ -617,6 +633,31 @@ const triadSet = (key, scale) => [0, THIRD[scale], 7].map(i => mod12(key + i));
 const blueNotePc = () => mod12(S.key + (S.scale === 'minor' ? 6 : 3));
 const blueNoteLabel = () => (S.scale === 'minor' ? '♭5' : '♭3');
 const BLUE_COL = '#ec4899';
+
+// ─── Obere Struktur (Triaden-Superimposition) ───────────────────────────────
+// Über dem aktuellen Akkord eine ANDERE Triade spielen, um Extensions zu erzeugen.
+// off = Grundton-Abstand zur Akkord-Wurzel; third/fifth = Triadenaufbau.
+const SUPER_OPTS = [
+  { id: 'v9', label: 'Moll +5 → 9-Sound',      off: 7,  third: 3, fifth: 7 },
+  { id: 'b7', label: 'Dur ♭7 → 9·11 (offen)',  off: 10, third: 4, fifth: 7 },
+  { id: 'II', label: 'Dur +2 → Lydian ♯11',    off: 2,  third: 4, fifth: 7 },
+  { id: 'IV', label: 'Dur +5 → 11·13',         off: 5,  third: 4, fifth: 7 },
+  { id: 'vi', label: 'Moll +9 → 13-Sound',     off: 9,  third: 3, fifth: 7 }
+];
+const EXT_LABEL = {0:'R',1:'♭9',2:'9',3:'♯9',4:'3',5:'11',6:'♯11',7:'5',8:'♭13',9:'13',10:'♭7',11:'7'};
+const SUPER_COL = '#f97316';
+// Grundton des aktuell klingenden Akkords (Progression) bzw. der Tonart
+function currentChordRootPc() {
+  return (S.prog.length && S.progIdx >= 0) ? mod12(S.prog[S.progIdx].rootPc) : mod12(S.key);
+}
+function superTriad() {
+  const o = SUPER_OPTS.find(x => x.id === S.superId);
+  if (!o) return null;
+  const base = currentChordRootPc();
+  const rootPc = mod12(base + o.off);
+  const pcs = [rootPc, mod12(rootPc + o.third), mod12(rootPc + o.fifth)];
+  return { ...o, base, rootPc, pcs, exts: pcs.map(pc => EXT_LABEL[mod12(pc - base)]) };
+}
 
 // Grundton-Bund auf tiefer E-Saite. Bei Dur-Pentatonik nutzen wir die
 // Geometrie der parallelen Moll-Box (relatives Moll = Tonart - 3 HT).
@@ -1000,6 +1041,16 @@ function render() {
     svg.appendChild(el('line', { x1:sx, y1:y, x2:ex, y2:y, stroke:'rgba(236,72,153,0.75)', 'stroke-width':2 }));
     svg.appendChild(el('polygon', { points:`${ex},${y} ${ex - dir*5},${y-3} ${ex - dir*5},${y+3}`, fill:'rgba(236,72,153,0.95)' }));
   }
+  // Ton der überlagerten Triade (Obere Struktur) als abgerundetes Quadrat, mit Extension-Label
+  function superMarker(x, y, midi, s, fret, ext) {
+    const r = el('rect', { x:x-DR, y:y-DR, width:2*DR, height:2*DR, rx:3,
+      fill:SUPER_COL, stroke:'rgba(255,255,255,0.35)', 'stroke-width':1.5 });
+    r.style.cursor = 'pointer';
+    r.addEventListener('click', () => { if (S.recording) recordNote(s, fret); else playNote(midi, s, fret, SUPER_COL); });
+    svg.appendChild(r);
+    svg.appendChild(el('text', { x, y, fill:'#111', 'font-size': ext.length > 1 ? 8 : 10, 'font-weight':'bold',
+      'text-anchor':'middle', 'dominant-baseline':'middle', style:'user-select:none;pointer-events:none' }, ext));
+  }
 
   // Lick-Aufnahme: ALLE Positionen klickbar machen (auch außerhalb der Pentatonik,
   // z. B. für Blue Notes). Skalen-Punkte werden danach oben drauf gezeichnet.
@@ -1052,6 +1103,22 @@ function render() {
       }, txt));
     }
   }
+
+  // Obere Struktur: Töne der überlagerten Triade (orange Quadrate mit Extension-Label)
+  const sup = superTriad();
+  const supInfoEl = document.getElementById('superInfo');
+  if (sup) {
+    const win = boxWindowNow();
+    const lo = win ? win[0] : 0, hi = win ? win[1] : FRETS;
+    for (let s = 0; s < 6; s++)
+      for (let f = lo; f <= hi; f++) {
+        const pc = mod12(OPEN_PC[s] + f);
+        if (sup.pcs.includes(pc)) superMarker(fx(f), sy(s), OPEN_MIDI[s] + f, s, f, EXT_LABEL[mod12(pc - sup.base)]);
+      }
+    const q = sup.third === 3 ? 'm' : '';
+    if (supInfoEl) supInfoEl.innerHTML =
+      `Über <b>${nn(sup.base, sup.base)}</b>: <b style="color:${SUPER_COL}">${nn(sup.rootPc, sup.base)}${q}</b> → ${sup.exts.join(' · ')}`;
+  } else if (supInfoEl) supInfoEl.textContent = '';
 
   // Triaden-Griff zeichnen (oben drauf, mit Ring)
   if (grip.length) {
@@ -1273,6 +1340,16 @@ function toggleBlueArrows() {
   if (S.blueArrows && !S.blue) toggleBlue();       // Pfeile brauchen die Blue Notes
   document.getElementById('btn-bluearr').classList.toggle('active', S.blueArrows);
   render();
+}
+function setSuper(v) { S.superId = v; render(); }
+// Akkord (Grundton als Bass) + überlagerte Triade zusammen anschlagen
+function playSuper() {
+  const sup = superTriad();
+  if (!sup) return;
+  const bass = 40 + mod12(sup.base - 4);           // Grundton auf/über der tiefen E-Saite
+  pluck(bass, 0, 1.9, 0.7);
+  const midis = sup.pcs.map(pc => bass + 12 + mod12(pc - sup.base)).sort((a, b) => a - b);
+  midis.forEach((m, i) => pluck(m, 0.06 + i * 0.05, 1.7, 0.6));
 }
 
 // ─── Progression ──────────────────────────────────────────────────────────────
