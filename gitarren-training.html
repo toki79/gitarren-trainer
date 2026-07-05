@@ -114,6 +114,8 @@ select {
 .presets .exercise-btn:hover { background: rgba(34,197,94,0.12); }
 .presets .blues-btn { font-family: inherit; border-color: var(--root-col); color: var(--root-col); }
 .presets .blues-btn:hover { background: rgba(245,158,11,0.12); }
+.presets .style-btn { font-family: inherit; border-color: #a78bfa; color: #a78bfa; }
+.presets .style-btn:hover { background: rgba(167,139,250,0.12); }
 .prog-chips { display: flex; flex-wrap: wrap; gap: 8px; min-height: 4px; }
 .chord-chip {
   background: var(--panel2); border: 1.5px solid var(--border); border-radius: 9px;
@@ -324,6 +326,14 @@ button.mini.active { background: var(--accent); border-color: var(--accent); col
         <button class="blues-btn" onclick="blues8()" title="8-Takt-Blues (z. B. „Key to the Highway“): I V IV IV · I V I V">8-Takt</button>
         <span class="hint" style="align-self:center">Tempo frei über BPM · Slow Blues ≈ 60</span>
       </div>
+      <label style="font-size:0.68rem;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);font-weight:600;margin-top:4px">Song-Stile · setzt Form + Tonart + Tempo + Groove</label>
+      <div class="btn-row">
+        <button class="style-btn" onclick="applyStyle('thrill')" title="Moll-Blues in Bm, 88 BPM, gerades Feel – VI→V-Signature">🎩 Thrill-Moll-Blues</button>
+        <button class="style-btn" onclick="applyStyle('chicago')" title="Quick-Change-Shuffle in E, 104 BPM">🏙 Chicago-Shuffle</button>
+        <button class="style-btn" onclick="applyStyle('slow128')" title="12/8 Slow Blues in G, 60 BPM">🐢 Slow-Blues 12/8</button>
+        <button class="style-btn" onclick="applyStyle('boogie')" title="Ein-Akkord-Boogie in A, 120 BPM Shuffle">🥾 Boogie-Vamp</button>
+      </div>
+      <div id="styleInfo" class="hint" style="max-width:640px"></div>
     </div>
   </div>
   <div class="prog-chips" id="progChips"><span class="prog-empty">Noch keine Progression – gib Stufen ein oder wähle eine Vorlage. Die Akkordtöne richten sich nach der gewählten Tonart.</span></div>
@@ -1506,6 +1516,38 @@ function bluesPreset(form) {
 function blues12()    { bluesPreset('standard'); }
 function bluesQuick() { bluesPreset('quick'); }
 function blues8()     { bluesPreset('eight'); }
+
+// ─── Song-Stile: komplette Setups nach berühmten Vorbildern ─────────────────
+// Ein Stil = Form + Tonart + Tempo + Taktart + Groove (alles nicht schützbar);
+// Melodien werden bewusst nicht übernommen.
+const SONG_STYLES = {
+  thrill: { name: 'Thrill-Moll-Blues (Bm)', key: 11, scale: 'minor', bpm: 88, sig: '4', groove: 'straight', pos: 1,
+    prog: 'i | i | i | i | iv | iv | i | i | VI | V | i | i',
+    hint: 'Im Stil von „The Thrill Is Gone“: langsamer Moll-Blues in Bm, gerades Feel, die VI→V-Wendung (G→F♯) ist die Signature. Wenig Töne, viel Raum – die BB-Box-Licks passen perfekt.' },
+  chicago: { name: 'Chicago-Shuffle (E)', key: 4, scale: 'major', bpm: 104, sig: '4', groove: 'shuffle', pos: 1,
+    prog: 'I | IV | I | I | IV | IV | I | I | V | IV | I | V',
+    hint: 'Im Stil von „Sweet Home Chicago“: Quick-Change-Shuffle in E. Dur-Blues-Reibung (♭3→3) und treibende Achtel.' },
+  slow128: { name: 'Slow-Blues 12/8 (G)', key: 7, scale: 'major', bpm: 60, sig: '12-8', groove: 'shuffle', pos: 1,
+    prog: 'I | IV | I | I | IV | IV | I | I | V | IV | I | V',
+    hint: 'Im Stil von „Stormy Monday“ (vereinfachte Changes): 12/8-Wiegen bei 60 BPM. Jede Note zelebrieren, Triolen ausspielen.' },
+  boogie: { name: 'Boogie-Vamp (A)', key: 9, scale: 'major', bpm: 120, sig: '4', groove: 'shuffle', pos: 1,
+    prog: 'I | I | I | I | I | I | I | I',
+    hint: 'Ein-Akkord-Boogie in A (John-Lee-Hooker-Feeling): kein Wechsel, nur Groove. Ideal, um Dur- und Moll-Pentatonik zu mischen.' }
+};
+function applyStyle(id) {
+  const st = SONG_STYLES[id];
+  if (!st) return;
+  setKey(st.key); document.getElementById('keySelect').value = st.key;
+  setScale(st.scale);
+  setPos(st.pos);
+  setTimeSig(st.sig); document.getElementById('timeSig').value = st.sig;
+  setBpm(st.bpm);
+  setGroove(st.groove);
+  document.getElementById('progInput').value = st.prog;
+  applyProg();
+  const info = document.getElementById('styleInfo');
+  if (info) info.textContent = st.hint;
+}
 
 // ─── Lick-Bibliothek: gängige Phrasen mit Rhythmus, Box- und Kategorie-Tag ──
 // Referenz A (key 9). notes: [Saite (0=hohe e … 5=tiefe E), fret, Dauer in Achteln].
