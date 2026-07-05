@@ -1243,6 +1243,7 @@ function render() {
 
   S.currentGrip = grip;
   updateInfo(grip);
+  saveSettings();          // letzte Einstellungen merken (Neustart stellt sie wieder her)
 }
 
 // ─── Info-Panel ───────────────────────────────────────────────────────────────
@@ -2386,6 +2387,79 @@ function reparseProg() {
   renderChips();
 }
 
+// ─── Einstellungen merken (localStorage) ─────────────────────────────────────
+const SETTINGS_KEY = 'gitarrenTraining.settings';
+const PERSIST = ['key','scale','pos','triad','set','label','blue','blueArrows','pair','approach',
+  'superId','bpm','beatsPerMeasure','tripletFeel','measuresPerChord','countIn','click','drums',
+  'bass','groove','vol','boxMode','lickOnlyMatch','micBoost','lickLoop','sound','selectedLick'];
+function saveSettings() {
+  try {
+    const o = {};
+    PERSIST.forEach(k => o[k] = S[k]);
+    o.progText = document.getElementById('progInput').value;
+    o.bluesForm = S.bluesForm;
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(o));
+  } catch { /* z. B. Privatmodus – Einstellungen gelten dann nur für diese Sitzung */ }
+}
+function loadSettings() {
+  let o = null;
+  try { o = JSON.parse(localStorage.getItem(SETTINGS_KEY)); } catch { }
+  if (!o) return;
+  PERSIST.forEach(k => {
+    if (o[k] !== undefined) S[k] = k === 'vol' ? { ...S.vol, ...o.vol } : o[k];
+  });
+  S._progText = o.progText || '';
+  S._bluesForm = o.bluesForm || null;
+}
+// Alle Bedienelemente auf den (geladenen) State synchronisieren
+function applySettingsUI() {
+  document.getElementById('keySelect').value = S.key;
+  document.getElementById('btn-minor').classList.toggle('active', S.scale === 'minor');
+  document.getElementById('btn-major').classList.toggle('active', S.scale === 'major');
+  document.querySelectorAll('#posBtns button').forEach(b => b.classList.toggle('active', +b.dataset.pos === S.pos));
+  updateTriadButtons();
+  document.getElementById('setSelect').value = S.set;
+  document.getElementById('btn-names').classList.toggle('active', S.label === 'names');
+  document.getElementById('btn-degrees').classList.toggle('active', S.label === 'degrees');
+  document.getElementById('btn-blue').classList.toggle('active', S.blue);
+  document.getElementById('btn-bluearr').classList.toggle('active', S.blueArrows);
+  document.getElementById('btn-pair').classList.toggle('active', S.pair);
+  document.getElementById('btn-approach').classList.toggle('active', S.approach);
+  document.getElementById('superSel').value = S.superId;
+  document.getElementById('bpm').value = S.bpm;
+  document.getElementById('timeSig').value = S.tripletFeel ? '12-8' : String(S.beatsPerMeasure);
+  const gf = document.getElementById('grooveField');
+  gf.style.opacity = S.tripletFeel ? 0.4 : 1;
+  gf.style.pointerEvents = S.tripletFeel ? 'none' : 'auto';
+  document.getElementById('measPerChord').value = String(S.measuresPerChord);
+  const cb = document.getElementById('clickBtn');
+  cb.textContent = S.click ? '🔔 Klick' : '🔕 Klick'; cb.classList.toggle('active', S.click);
+  document.getElementById('drumsBtn').classList.toggle('active', S.drums);
+  document.getElementById('bassBtn').classList.toggle('active', S.bass);
+  document.getElementById('countInBtn').classList.toggle('active', S.countIn);
+  document.getElementById('btn-grstraight').classList.toggle('active', S.groove === 'straight');
+  document.getElementById('btn-grshuffle').classList.toggle('active', S.groove === 'shuffle');
+  ['strict', 'variety', 'ascend'].forEach(m =>
+    document.getElementById('btn-box' + m).classList.toggle('active', S.boxMode === m));
+  const order = ['click', 'drums', 'bass', 'guitar'];
+  document.querySelectorAll('.mixer input[type=range]').forEach((sl, i) =>
+    sl.value = Math.round((S.vol[order[i]] ?? 1) * 100));
+  const boost = document.querySelector('#trainRow input[type=range]');
+  if (boost) boost.value = S.micBoost;
+  const sb = document.getElementById('btn-sound');
+  sb.textContent = S.sound ? '🔊 An' : '🔇 Aus'; sb.classList.toggle('active', S.sound);
+  document.getElementById('lickLoopBtn').classList.toggle('active', S.lickLoop);
+  if (!findLick(S.selectedLick)) S.selectedLick = null;   // gelöschte Licks nicht wiederherstellen
+  // Progression wiederherstellen (applyProg räumt bluesForm auf → danach zurücksetzen)
+  if (S._progText) {
+    document.getElementById('progInput').value = S._progText;
+    const bf = S._bluesForm;
+    applyProg();
+    S.bluesForm = bf;
+  }
+  updateExerciseLabel();
+}
+
 // ─── Init ─────────────────────────────────────────────────────────────────────
 (function init() {
   const sel = document.getElementById('keySelect');
@@ -2395,12 +2469,13 @@ function reparseProg() {
     o.value = v; o.textContent = n; if (v === 9) o.selected = true;
     sel.appendChild(o);
   });
-  document.getElementById('setCtrl').classList.add('disabled');
-  renderBeatDots();
-  updateExerciseLabel();
+  loadSettings();
   loadLicks();
+  applySettingsUI();
+  renderBeatDots();
   renderLickPanel();
   render();
+  window.addEventListener('beforeunload', saveSettings);   // letzter Stand beim Schließen
 })();
 </script>
 </body>
