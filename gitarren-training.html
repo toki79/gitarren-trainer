@@ -190,80 +190,90 @@ button.mini.active { background: var(--accent); border-color: var(--accent); col
 .mix-field { display: flex; align-items: center; gap: 4px; font-size: 0.9rem; cursor: default; }
 .mix-field input[type=range] { width: 68px; accent-color: var(--scale-col); }
 @media (max-width: 700px) { .bottom-row, .info-grid { grid-template-columns: 1fr; } }
+
+/* ── Neues Layout: Sticky-Top, Karten, Tabs, Toolbar ── */
+#stickyTop { position: sticky; top: 0; z-index: 40; background: var(--bg); padding: 4px 0 2px; }
+@media (max-height: 640px) { #stickyTop { position: static; } }
+#topBar {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+  padding: 8px 14px; margin-bottom: 8px;
+}
+.tb-field { display: flex; align-items: center; gap: 6px; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); font-weight: 600; }
+.tb-field input[type=number] { width: 62px; background: var(--panel2); color: var(--text); border: 1px solid var(--border); padding: 6px 8px; border-radius: 7px; font-size: 0.9rem; }
+.tb-label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); font-weight: 600; }
+.tb-sep { width: 1px; align-self: stretch; background: var(--border); }
+#topBar #beatDots { margin-left: auto; }
+#topBar #metroBtn { min-width: 84px; font-weight: 600; }
+.fretboard-wrap { margin-bottom: 8px; }
+.fb-toolbar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+.fb-toolbar button { font-size: 0.74rem; padding: 4px 9px; }
+.fb-toolbar select { font-size: 0.74rem; padding: 4px 8px; }
+.fb-legend { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; margin-top: 8px; font-size: 0.78rem; color: var(--text); }
+.fb-legend .leg { display: flex; align-items: center; gap: 6px; font-size: 0.78rem; }
+.fb-legend .ldot { width: 13px; height: 13px; }
+details.card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 14px; overflow: hidden; }
+details.card > summary {
+  cursor: pointer; padding: 11px 18px; list-style: none; user-select: none;
+  font-size: 0.76rem; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); font-weight: 700;
+}
+details.card > summary::-webkit-details-marker { display: none; }
+details.card > summary::before { content: '▸'; display: inline-block; margin-right: 9px; color: var(--accent); transition: transform 0.15s; }
+details.card[open] > summary::before { transform: rotate(90deg); }
+details.card[open] > summary { border-bottom: 1px solid var(--border); }
+details.card > summary:hover { color: var(--text); }
+.card-body { padding: 14px 18px; display: flex; flex-direction: column; gap: 12px; }
+.card-body.controls-flat { flex-direction: row; flex-wrap: wrap; gap: 22px; align-items: flex-end; }
+.preset-tabs { display: flex; gap: 4px; }
+.preset-tabs button { font-size: 0.74rem; padding: 5px 12px; border-radius: 7px 7px 0 0; border-bottom: none; background: transparent; }
+.preset-tabs button.active { background: var(--panel2); border-color: var(--border); color: var(--text); font-weight: 600; }
+.ptab { background: var(--panel2); border: 1px solid var(--border); border-radius: 0 8px 8px 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.ptab-label { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 1.2px; color: var(--muted); font-weight: 600; }
+#soundBtn.active, #btn-legend.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 </style>
 </head>
 <body>
 
 <h1>Gitarren-Training · Pentatonik &amp; Triaden</h1>
 
-<div class="controls">
-  <div class="ctrl">
-    <label>Tonart</label>
-    <select id="keySelect" onchange="setKey(+this.value)"></select>
-  </div>
-
-  <div class="ctrl">
-    <label>Pentatonik</label>
-    <div class="btn-row">
+<div id="stickyTop">
+  <div id="topBar">
+    <label class="tb-field">Tonart
+      <select id="keySelect" onchange="setKey(+this.value)"></select>
+    </label>
+    <span class="btn-row">
       <button id="btn-minor" class="active" onclick="setScale('minor')">Moll</button>
       <button id="btn-major" onclick="setScale('major')">Dur</button>
-    </div>
-  </div>
-
-  <div class="ctrl">
-    <label>Position (Box)</label>
-    <div class="btn-row" id="posBtns">
+    </span>
+    <span class="tb-sep"></span>
+    <span class="tb-label">Box</span>
+    <span class="btn-row" id="posBtns">
       <button data-pos="0" onclick="setPos(0)">Alle</button>
       <button data-pos="1" class="active" onclick="setPos(1)">1</button>
       <button data-pos="2" onclick="setPos(2)">2</button>
       <button data-pos="3" onclick="setPos(3)">3</button>
       <button data-pos="4" onclick="setPos(4)">4</button>
       <button data-pos="5" onclick="setPos(5)">5</button>
-    </div>
+    </span>
+    <span class="tb-sep"></span>
+    <button id="metroBtn" onclick="toggleMetro()" title="Metronom/Backing starten und stoppen – spielt eine geladene Progression im Takt mit">▶ Play</button>
+    <label class="tb-field">BPM
+      <input type="number" id="bpm" min="40" max="240" value="90" onchange="setBpm(this.value)">
+    </label>
+    <div id="beatDots" class="beat-dots" title="Zählzeiten"></div>
   </div>
 
-  <div class="ctrl">
-    <label>Triade</label>
-    <div class="btn-row">
-      <button id="btn-tnone" class="active" onclick="setTriad('none')">Aus</button>
-      <button id="btn-tauto" onclick="setTriad('auto')">⟳ Auto (Voice Leading)</button>
-      <button id="btn-troot" onclick="setTriad('root')">Grundstellung</button>
-      <button id="btn-tinv1" onclick="setTriad('inv1')">1. Umkehrung</button>
-      <button id="btn-tinv2" onclick="setTriad('inv2')">2. Umkehrung</button>
-    </div>
-  </div>
-
-  <div class="ctrl tri-only" id="setCtrl">
-    <label>Triade Saiten-Set</label>
-    <select id="setSelect" onchange="setStringSet(this.value)">
-      <option value="GBe">G–B–e (hoch)</option>
-      <option value="DGB" selected>D–G–B</option>
-      <option value="ADG">A–D–G</option>
-      <option value="EAD">E–A–D (tief)</option>
-      <option value="auto">Automatisch (Box-optimal)</option>
-    </select>
-  </div>
-
-
-  <div class="ctrl">
-    <label>Beschriftung</label>
-    <div class="btn-row">
-      <button id="btn-names" class="active" onclick="setLabel('names')">Noten</button>
-      <button id="btn-degrees" onclick="setLabel('degrees')">Intervalle</button>
-    </div>
-  </div>
-
-  <div class="ctrl">
-    <label>Blue Notes (Spannung)</label>
-    <div class="btn-row">
+  <div class="fretboard-wrap">
+    <div class="fb-toolbar">
+      <span class="btn-row">
+        <button id="btn-names" class="active" onclick="setLabel('names')">Noten</button>
+        <button id="btn-degrees" onclick="setLabel('degrees')">Intervalle</button>
+      </span>
+      <span class="tb-sep"></span>
       <button id="btn-blue" onclick="toggleBlue()" title="Blues-Skala: ♭5 (Moll) bzw. ♭3 (Dur) zusätzlich zur Pentatonik anzeigen – die Spannungstöne zum Ausbrechen aus den Triaden">♦ Blues-Skala</button>
       <button id="btn-bluearr" onclick="toggleBlueArrows()" title="Auflösungs-Pfeile: zeigen, wohin sich der Blue Note auflöst (½ Ton hoch/runter zum stabilen Ton)">→ Auflösung</button>
-    </div>
-  </div>
-
-  <div class="ctrl">
-    <label>Triaden-Tricks</label>
-    <div class="btn-row">
+      <button id="btn-pair" onclick="togglePair()" title="Triaden-Paar (Hexatonik): eigener Dreiklang + Dur-Dreiklang einen Ganzton darunter – zwei simple Griffe, moderner 6-Ton-Klang">⚭ Paar</button>
+      <button id="btn-approach" onclick="toggleApproach()" title="½-Anlauf: den Triaden-Griff aus einem Halbton darunter in den Zielakkord rutschen – Spannung mit sauberer Auflösung">↦ ½-Anlauf</button>
       <select id="superSel" onchange="setSuper(this.value)" title="Obere Struktur: eine andere Triade über den aktuellen Akkord legen, um Extensions (9, 11, 13 …) zu erzeugen. Die Töne erscheinen orange mit Intervall-Label.">
         <option value="none">Obere Struktur: aus</option>
         <option value="v9">Moll +5 → 9-Sound</option>
@@ -273,24 +283,70 @@ button.mini.active { background: var(--accent); border-color: var(--accent); col
         <option value="vi">Moll +9 → 13-Sound</option>
       </select>
       <button onclick="playSuper()" title="Akkord + überlagerte Triade zusammen hören">♪ Farbe</button>
-      <button id="btn-pair" onclick="togglePair()" title="Triaden-Paar (Hexatonik): eigener Dreiklang + Dur-Dreiklang einen Ganzton darunter – zwei simple Griffe, moderner 6-Ton-Klang">⚭ Paar</button>
-      <button id="btn-approach" onclick="toggleApproach()" title="½-Anlauf: den Triaden-Griff aus einem Halbton darunter in den Zielakkord rutschen – Spannung mit sauberer Auflösung">↦ ½-Anlauf</button>
+      <button id="btn-legend" onclick="toggleLegend()" title="Legende ein-/ausblenden" style="margin-left:auto">？ Legende</button>
     </div>
-    <div id="superInfo" class="hint" style="margin-top:5px"></div>
-  </div>
-
-  <div class="ctrl">
-    <label>Klang</label>
-    <div class="btn-row">
-      <button id="btn-sound" class="active" onclick="toggleSound()">🔊 An</button>
-      <button onclick="playScale()" title="Pentatonik-Box auf/ab">♪ Skala</button>
-      <button onclick="playChord()" title="Aktive Triade anschlagen">♪ Triade</button>
+    <svg id="fb" viewBox="0 0 920 235"></svg>
+    <div id="superInfo" class="hint" style="margin-top:6px"></div>
+    <div id="fbLegend" class="fb-legend" style="display:none">
+      <span class="leg"><span class="ldot" style="background:var(--root-col)"></span>Grundton</span>
+      <span class="leg"><span class="ldot" style="background:var(--scale-col)"></span>Skalenton</span>
+      <span class="leg"><span class="ldot" style="background:#1f2937;border-color:#374151"></span>außerhalb Box</span>
+      <span class="leg"><span class="ldot ring" style="background:#f43f5e"></span>Triade R</span>
+      <span class="leg"><span class="ldot ring" style="background:#22c55e"></span>Terz 3</span>
+      <span class="leg"><span class="ldot ring" style="background:#8b5cf6"></span>Quinte 5</span>
+      <span class="leg"><span class="ldot" style="background:#ec4899"></span>♦ Blue Note</span>
+      <span class="leg"><span class="ldot" style="background:#22d3ee"></span>Lick</span>
+      <span class="leg"><span class="ldot" style="background:#f97316"></span>Obere Struktur</span>
+      <span class="leg hint">Töne anklickbar 🔊</span>
     </div>
   </div>
 </div>
 
-<div class="prog-bar">
-  <div class="prog-top">
+<details class="card" id="card-triad" open ontoggle="cardToggled(this)">
+  <summary>🎸 Triade &amp; Klang</summary>
+  <div class="card-body controls-flat">
+    <div class="ctrl">
+      <label>Triade</label>
+      <div class="btn-row">
+        <button id="btn-tnone" class="active" onclick="setTriad('none')">Aus</button>
+        <button id="btn-tauto" onclick="setTriad('auto')">⟳ Auto (Voice Leading)</button>
+        <button id="btn-troot" onclick="setTriad('root')">Grundstellung</button>
+        <button id="btn-tinv1" onclick="setTriad('inv1')">1. Umkehrung</button>
+        <button id="btn-tinv2" onclick="setTriad('inv2')">2. Umkehrung</button>
+      </div>
+    </div>
+    <div class="ctrl tri-only" id="setCtrl">
+      <label>Saiten-Set</label>
+      <select id="setSelect" onchange="setStringSet(this.value)">
+        <option value="GBe">G–B–e (hoch)</option>
+        <option value="DGB" selected>D–G–B</option>
+        <option value="ADG">A–D–G</option>
+        <option value="EAD">E–A–D (tief)</option>
+        <option value="auto">Automatisch (Box-optimal)</option>
+      </select>
+    </div>
+    <div class="ctrl">
+      <label>Triaden-Lage (Progression)</label>
+      <div class="btn-row" title="Auto-Modus: Triaden in der Box halten (streng/±1) – oder unabhängig von der Box das Griffbrett hinauflaufen lassen">
+        <button id="btn-boxstrict" class="active" onclick="setBoxMode('strict')">In Box</button>
+        <button id="btn-boxvariety" onclick="setBoxMode('variety')">Vielfalt ±1</button>
+        <button id="btn-boxascend" onclick="setBoxMode('ascend')">Aufsteigend ↗</button>
+      </div>
+    </div>
+    <div class="ctrl">
+      <label>Klang</label>
+      <div class="btn-row">
+        <button id="btn-sound" class="active" onclick="toggleSound()">🔊 An</button>
+        <button onclick="playScale()" title="Pentatonik-Box auf/ab">♪ Skala</button>
+        <button onclick="playChord()" title="Aktive Triade anschlagen">♪ Triade</button>
+      </div>
+    </div>
+  </div>
+</details>
+
+<details class="card" id="card-prog" open ontoggle="cardToggled(this)">
+  <summary>🎼 Progression &amp; Backing</summary>
+  <div class="card-body">
     <div class="prog-field">
       <label>Akkord-Progression (Stufen in römischen Ziffern)</label>
       <div class="prog-input-row">
@@ -300,107 +356,108 @@ button.mini.active { background: var(--accent); border-color: var(--accent); col
         <button onclick="clearProg()">Leeren</button>
       </div>
     </div>
-    <div class="presets">
-      <label style="font-size:0.68rem;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);font-weight:600">Vorlagen</label>
-      <div class="btn-row">
-        <button onclick="preset('I - IV - V')">I-IV-V</button>
-        <button onclick="preset('I - V - vi - IV')">I-V-vi-IV</button>
-        <button onclick="preset('ii - V - I')">ii-V-I</button>
-        <button onclick="preset('i - iv - v')">i-iv-v</button>
-        <button onclick="preset('i - VI - III - VII')">i-VI-III-VII</button>
-        <button onclick="preset('I IV | V I')" title="Zwei Akkorde im ersten Takt">I IV | V I</button>
+
+    <div>
+      <div class="preset-tabs">
+        <button id="ptab-btn-vorlagen" class="active" onclick="setPresetTab('vorlagen')">Vorlagen</button>
+        <button id="ptab-btn-uebungen" onclick="setPresetTab('uebungen')">Übungen</button>
+        <button id="ptab-btn-blues" onclick="setPresetTab('blues')">Blues</button>
+        <button id="ptab-btn-stile" onclick="setPresetTab('stile')">Song-Stile</button>
       </div>
-      <label id="exLabel" style="font-size:0.68rem;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);font-weight:600;margin-top:4px">Übungen · Dur-Tonleiter (Stufendreiklänge)</label>
-      <div class="btn-row">
-        <button class="exercise-btn" onclick="scaleExercise()"
-          title="Eine Oktave aufsteigend in einer Lage (gleitende Form übers Griffbrett)">↗ 1 Oktave</button>
-        <button class="exercise-btn" onclick="exerciseScaleOctaves()"
-          title="Dreimal aufsteigend – je einmal in 1. Umkehrung, 2. Umkehrung und Grundstellung">↗ alle Umkehrungen</button>
-        <button class="exercise-btn" onclick="exerciseScaleSets()"
-          title="Gleiche Lage, über alle Saiten-Sets von der tiefen zur hohen Saitengruppe">⇄ alle Saiten</button>
+      <div class="ptab" id="ptab-vorlagen">
+        <div class="btn-row">
+          <button onclick="preset('I - IV - V')">I-IV-V</button>
+          <button onclick="preset('I - V - vi - IV')">I-V-vi-IV</button>
+          <button onclick="preset('ii - V - I')">ii-V-I</button>
+          <button onclick="preset('i - iv - v')">i-iv-v</button>
+          <button onclick="preset('i - VI - III - VII')">i-VI-III-VII</button>
+          <button onclick="preset('I IV | V I')" title="Zwei Akkorde im ersten Takt">I IV | V I</button>
+        </div>
       </div>
-      <label style="font-size:0.68rem;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);font-weight:600;margin-top:4px">Blues-Backing · folgt Dur/Moll · Preset aktiviert Shuffle-Groove</label>
-      <div class="btn-row">
-        <button class="blues-btn" onclick="blues12()" title="Klassischer 12-Takt-Blues – Dur: I I I I · IV IV I I · V IV I V / Moll: i i i i · iv iv i i · VI V i V">12-Takt</button>
-        <button class="blues-btn" onclick="bluesQuick()" title="12-Takt mit Quick Change: die IV. Stufe schon im 2. Takt">Quick Change</button>
-        <button class="blues-btn" onclick="blues8()" title="8-Takt-Blues (z. B. „Key to the Highway“): I V IV IV · I V I V">8-Takt</button>
-        <span class="hint" style="align-self:center">Tempo frei über BPM · Slow Blues ≈ 60</span>
+      <div class="ptab" id="ptab-uebungen" style="display:none">
+        <label id="exLabel" class="ptab-label">Übungen · Dur-Tonleiter (Stufendreiklänge)</label>
+        <div class="btn-row">
+          <button class="exercise-btn" onclick="scaleExercise()"
+            title="Eine Oktave aufsteigend in einer Lage (gleitende Form übers Griffbrett)">↗ 1 Oktave</button>
+          <button class="exercise-btn" onclick="exerciseScaleOctaves()"
+            title="Dreimal aufsteigend – je einmal in 1. Umkehrung, 2. Umkehrung und Grundstellung">↗ alle Umkehrungen</button>
+          <button class="exercise-btn" onclick="exerciseScaleSets()"
+            title="Gleiche Lage, über alle Saiten-Sets von der tiefen zur hohen Saitengruppe">⇄ alle Saiten</button>
+        </div>
       </div>
-      <label style="font-size:0.68rem;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);font-weight:600;margin-top:4px">Song-Stile · setzt Form + Tonart + Tempo + Groove</label>
-      <div class="btn-row">
-        <button class="style-btn" onclick="applyStyle('thrill')" title="Moll-Blues in Bm, 88 BPM, gerades Feel – VI→V-Signature">🎩 Thrill-Moll-Blues</button>
-        <button class="style-btn" onclick="applyStyle('chicago')" title="Quick-Change-Shuffle in E, 104 BPM">🏙 Chicago-Shuffle</button>
-        <button class="style-btn" onclick="applyStyle('slow128')" title="12/8 Slow Blues in G, 60 BPM">🐢 Slow-Blues 12/8</button>
-        <button class="style-btn" onclick="applyStyle('boogie')" title="Ein-Akkord-Boogie in A, 120 BPM Shuffle">🥾 Boogie-Vamp</button>
+      <div class="ptab" id="ptab-blues" style="display:none">
+        <label class="ptab-label">folgt Dur/Moll · Preset aktiviert Shuffle · Tempo frei über BPM (Slow Blues ≈ 60)</label>
+        <div class="btn-row">
+          <button class="blues-btn" onclick="blues12()" title="Klassischer 12-Takt-Blues – Dur: I I I I · IV IV I I · V IV I V / Moll: i i i i · iv iv i i · VI V i V">12-Takt</button>
+          <button class="blues-btn" onclick="bluesQuick()" title="12-Takt mit Quick Change: die IV. Stufe schon im 2. Takt">Quick Change</button>
+          <button class="blues-btn" onclick="blues8()" title="8-Takt-Blues (z. B. „Key to the Highway“): I V IV IV · I V I V">8-Takt</button>
+        </div>
       </div>
-      <div id="styleInfo" class="hint" style="max-width:640px"></div>
+      <div class="ptab" id="ptab-stile" style="display:none">
+        <label class="ptab-label">setzt Form + Tonart + Tempo + Groove auf einmal</label>
+        <div class="btn-row">
+          <button class="style-btn" onclick="applyStyle('thrill')" title="Moll-Blues in Bm, 88 BPM, gerades Feel – VI→V-Signature">🎩 Thrill-Moll-Blues</button>
+          <button class="style-btn" onclick="applyStyle('chicago')" title="Quick-Change-Shuffle in E, 104 BPM">🏙 Chicago-Shuffle</button>
+          <button class="style-btn" onclick="applyStyle('slow128')" title="12/8 Slow Blues in G, 60 BPM">🐢 Slow-Blues 12/8</button>
+          <button class="style-btn" onclick="applyStyle('boogie')" title="Ein-Akkord-Boogie in A, 120 BPM Shuffle">🥾 Boogie-Vamp</button>
+        </div>
+        <div id="styleInfo" class="hint" style="max-width:640px"></div>
+      </div>
     </div>
-  </div>
-  <div class="prog-chips" id="progChips"><span class="prog-empty">Noch keine Progression – gib Stufen ein oder wähle eine Vorlage. Die Akkordtöne richten sich nach der gewählten Tonart.</span></div>
 
-  <div class="metro-row">
-    <button id="metroBtn" onclick="toggleMetro()" title="Metronom starten/stoppen – spielt eine geladene Progression im Takt mit">▶ Play</button>
-    <label class="metro-field">BPM
-      <input type="number" id="bpm" min="40" max="240" value="90" onchange="setBpm(this.value)">
-    </label>
-    <label class="metro-field">Taktart
-      <select id="timeSig" onchange="setTimeSig(this.value)">
-        <option value="2">2/4</option>
-        <option value="3">3/4</option>
-        <option value="4" selected>4/4</option>
-        <option value="6">6/8</option>
-        <option value="12-8">12/8 (Slow Blues)</option>
-      </select>
-    </label>
-    <label class="metro-field">Takte/Akkord
-      <select id="measPerChord" onchange="setMeasPerChord(this.value)">
-        <option value="1" selected>1</option>
-        <option value="2">2</option>
-        <option value="4">4</option>
-      </select>
-    </label>
-    <button id="clickBtn" class="active" onclick="toggleClick()" title="Metronom-Klick an/aus (Akkorde spielen unabhängig davon weiter)">🔔 Klick</button>
-    <button id="drumsBtn" class="active" onclick="toggleDrums()" title="Schlagzeug-Begleitung (Kick/Snare/HiHat) an/aus">🥁 Drums</button>
-    <button id="bassBtn" class="active" onclick="toggleBass()" title="Bass-Begleitung an/aus – spielt Grundton und Quinte des aktuellen Akkords">🎸 Bass</button>
-    <button id="countInBtn" class="active" onclick="toggleCountIn()" title="Ein Takt Vorzähler vor dem ersten Akkord">Einzähler</button>
-    <div id="beatDots" class="beat-dots" title="Zählzeiten"></div>
-  </div>
+    <div class="prog-chips" id="progChips"><span class="prog-empty">Noch keine Progression – gib Stufen ein oder wähle eine Vorlage. Die Akkordtöne richten sich nach der gewählten Tonart.</span></div>
 
-  <div class="metro-row" style="padding-top:0">
-    <label class="metro-field" id="grooveField">Groove
-      <span class="btn-row">
-        <button id="btn-grstraight" class="active" onclick="setGroove('straight')" title="Gerade Achtel">Gerade</button>
-        <button id="btn-grshuffle" onclick="setGroove('shuffle')" title="Triolisches Achtel-Feel (Swing/Blues)">Shuffle</button>
+    <div class="metro-row">
+      <label class="metro-field">Taktart
+        <select id="timeSig" onchange="setTimeSig(this.value)">
+          <option value="2">2/4</option>
+          <option value="3">3/4</option>
+          <option value="4" selected>4/4</option>
+          <option value="6">6/8</option>
+          <option value="12-8">12/8 (Slow Blues)</option>
+        </select>
+      </label>
+      <label class="metro-field">Takte/Akkord
+        <select id="measPerChord" onchange="setMeasPerChord(this.value)">
+          <option value="1" selected>1</option>
+          <option value="2">2</option>
+          <option value="4">4</option>
+        </select>
+      </label>
+      <button id="countInBtn" class="active" onclick="toggleCountIn()" title="Ein Takt Vorzähler vor dem ersten Akkord">Einzähler</button>
+      <span id="progTransport" class="btn-row" style="display:none">
+        <button onclick="progStep(-1)" title="Vorheriger Akkord">‹ zurück</button>
+        <button onclick="progStep(1)" title="Nächster Akkord">weiter ›</button>
       </span>
-    </label>
-    <div class="mixer" title="Lautstärke-Balance der Spuren">
-      <span class="mix-label">Mixer</span>
-      <label class="mix-field" title="Metronom-Klick">🔔<input type="range" min="0" max="100" value="100" oninput="setVol('click', this.value)"></label>
-      <label class="mix-field" title="Drums">🥁<input type="range" min="0" max="100" value="100" oninput="setVol('drums', this.value)"></label>
-      <label class="mix-field" title="Bass">🎸<input type="range" min="0" max="100" value="100" oninput="setVol('bass', this.value)"></label>
-      <label class="mix-field" title="Gitarre (Akkorde & angeklickte Töne)">🎼<input type="range" min="0" max="100" value="100" oninput="setVol('guitar', this.value)"></label>
+      <button id="soundBtn" onclick="toggleSoundDrawer()" style="margin-left:auto"
+        title="Sound-Einstellungen: Klick/Drums/Bass, Groove und Mixer">🎚 Sound</button>
+    </div>
+
+    <div id="soundDrawer" class="metro-row" style="display:none;padding-top:0">
+      <button id="clickBtn" class="active" onclick="toggleClick()" title="Metronom-Klick an/aus (Akkorde spielen unabhängig davon weiter)">🔔 Klick</button>
+      <button id="drumsBtn" class="active" onclick="toggleDrums()" title="Schlagzeug-Begleitung (Kick/Snare/HiHat) an/aus">🥁 Drums</button>
+      <button id="bassBtn" class="active" onclick="toggleBass()" title="Bass-Begleitung an/aus – spielt Grundton und Quinte des aktuellen Akkords">🎸 Bass</button>
+      <label class="metro-field" id="grooveField">Groove
+        <span class="btn-row">
+          <button id="btn-grstraight" class="active" onclick="setGroove('straight')" title="Gerade Achtel">Gerade</button>
+          <button id="btn-grshuffle" onclick="setGroove('shuffle')" title="Triolisches Achtel-Feel (Swing/Blues)">Shuffle</button>
+        </span>
+      </label>
+      <div class="mixer" title="Lautstärke-Balance der Spuren">
+        <span class="mix-label">Mixer</span>
+        <label class="mix-field" title="Metronom-Klick">🔔<input type="range" min="0" max="100" value="100" oninput="setVol('click', this.value)"></label>
+        <label class="mix-field" title="Drums">🥁<input type="range" min="0" max="100" value="100" oninput="setVol('drums', this.value)"></label>
+        <label class="mix-field" title="Bass">🎸<input type="range" min="0" max="100" value="100" oninput="setVol('bass', this.value)"></label>
+        <label class="mix-field" title="Gitarre (Akkorde & angeklickte Töne)">🎼<input type="range" min="0" max="100" value="100" oninput="setVol('guitar', this.value)"></label>
+      </div>
     </div>
   </div>
+</details>
 
-  <div class="prog-transport" id="progTransport" style="display:none">
-    <button onclick="progStep(-1)" title="Vorheriger Akkord">‹ zurück</button>
-    <button onclick="progStep(1)" title="Nächster Akkord">weiter ›</button>
-    <div class="tempo" style="margin-left:auto" title="Auto-Modus: Triaden in der Box halten (streng/±1) – oder unabhängig von der Box das Griffbrett hinauflaufen lassen">
-      Triaden-Lage
-      <button id="btn-boxstrict" class="active" onclick="setBoxMode('strict')">In Box</button>
-      <button id="btn-boxvariety" onclick="setBoxMode('variety')">Vielfalt ±1</button>
-      <button id="btn-boxascend" onclick="setBoxMode('ascend')">Aufsteigend ↗</button>
-    </div>
-  </div>
-</div>
-
-<div class="fretboard-wrap">
-  <svg id="fb" viewBox="0 0 920 235"></svg>
-</div>
-
-<div class="lick-bar">
+<details class="card" id="card-licks" ontoggle="cardToggled(this)">
+  <summary>🎵 Licks · Bibliothek &amp; eigene Sammlung</summary>
+  <div class="card-body">
   <div class="lick-head">
-    <label>Licks · eigene Sammlung</label>
     <div class="btn-row">
       <button id="recBtn" onclick="toggleRecording()" title="Aufnahme starten – dann Töne am Griffbrett anklicken (alle Bünde klickbar, auch Blue Notes)">● Aufnehmen</button>
       <button onclick="playSelectedLick()" title="Ausgewählten Lick im BPM-Tempo abspielen (mit aufgenommenem Rhythmus)">▶ Lick</button>
@@ -422,11 +479,13 @@ button.mini.active { background: var(--accent); border-color: var(--accent); col
   </div>
   <div id="lickLib" class="lick-list"></div>
   <div id="lickList" class="lick-list"></div>
-</div>
+  </div>
+</details>
 
-<div class="lick-bar" id="trainerBar">
+<details class="card" id="card-trainer" ontoggle="cardToggled(this)">
+  <summary>🎤 Trainer · mit echter Gitarre (Mikrofon)</summary>
+  <div class="card-body" id="trainerBar">
   <div class="lick-head">
-    <label>🎤 Trainer · mit echter Gitarre</label>
     <div class="btn-row">
       <button id="tr-box" onclick="startTrainerMode('box')" title="Die Pentatonik-Box Ton für Ton auf- und absteigend nachspielen – der Zielton ist grün umrandet">📦 Box auf & ab</button>
       <button id="tr-arp" onclick="startTrainerMode('arp')" title="Die aktive Triade als Arpeggio spielen (tief → hoch); bei Progression schaltet jeder geschaffte Akkord weiter">🎶 Triaden-Arpeggio</button>
@@ -448,23 +507,10 @@ button.mini.active { background: var(--accent); border-color: var(--accent); col
     <span id="trainStatus" class="hint" style="flex:1 1 200px"></span>
     <span class="hint">💡 Einzeltöne sauber anschlagen · Backing über Kopfhörer</span>
   </div>
-</div>
-
-<div class="bottom-row">
-  <div class="legend">
-    <h3>Pentatonik</h3>
-    <div class="leg"><div class="ldot" style="background:var(--root-col)"></div><span>Grundton</span></div>
-    <div class="leg"><div class="ldot" style="background:var(--scale-col)"></div><span>Skalenton</span></div>
-    <div class="leg"><div class="ldot" style="background:#1f2937;border-color:#374151"></div><span>außerhalb der Box</span></div>
-    <div class="sep"></div>
-    <h3>Triade (Intervalle)</h3>
-    <div class="leg"><div class="ldot ring" style="background:#f43f5e"></div><span>Grundton · R</span></div>
-    <div class="leg"><div class="ldot ring" style="background:#22c55e"></div><span>Terz · 3</span></div>
-    <div class="leg"><div class="ldot ring" style="background:#8b5cf6"></div><span>Quinte · 5</span></div>
-    <div class="leg" style="margin-top:4px;font-size:0.75rem;color:var(--muted)">Tipp: Töne anklickbar 🔊</div>
   </div>
-  <div class="info" id="info"></div>
-</div>
+</details>
+
+<div class="info" id="info"></div>
 
 <script>
 // ─── Musik-Konstanten ─────────────────────────────────────────────────────────
@@ -518,7 +564,9 @@ const S = { key: 9, scale: 'minor', pos: 1, triad: 'none', set: 'DGB', label: 'n
             groove: 'straight', tripletFeel: false, vol: { click: 1, drums: 1, bass: 1, guitar: 1 },
             licks: [], recording: false, lickRec: [], selectedLick: null, lickLoop: false,
             trainer: null, micGate: 0.004, micBoost: 8, blue: false, blueArrows: false,
-            lickOnlyMatch: true, superId: 'none', pair: false, approach: false };
+            lickOnlyMatch: true, superId: 'none', pair: false, approach: false,
+            presetTab: 'vorlagen', soundOpen: false, showLegend: false,
+            cards: { triad: true, prog: true, licks: false, trainer: false } };
 let metroTimer = null;
 const metro = { nextNote: 0, beat: 0, countInBeats: 0, sched: null, lickNextBeat: 0 };
 
@@ -1415,6 +1463,32 @@ function toggleApproach() {
   S.approach = !S.approach;
   document.getElementById('btn-approach').classList.toggle('active', S.approach);
   render();
+}
+
+// ─── Layout-Steuerung: Preset-Tabs, Sound-Schublade, Legende, Karten ─────────
+function setPresetTab(v) {
+  S.presetTab = v;
+  ['vorlagen', 'uebungen', 'blues', 'stile'].forEach(t => {
+    document.getElementById('ptab-btn-' + t).classList.toggle('active', t === v);
+    document.getElementById('ptab-' + t).style.display = t === v ? 'flex' : 'none';
+  });
+  saveSettings();
+}
+function toggleSoundDrawer() {
+  S.soundOpen = !S.soundOpen;
+  document.getElementById('soundDrawer').style.display = S.soundOpen ? 'flex' : 'none';
+  document.getElementById('soundBtn').classList.toggle('active', S.soundOpen);
+  saveSettings();
+}
+function toggleLegend() {
+  S.showLegend = !S.showLegend;
+  document.getElementById('fbLegend').style.display = S.showLegend ? 'flex' : 'none';
+  document.getElementById('btn-legend').classList.toggle('active', S.showLegend);
+  saveSettings();
+}
+function cardToggled(el) {
+  S.cards[el.id.replace('card-', '')] = el.open;
+  saveSettings();
 }
 // Akkord (Grundton als Bass) + überlagerte Triade zusammen anschlagen
 function playSuper() {
@@ -2433,7 +2507,8 @@ function reparseProg() {
 const SETTINGS_KEY = 'gitarrenTraining.settings';
 const PERSIST = ['key','scale','pos','triad','set','label','blue','blueArrows','pair','approach',
   'superId','bpm','beatsPerMeasure','tripletFeel','measuresPerChord','countIn','click','drums',
-  'bass','groove','vol','boxMode','lickOnlyMatch','micBoost','lickLoop','sound','selectedLick'];
+  'bass','groove','vol','boxMode','lickOnlyMatch','micBoost','lickLoop','sound','selectedLick',
+  'presetTab','soundOpen','showLegend','cards'];
 function saveSettings() {
   try {
     const o = {};
@@ -2492,6 +2567,16 @@ function applySettingsUI() {
   sb.textContent = S.sound ? '🔊 An' : '🔇 Aus'; sb.classList.toggle('active', S.sound);
   document.getElementById('lickLoopBtn').classList.toggle('active', S.lickLoop);
   if (!findLick(S.selectedLick)) S.selectedLick = null;   // gelöschte Licks nicht wiederherstellen
+  // Layout: Preset-Tab, Sound-Schublade, Legende, Karten-Zustände
+  setPresetTab(S.presetTab || 'vorlagen');
+  document.getElementById('soundDrawer').style.display = S.soundOpen ? 'flex' : 'none';
+  document.getElementById('soundBtn').classList.toggle('active', S.soundOpen);
+  document.getElementById('fbLegend').style.display = S.showLegend ? 'flex' : 'none';
+  document.getElementById('btn-legend').classList.toggle('active', S.showLegend);
+  Object.entries(S.cards || {}).forEach(([k, v]) => {
+    const el = document.getElementById('card-' + k);
+    if (el) el.open = !!v;
+  });
   // Progression wiederherstellen (applyProg räumt bluesForm auf → danach zurücksetzen)
   if (S._progText) {
     document.getElementById('progInput').value = S._progText;
