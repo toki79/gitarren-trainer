@@ -71,6 +71,8 @@ select {
   padding: 16px; margin-bottom: 16px; overflow-x: auto;
 }
 #fb { display: block; min-width: 860px; }
+.fretboard-wrap.compact { padding: 8px 12px; }
+.fretboard-wrap.compact #fb { min-width: 0; max-width: 480px; margin: 0 auto; }
 .bottom-row { display: grid; grid-template-columns: auto 1fr; gap: 16px; align-items: start; }
 .legend {
   background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
@@ -283,7 +285,8 @@ details.card > summary:hover { color: var(--text); }
         <option value="vi">Moll +9 → 13-Sound</option>
       </select>
       <button onclick="playSuper()" title="Akkord + überlagerte Triade zusammen hören">♪ Farbe</button>
-      <button id="btn-legend" onclick="toggleLegend()" title="Legende ein-/ausblenden" style="margin-left:auto">？ Legende</button>
+      <button id="btn-fbsize" onclick="toggleFbSize()" title="Griffbrett kompakt/groß schalten – kompakt beim Konfigurieren, groß beim Spielen" style="margin-left:auto">⤡ Kompakt</button>
+      <button id="btn-legend" onclick="toggleLegend()" title="Legende ein-/ausblenden">？ Legende</button>
     </div>
     <svg id="fb" viewBox="0 0 920 235"></svg>
     <div id="superInfo" class="hint" style="margin-top:6px"></div>
@@ -565,7 +568,7 @@ const S = { key: 9, scale: 'minor', pos: 1, triad: 'none', set: 'DGB', label: 'n
             licks: [], recording: false, lickRec: [], selectedLick: null, lickLoop: false,
             trainer: null, micGate: 0.004, micBoost: 8, blue: false, blueArrows: false,
             lickOnlyMatch: true, superId: 'none', pair: false, approach: false,
-            presetTab: 'vorlagen', soundOpen: false, showLegend: false,
+            presetTab: 'vorlagen', soundOpen: false, showLegend: false, fbCompact: false,
             cards: { triad: true, prog: true, licks: false, trainer: false } };
 let metroTimer = null;
 const metro = { nextNote: 0, beat: 0, countInBeats: 0, sched: null, lickNextBeat: 0 };
@@ -1486,6 +1489,13 @@ function toggleLegend() {
   document.getElementById('btn-legend').classList.toggle('active', S.showLegend);
   saveSettings();
 }
+function applyFbSize() {
+  document.querySelector('.fretboard-wrap').classList.toggle('compact', S.fbCompact);
+  const b = document.getElementById('btn-fbsize');
+  b.textContent = S.fbCompact ? '⤢ Groß' : '⤡ Kompakt';
+  b.classList.toggle('active', S.fbCompact);
+}
+function toggleFbSize() { S.fbCompact = !S.fbCompact; applyFbSize(); saveSettings(); }
 function cardToggled(el) {
   S.cards[el.id.replace('card-', '')] = el.open;
   saveSettings();
@@ -2508,7 +2518,7 @@ const SETTINGS_KEY = 'gitarrenTraining.settings';
 const PERSIST = ['key','scale','pos','triad','set','label','blue','blueArrows','pair','approach',
   'superId','bpm','beatsPerMeasure','tripletFeel','measuresPerChord','countIn','click','drums',
   'bass','groove','vol','boxMode','lickOnlyMatch','micBoost','lickLoop','sound','selectedLick',
-  'presetTab','soundOpen','showLegend','cards'];
+  'presetTab','soundOpen','showLegend','cards','fbCompact'];
 function saveSettings() {
   try {
     const o = {};
@@ -2573,6 +2583,7 @@ function applySettingsUI() {
   document.getElementById('soundBtn').classList.toggle('active', S.soundOpen);
   document.getElementById('fbLegend').style.display = S.showLegend ? 'flex' : 'none';
   document.getElementById('btn-legend').classList.toggle('active', S.showLegend);
+  applyFbSize();
   Object.entries(S.cards || {}).forEach(([k, v]) => {
     const el = document.getElementById('card-' + k);
     if (el) el.open = !!v;
