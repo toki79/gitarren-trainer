@@ -285,7 +285,8 @@ details.card > summary:hover { color: var(--text); }
         <option value="vi">Moll +9 → 13-Sound</option>
       </select>
       <button onclick="playSuper()" title="Akkord + überlagerte Triade zusammen hören">♪ Farbe</button>
-      <button id="btn-fbsize" onclick="toggleFbSize()" title="Griffbrett kompakt/groß schalten – kompakt beim Konfigurieren, groß beim Spielen" style="margin-left:auto">⤡ Kompakt</button>
+      <button id="btn-interval" onclick="toggleIntervalMode()" title="Intervall-Ansicht: wähle eine Position als Bezugston, dann zeigt jeder Bund sein Intervall dazu (R, ♭3, 3, 5 …)" style="margin-left:auto">⧉ Intervalle</button>
+      <button id="btn-fbsize" onclick="toggleFbSize()" title="Griffbrett kompakt/groß schalten – kompakt beim Konfigurieren, groß beim Spielen">⤡ Kompakt</button>
       <button id="btn-legend" onclick="toggleLegend()" title="Legende ein-/ausblenden">？ Legende</button>
     </div>
     <svg id="fb" viewBox="0 0 920 235"></svg>
@@ -569,6 +570,7 @@ const S = { key: 9, scale: 'minor', pos: 1, triad: 'none', set: 'DGB', label: 'n
             trainer: null, micGate: 0.004, micBoost: 8, blue: false, blueArrows: false,
             lickOnlyMatch: true, superId: 'none', pair: false, approach: false,
             presetTab: 'vorlagen', soundOpen: false, showLegend: false, fbCompact: false,
+            intervalMode: false, intervalRef: null,
             cards: { triad: true, prog: true, licks: false, trainer: false } };
 let metroTimer = null;
 const metro = { nextNote: 0, beat: 0, countInBeats: 0, sched: null, lickNextBeat: 0 };
@@ -701,6 +703,12 @@ const triadSet = (key, scale) => [0, THIRD[scale], 7].map(i => mod12(key + i));
 const blueNotePc = () => mod12(S.key + (S.scale === 'minor' ? 6 : 3));
 const blueNoteLabel = () => (S.scale === 'minor' ? '♭5' : '♭3');
 const BLUE_COL = '#ec4899';
+// Intervall-Ansicht: Name + Farbe je Halbton-Abstand zum Bezugston
+const INTERVAL_NAMES = ['R', '♭2', '2', '♭3', '3', '4', '♭5', '5', '♭6', '6', '♭7', '7'];
+const INTERVAL_COL = { 0:'#f59e0b', 3:'#22c55e', 4:'#22c55e', 7:'#8b5cf6', 10:'#38bdf8', 11:'#38bdf8' };
+const INTERVAL_TXT = { 0:'#000', 3:'#04231a', 4:'#04231a', 7:'#fff', 10:'#04231a', 11:'#04231a' };
+function intervalColor(semi) { return INTERVAL_COL[semi] || '#3f4a5c'; }
+function intervalText(semi) { return INTERVAL_TXT[semi] || '#cbd5e1'; }
 
 // ─── Obere Struktur (Triaden-Superimposition) ───────────────────────────────
 // Über dem aktuellen Akkord eine ANDERE Triade spielen, um Extensions zu erzeugen.
@@ -1064,6 +1072,30 @@ function render() {
     const y = sy(s);
     svg.appendChild(el('line', { x1:fbX, y1:y, x2:fbX+fbW, y2:y, stroke:'#8a9099', 'stroke-width': 1 + (5-s)*0.35 }));
     svg.appendChild(el('text', { x:24, y:y, fill:'#6b7280', 'font-size':11, 'text-anchor':'middle', 'dominant-baseline':'middle' }, STR_LABELS[s]));
+  }
+
+  // ── Intervall-Ansicht: jede Position als Intervall zum Bezugston ──
+  if (S.intervalMode) {
+    const ref = S.intervalRef;
+    const refPc = ref ? mod12(OPEN_PC[ref.s] + ref.fret) : mod12(key);
+    for (let s = 0; s < 6; s++)
+      for (let f = 0; f <= FRETS; f++) {
+        const semi = mod12(OPEN_PC[s] + f - refPc);
+        const x = fx(f), y = sy(s);
+        if (ref && ref.s === s && ref.fret === f)     // gewählter Bezugston: weißer Ring
+          svg.appendChild(el('circle', { cx:x, cy:y, r:DR + 3, fill:'none', stroke:'#fff', 'stroke-width':2.5 }));
+        const c = el('circle', { cx:x, cy:y, r:DR - 1, fill:intervalColor(semi), stroke:'rgba(0,0,0,0.3)', 'stroke-width':1 });
+        c.style.cursor = 'pointer';
+        c.addEventListener('click', () => setIntervalRef(s, f));
+        svg.appendChild(c);
+        svg.appendChild(el('text', { x, y, fill:intervalText(semi), 'font-size':9, 'font-weight':'bold',
+          'text-anchor':'middle', 'dominant-baseline':'middle', style:'user-select:none;pointer-events:none' }, INTERVAL_NAMES[semi]));
+      }
+    document.getElementById('info').innerHTML =
+      `<h3>Intervall-Ansicht</h3><div class="hint">Bezugston: <b>${nn(refPc, refPc)}</b>${ref ? '' : ' (Grundton der Tonart)'} · jede Position zeigt ihr Intervall dazu. Klicke eine Position, um sie zum neuen Bezugston zu machen.<br>R · Terz (♭3/3, grün) · Quinte (5, lila) · Septime (♭7/7, blau) sind hervorgehoben.</div>`;
+    S.currentGrip = [];
+    saveSettings();
+    return;
   }
 
   // Aktiver Progressions-Akkord (falls vorhanden) hat Vorrang vor der Tonart-Triade
@@ -1510,6 +1542,20 @@ function applyFbSize() {
   b.classList.toggle('active', S.fbCompact);
 }
 function toggleFbSize() { S.fbCompact = !S.fbCompact; applyFbSize(); saveSettings(); }
+function applyIntervalBtn() {
+  const b = document.getElementById('btn-interval');
+  b.classList.toggle('active', S.intervalMode);
+}
+function toggleIntervalMode() {
+  S.intervalMode = !S.intervalMode;
+  applyIntervalBtn();
+  render();
+}
+function setIntervalRef(s, fret) {
+  S.intervalRef = { s, fret };
+  playNote(OPEN_MIDI[s] + fret, s, fret, '#f59e0b');
+  render();
+}
 function cardToggled(el) {
   S.cards[el.id.replace('card-', '')] = el.open;
   saveSettings();
@@ -2546,7 +2592,7 @@ const SETTINGS_KEY = 'gitarrenTraining.settings';
 const PERSIST = ['key','scale','pos','triad','set','label','blue','blueArrows','pair','approach',
   'superId','bpm','beatsPerMeasure','tripletFeel','measuresPerChord','countIn','click','drums',
   'bass','groove','vol','boxMode','lickOnlyMatch','micBoost','lickLoop','sound','selectedLick',
-  'presetTab','soundOpen','showLegend','cards','fbCompact'];
+  'presetTab','soundOpen','showLegend','cards','fbCompact','intervalMode','intervalRef'];
 function saveSettings() {
   try {
     const o = {};
@@ -2612,6 +2658,7 @@ function applySettingsUI() {
   document.getElementById('fbLegend').style.display = S.showLegend ? 'flex' : 'none';
   document.getElementById('btn-legend').classList.toggle('active', S.showLegend);
   applyFbSize();
+  applyIntervalBtn();
   Object.entries(S.cards || {}).forEach(([k, v]) => {
     const el = document.getElementById('card-' + k);
     if (el) el.open = !!v;
