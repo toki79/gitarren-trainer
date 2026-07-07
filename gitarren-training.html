@@ -594,10 +594,11 @@ function audio() {
 const midiToFreq = m => 440 * Math.pow(2, (m - 69) / 12);
 
 // Gezupfter, gitarrenähnlicher Ton: Grundton + Obertöne, Tiefpass mit Decay
-function pluck(midi, when = 0, dur = 1.1, gainMul = 1) {
+function pluck(midi, when = 0, dur = 1.1, gainMul = 1, bendSemi = 0) {
   const ac = audio();
   const t0 = ac.currentTime + when;
   const freq = midiToFreq(midi);
+  const bentFreq = midiToFreq(midi + bendSemi);
   const out = ac.createGain();
   out.connect(trackGain.guitar);
   out.gain.setValueAtTime(0.0001, t0);
@@ -611,7 +612,11 @@ function pluck(midi, when = 0, dur = 1.1, gainMul = 1) {
   [[1, 1, 'triangle'], [2, 0.22, 'sine'], [3, 0.1, 'sine']].forEach(([mult, amp, type]) => {
     const o = ac.createOscillator();
     o.type = type;
-    o.frequency.value = freq * mult;
+    o.frequency.setValueAtTime(freq * mult, t0);
+    if (bendSemi) {                                 // Bend: nach dem Anschlag zur Zieltonhöhe gleiten
+      o.frequency.setValueAtTime(freq * mult, t0 + Math.min(0.08, dur * 0.25));
+      o.frequency.linearRampToValueAtTime(bentFreq * mult, t0 + Math.min(0.28, dur * 0.6));
+    }
     const g = ac.createGain();
     g.gain.value = amp;
     o.connect(g); g.connect(lp);
@@ -1278,11 +1283,20 @@ function render() {
       // Lick-Trainer aktiv: aktuellen Zielton grün umranden
       if (S.trainer && S.trainer.mode === 'lick' && !S.recording && i === S.trainer.idx)
         svg.appendChild(el('circle', { cx:x, cy:y, r:13, fill:'none', stroke:'#22c55e', 'stroke-width':2.5, 'stroke-dasharray':'4 3' }));
-      const c = el('circle', { cx:x, cy:y, r:8.5, fill:'#22d3ee', stroke:'#083344', 'stroke-width':1.5 });
+      // Bend-Ton: gebogener Pfeil nach oben + Label (½ = Halbton, 1 = Ganzton)
+      if (n.bend) {
+        const bl = n.bend === 1 ? '½' : n.bend === 2 ? '1' : (n.bend / 2);
+        svg.appendChild(el('path', { d:`M ${x + 10} ${y} q 14 0 14 -16`, fill:'none', stroke:'#f59e0b', 'stroke-width':2 }));
+        svg.appendChild(el('polygon', { points:`${x + 24},${y - 16} ${x + 21},${y - 9} ${x + 27},${y - 10}`, fill:'#f59e0b' }));
+        svg.appendChild(el('text', { x:x + 27, y:y - 20, fill:'#f59e0b', 'font-size':9, 'font-weight':'bold',
+          'text-anchor':'middle', style:'user-select:none;pointer-events:none' }, bl));
+      }
+      const bendCol = n.bend ? '#f59e0b' : '#22d3ee';
+      const c = el('circle', { cx:x, cy:y, r:8.5, fill:bendCol, stroke:'#083344', 'stroke-width':1.5 });
       c.style.cursor = 'pointer';
       c.addEventListener('click', () => {
         if (S.recording) recordNote(n.s, n.fret);
-        else playNote(OPEN_MIDI[n.s] + n.fret, n.s, n.fret, '#22d3ee');
+        else pluck(OPEN_MIDI[n.s] + n.fret, 0, 1.1, 0.95, n.bend || 0);
       });
       svg.appendChild(c);
       svg.appendChild(el('text', {
@@ -1605,9 +1619,9 @@ function blues8()     { bluesPreset('eight'); }
 // Ein Stil = Form + Tonart + Tempo + Taktart + Groove (alles nicht schützbar);
 // Melodien werden bewusst nicht übernommen.
 const SONG_STYLES = {
-  thrill: { name: 'Thrill-Moll-Blues (Bm)', key: 11, scale: 'minor', bpm: 88, sig: '4', groove: 'straight', pos: 1,
+  thrill: { name: 'Thrill-Moll-Blues (Bm)', key: 11, scale: 'minor', bpm: 88, sig: '4', groove: 'straight', pos: 2,
     prog: 'i | i | i | i | iv | iv | i | i | VI | V | i | i',
-    hint: 'Im Stil von „The Thrill Is Gone“: langsamer Moll-Blues in Bm, gerades Feel, die VI→V-Wendung (G→F♯) ist die Signature. Wenig Töne, viel Raum – die BB-Box-Licks passen perfekt.' },
+    hint: 'Im Stil von „The Thrill Is Gone“: langsamer Moll-Blues in Bm, gerades Feel, die VI→V-Wendung (G→F♯) ist die Signature. Wenig Töne, viel Raum. Box 2 (BB-Box) ist geladen – öffne die Licks-Karte für das 🎩 Thrill-Style-Paket mit Bends.' },
   chicago: { name: 'Chicago-Shuffle (E)', key: 4, scale: 'major', bpm: 104, sig: '4', groove: 'shuffle', pos: 1,
     prog: 'I | IV | I | I | IV | IV | I | I | V | IV | I | V',
     hint: 'Im Stil von „Sweet Home Chicago“: Quick-Change-Shuffle in E. Dur-Blues-Reibung (♭3→3) und treibende Achtel.' },
@@ -1637,8 +1651,10 @@ function applyStyle(id) {
 // Referenz A (key 9). notes: [Saite (0=hohe e … 5=tiefe E), fret, Dauer in Achteln].
 // box = Pentatonik-Box, in der der Lick liegt; cat = Kategorie. Werden in die Tonart
 // transponiert und beim Abspielen dem Groove folgend geswingt.
+// notes-Einträge: [Saite, fret, Dauer, bend?] – bend = Halbtöne, um die der Ton hochgezogen wird
 const _lk = (id, name, scale, box, cat, notes) =>
-  ({ id, name, scale, box, cat, key: 9, builtin: true, notes: notes.map(([s, fret, d]) => ({ s, fret, d })) });
+  ({ id, name, scale, box, cat, key: 9, builtin: true,
+     notes: notes.map(([s, fret, d, bend]) => bend ? { s, fret, d, bend } : { s, fret, d }) });
 const BUILTIN_LICKS = [
   // ── Läufe & Sequenzen ──
   _lk('m-b1-seqdn', 'Abwärts-Sequenz (4er)', 'minor', 1, 'Läufe & Sequenzen',
@@ -1674,7 +1690,19 @@ const BUILTIN_LICKS = [
   _lk('m-b1-repeat', 'Repeating-Lick (Sequenz)', 'minor', 1, 'Phrasen (BB-Box)',
     [[0,8,1],[0,5,1],[1,8,1],[1,5,1],[0,8,1],[0,5,1],[1,8,1],[1,5,1]]),
   _lk('d-b1-country', 'Dur-Lick mit Auflösung', 'major', 1, 'Phrasen (BB-Box)',
-    [[2,4,1],[2,2,1],[3,4,1],[3,2,1],[4,4,2],[4,2,1],[5,5,1]])
+    [[2,4,1],[2,2,1],[3,4,1],[3,2,1],[4,4,2],[4,2,1],[5,5,1]]),
+  // ── 🎩 Thrill-Style (Bm-BB-Box, mit Bends) · Box 2, Moll ──
+  // In A-Referenz (Box 2, Bund 7–10); der Thrill-Stil (Bm) transponiert sie nach Box 2 in Bm.
+  _lk('t-bend5', 'Thrill: Bend ♭7→Grundton', 'minor', 2, '🎩 Thrill-Style (Bends)',
+    [[1,8,2,2],[0,8,1],[1,10,1],[2,9,4]]),                       // G↗A, C, A, E (halten)
+  _lk('t-curl', 'Thrill: ♭3-Curl', 'minor', 2, '🎩 Thrill-Style (Bends)',
+    [[0,8,1,1],[0,8,1],[1,10,1],[1,8,1],[2,9,4]]),               // C-Curl (½), C, A, G, E
+  _lk('t-bend45', 'Thrill: Bend 4→5', 'minor', 2, '🎩 Thrill-Style (Bends)',
+    [[2,7,2,2],[1,8,1],[1,10,1],[0,8,2],[2,9,2]]),               // D↗E, G, A, C, E
+  _lk('t-answer', 'Thrill: Antwort-Phrase', 'minor', 2, '🎩 Thrill-Style (Bends)',
+    [[1,10,1.5],[0,8,0.5],[1,8,1],[2,9,1],[4,7,4]]),             // synkopierte Abwärts-Antwort
+  _lk('t-repeat', 'Thrill: Repeating Bend', 'minor', 2, '🎩 Thrill-Style (Bends)',
+    [[1,10,1],[1,8,1,2],[1,10,1],[1,8,1,2],[0,8,2],[1,10,2]])    // A, G↗A, A, G↗A, C, A
 ];
 function findLick(id) {
   return S.licks.find(l => l.id === id) || BUILTIN_LICKS.find(l => l.id === id) || null;
@@ -1696,9 +1724,9 @@ function saveLicks() {
 function transposeLick(lick) {
   let d = ((S.key - lick.key) % 12 + 12) % 12;
   if (d > 6) d -= 12;
-  let notes = lick.notes.map(n => ({ s: n.s, fret: n.fret + d }));
-  while (notes.some(n => n.fret < 0))  notes = notes.map(n => ({ s: n.s, fret: n.fret + 12 }));
-  while (notes.some(n => n.fret > FRETS)) notes = notes.map(n => ({ s: n.s, fret: n.fret - 12 }));
+  let notes = lick.notes.map(n => ({ ...n, fret: n.fret + d }));
+  while (notes.some(n => n.fret < 0))  notes = notes.map(n => ({ ...n, fret: n.fret + 12 }));
+  while (notes.some(n => n.fret > FRETS)) notes = notes.map(n => ({ ...n, fret: n.fret - 12 }));
   if (notes.some(n => n.fret < 0 || n.fret > FRETS)) return null;   // passt nicht aufs Brett
   return notes;
 }
@@ -1793,8 +1821,8 @@ function playLickAt(lick, delaySec, quiet) {
     const d = lick.notes[i].d || 1;
     const start = delaySec + eighthTime(off, spb);
     const dur = Math.max((eighthTime(off + d, spb) - eighthTime(off, spb)) * 1.05, 0.18);
-    pluck(OPEN_MIDI[n.s] + n.fret, start, dur, 0.95);
-    flashAt(n.s, n.fret, start * 1000, '#22d3ee');
+    pluck(OPEN_MIDI[n.s] + n.fret, start, dur, 0.95, n.bend || 0);   // Bend hochziehen
+    flashAt(n.s, n.fret, start * 1000, n.bend ? '#f59e0b' : '#22d3ee');
     off += d;
   });
   return off;                                    // Gesamtlänge in Achteln (für Loop-Ausrichtung)
