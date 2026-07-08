@@ -1084,11 +1084,15 @@ function render() {
         const x = fx(f), y = sy(s);
         if (ref && ref.s === s && ref.fret === f)     // gewählter Bezugston: weißer Ring
           svg.appendChild(el('circle', { cx:x, cy:y, r:DR + 3, fill:'none', stroke:'#fff', 'stroke-width':2.5 }));
-        const c = el('circle', { cx:x, cy:y, r:DR - 1, fill:intervalColor(semi), stroke:'rgba(0,0,0,0.3)', 'stroke-width':1 });
+        const c = el('circle', { cx:x, cy:y, r:DR, fill:intervalColor(semi), stroke:'rgba(0,0,0,0.3)', 'stroke-width':1 });
         c.style.cursor = 'pointer';
         c.addEventListener('click', () => setIntervalRef(s, f));
         svg.appendChild(c);
-        svg.appendChild(el('text', { x, y, fill:intervalText(semi), 'font-size':9, 'font-weight':'bold',
+        const col = intervalText(semi), nm = nn(mod12(OPEN_PC[s] + f), refPc);
+        // Notenname oben, Intervall darunter (beides gleichzeitig)
+        svg.appendChild(el('text', { x, y: y - 3, fill:col, 'font-size': nm.length > 1 ? 7 : 8.5, 'font-weight':'bold',
+          'text-anchor':'middle', 'dominant-baseline':'middle', style:'user-select:none;pointer-events:none' }, nm));
+        svg.appendChild(el('text', { x, y: y + 5.5, fill:col, 'font-size':6.5, opacity:0.85,
           'text-anchor':'middle', 'dominant-baseline':'middle', style:'user-select:none;pointer-events:none' }, INTERVAL_NAMES[semi]));
       }
     document.getElementById('info').innerHTML =
