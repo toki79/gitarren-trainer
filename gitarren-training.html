@@ -192,6 +192,22 @@ select {
 .en-actions { display: inline-flex; gap: 3px; margin-left: auto; }
 .en-actions button { min-width: 28px; padding: 4px 5px; font-size: 0.78rem; }
 .en-actions button:disabled { opacity: 0.3; cursor: default; }
+.path-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+#pathSong { background: var(--panel2); color: var(--text); border: 1px solid var(--border); border-radius: 7px; padding: 6px 10px; font-size: 0.9rem; }
+.path-progress { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); font-weight: 600; margin-left: auto; }
+.path-intro { font-size: 0.82rem; color: var(--muted); line-height: 1.5; margin-bottom: 10px; }
+.path-dots { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.path-dot { min-width: 30px; padding: 5px 0; font-weight: 700; font-size: 0.8rem; }
+.path-dot.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.path-dot.done { border-color: var(--scale-col); color: var(--scale-col); }
+.path-body-box { background: var(--panel2); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; }
+.path-title { font-size: 1.02rem; font-weight: 700; margin-bottom: 6px; }
+.path-why { font-size: 0.9rem; color: var(--text); line-height: 1.55; margin-bottom: 8px; }
+.path-todo { font-size: 0.88rem; color: var(--text); line-height: 1.5; background: rgba(34,211,238,0.08); border-left: 3px solid var(--scale-col); border-radius: 6px; padding: 8px 10px; }
+.path-todo-label { display: block; font-size: 0.64rem; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); font-weight: 600; margin-bottom: 3px; }
+.path-nav { display: flex; gap: 8px; align-items: center; }
+.path-apply { flex: 1; background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.path-nav button:disabled { opacity: 0.35; cursor: default; }
 @keyframes recblink { 0%,100% { opacity: 1; } 50% { opacity: 0.25; } }
 #lickName { flex: 1 1 180px; background: var(--panel2); color: var(--text); border: 1px solid var(--border); padding: 7px 10px; border-radius: 7px; font-size: 0.85rem; }
 #lickName:focus { outline: none; border-color: var(--accent); }
@@ -330,6 +346,25 @@ details.card > summary:hover { color: var(--text); }
     </div>
   </div>
 </div>
+
+<details class="card" id="card-path" open ontoggle="cardToggled(this)">
+  <summary>🗺 Song-Lernpfad · Schritt für Schritt zum Song</summary>
+  <div class="card-body">
+    <div class="path-head">
+      <label class="tb-label">Song</label>
+      <select id="pathSong" onchange="setPathSong(this.value)"></select>
+      <span id="pathProgress" class="path-progress"></span>
+    </div>
+    <div id="pathIntro" class="path-intro"></div>
+    <div id="pathDots" class="path-dots"></div>
+    <div id="pathBody"></div>
+    <div class="path-nav">
+      <button id="pathPrevBtn" onclick="pathPrev()">◀ Zurück</button>
+      <button id="pathApplyBtn" class="path-apply" onclick="pathApply()">▶ Diesen Schritt einrichten</button>
+      <button id="pathNextBtn" onclick="pathNext()">Weiter ▶</button>
+    </div>
+  </div>
+</details>
 
 <details class="card" id="card-triad" open ontoggle="cardToggled(this)">
   <summary>🎸 Triade &amp; Klang</summary>
@@ -629,7 +664,8 @@ const S = { key: 9, scale: 'minor', pos: 1, triad: 'none', set: 'DGB', label: 'n
             lickOnlyMatch: true, superId: 'none', pair: false, approach: false,
             presetTab: 'vorlagen', soundOpen: false, showLegend: false, fbCompact: false,
             intervalMode: false, intervalRef: null,
-            cards: { triad: true, prog: true, licks: false, trainer: false } };
+            pathId: 'thrill', pathStep: 0,
+            cards: { path: true, triad: true, prog: true, licks: false, trainer: false } };
 let metroTimer = null;
 const metro = { nextNote: 0, beat: 0, countInBeats: 0, sched: null, lickNextBeat: 0 };
 
@@ -2172,6 +2208,76 @@ function closeEdit() {
   render();
 }
 
+// ─── Song-Lernpfad: geführte Schritt-für-Schritt-Anleitung ──────────────────
+// Jeder Schritt richtet die App per apply() ein (Tonart, Skala, Box, Backing,
+// Triaden, Licks, Trainer) und erklärt Warum + „Das machst du“.
+function syncKeyUI(k) { document.getElementById('keySelect').value = k; }
+const SONG_PATHS = {
+  thrill: {
+    name: 'The Thrill Is Gone (B.B. King)',
+    intro: 'Langsamer Moll-Blues in Bm. In 7 Schritten vom ersten Ton zum Solo: Heimat-Box → Blue Note → Backing → Akkorde → Signature → Licks → Improvisation. „▶ Diesen Schritt einrichten“ stellt die App jeweils passend ein.',
+    steps: [
+      { title: '1 · Die Heimat-Box: Bm-Pentatonik',
+        why: 'B.&nbsp;B. King spielt den Song fast komplett aus einer Lage: der B-Moll-Pentatonik in Box&nbsp;2 rund um den 7.&nbsp;Bund (die „BB-Box“). Alle Song-Töne liegen hier in Reichweite – das ist dein Zuhause.',
+        todo: 'Spiele die Box langsam auf und ab, ein Ton pro Schlag. Der rote Ton ist der Grundton&nbsp;B. Zum Abhaken: Trainer-Karte → „📦 Box auf &amp; ab“.',
+        apply() { setScale('minor'); setKey(11); syncKeyUI(11); setPos(2); setTriad('none'); if (S.blue) toggleBlue(); document.getElementById('card-triad').open = true; } },
+      { title: '2 · Die Blues-Würze: ♭5',
+        why: 'Die Blue Note ♭5 (das F) ist die Spannung, die den Blues ausmacht. Sie klingt „schmutzig“ und will sich einen Halbton hoch in die 5 (F♯) auflösen.',
+        todo: '„♦ Blues-Skala“ ist eingeblendet. Spiele die ♭5 an und ziehe oder rutsche einen Halbton hoch auf die 5. Sparsam – als Durchgangston, nie als Zielton stehenlassen.',
+        apply() { setScale('minor'); setKey(11); syncKeyUI(11); setPos(2); if (!S.blue) toggleBlue(); document.getElementById('card-triad').open = true; } },
+      { title: '3 · Das Backing: 12-Takt-Moll-Blues',
+        why: 'Der Song ist ein langsamer 12-Takt-Moll-Blues in Bm, gerades Feel (kein Shuffle), ~88&nbsp;BPM. Form: i·i·i·i · iv·iv·i·i · VI·V·i·i.',
+        todo: 'Der Backing-Track ist geladen. Drücke oben „▶ Play“ und fühle nur den Groove – noch nicht spielen, sondern zählen und mitwippen.',
+        apply() { setPresetTab('stile'); applyStyle('thrill'); document.getElementById('card-prog').open = true; } },
+      { title: '4 · Die Akkorde sehen: Triaden',
+        why: 'Statt nur zu „nudeln“, zeig dir die Akkordtöne. Wer die Changes i → iv → VI → V als Dreiklänge kennt, kann sie gezielt antargeten – der Ton sitzt dann nie daneben.',
+        todo: 'Die Triaden-Anzeige ist an („In Box“). Lass „▶ Play“ laufen und finde zu jedem Akkord den passenden Dreiklang. „♪ Triade“ schlägt ihn an.',
+        apply() { setScale('minor'); setKey(11); syncKeyUI(11); if (!S.prog.length) { setPresetTab('stile'); applyStyle('thrill'); } setTriad('auto'); setBoxMode('strict'); document.getElementById('card-triad').open = true; document.getElementById('card-prog').open = true; } },
+      { title: '5 · Die Signature: G → F♯ (VI → V)',
+        why: 'Der Klang, der den Song unverwechselbar macht, ist der Abstieg VI → V – in Bm also G-Dur nach F♯. Dieser Halbtonschritt ist das eigentliche „Thrill“-Gefühl.',
+        todo: 'Ein Loop i · VI · V · i ist geladen. Höre, wie VI → V Spannung aufbaut und sich ins&nbsp;i auflöst. Spiele über V (F♯) bewusst die Terz A♯ an – sie zieht zurück ins&nbsp;B.',
+        apply() { setScale('minor'); setKey(11); syncKeyUI(11); preset('i | VI | V | i'); setTriad('auto'); document.getElementById('card-prog').open = true; } },
+      { title: '6 · Die Sprache: Thrill-Bends & Vibrato',
+        why: 'B.&nbsp;B. Kings Vokabular: wenige Töne, aber jeder mit Ausdruck – die gezogene ♭3 (Curl), der 4→5-Bend und ein singendes Vibrato auf gehaltenen Tönen.',
+        todo: 'Die Licks-Karte ist offen, ein Thrill-Bend-Lick ist gewählt. „▶ Lick“ zum Anhören, dann Ton für Ton nachspielen – sauber ziehen, am Ende Vibrato. Mit ✎ kannst du ihn im Lick-Editor an dich anpassen.',
+        apply() { setScale('minor'); setKey(11); syncKeyUI(11); setPos(2); S.selectedLick = 't-bend45'; document.getElementById('card-licks').open = true; renderLickPanel(); render(); } },
+      { title: '7 · Alles zusammen: dein Solo',
+        why: 'Jetzt improvisierst du: Heimat-Box + Blue Note als Würze + Akkordtöne auf den Schwerpunkten. Weniger ist mehr – lass Töne stehen und atmen.',
+        todo: 'Starte „▶ Play“. Spiele frei in Box&nbsp;2, streue die ♭5 ein, aber lande auf jeder „1“ auf einem Akkordton. Trainer-Karte → „🎯 Zielton auf die 1“ prüft dich per Mikrofon.',
+        apply() { setPresetTab('stile'); applyStyle('thrill'); if (!S.blue) toggleBlue(); document.getElementById('card-prog').open = true; document.getElementById('card-trainer').open = true; } }
+    ]
+  }
+};
+function currentPath() { return SONG_PATHS[S.pathId] || SONG_PATHS.thrill; }
+function renderPathSongs() {
+  const sel = document.getElementById('pathSong');
+  if (!sel) return;
+  sel.innerHTML = Object.entries(SONG_PATHS).map(([id, p]) => `<option value="${id}" ${id === S.pathId ? 'selected' : ''}>${p.name}</option>`).join('');
+}
+function setPathSong(id) { S.pathId = id; S.pathStep = 0; renderPath(); }
+function pathPrev() { if (S.pathStep > 0) { S.pathStep--; renderPath(); } }
+function pathNext() { const p = currentPath(); if (S.pathStep < p.steps.length - 1) { S.pathStep++; renderPath(); } }
+function pathGoto(k) { S.pathStep = k; renderPath(); }
+function pathApply() { const st = currentPath().steps[S.pathStep]; if (st && st.apply) st.apply(); saveSettings(); renderPath(); }
+function renderPath() {
+  const p = currentPath();
+  const i = S.pathStep = Math.max(0, Math.min(S.pathStep, p.steps.length - 1));
+  const st = p.steps[i];
+  const intro = document.getElementById('pathIntro'); if (intro) intro.innerHTML = p.intro;
+  const prog = document.getElementById('pathProgress'); if (prog) prog.textContent = `Schritt ${i + 1} / ${p.steps.length}`;
+  const dots = document.getElementById('pathDots');
+  if (dots) dots.innerHTML = p.steps.map((s, k) =>
+    `<button class="path-dot ${k === i ? 'active' : ''} ${k < i ? 'done' : ''}" onclick="pathGoto(${k})" title="${s.title.replace(/&nbsp;/g, ' ').replace(/"/g, '')}">${k + 1}</button>`).join('');
+  const body = document.getElementById('pathBody');
+  if (body) body.innerHTML = `<div class="path-body-box">
+      <div class="path-title">${st.title}</div>
+      <div class="path-why">${st.why}</div>
+      <div class="path-todo"><span class="path-todo-label">Das machst du</span>${st.todo}</div>
+    </div>`;
+  const pb = document.getElementById('pathPrevBtn'); if (pb) pb.disabled = i === 0;
+  const nb = document.getElementById('pathNextBtn'); if (nb) nb.disabled = i === p.steps.length - 1;
+}
+
 // ─── Mikrofon & Tonhöhen-Erkennung (monophon, Autokorrelation) ───────────────
 let micStream = null, micAnalyser = null, micTimer = null, micBuf = null;
 let micSrc = null, micGainNode = null;          // Referenzen halten (GC-Schutz)
@@ -2893,6 +2999,8 @@ function applySettingsUI() {
   applySettingsUI();
   renderBeatDots();
   renderLickPanel();
+  renderPathSongs();
+  renderPath();
   render();
   window.addEventListener('beforeunload', saveSettings);   // letzter Stand beim Schließen
 })();
