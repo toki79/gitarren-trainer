@@ -317,6 +317,7 @@ details.card > summary:hover { color: var(--text); }
       <button id="btn-bluearr" onclick="toggleBlueArrows()" title="Auflösungs-Pfeile: zeigen, wohin sich der Blue Note auflöst (½ Ton hoch/runter zum stabilen Ton)">→ Auflösung</button>
       <button id="btn-pair" onclick="togglePair()" title="Triaden-Paar (Hexatonik): eigener Dreiklang + Dur-Dreiklang einen Ganzton darunter – zwei simple Griffe, moderner 6-Ton-Klang">⚭ Paar</button>
       <button id="btn-approach" onclick="toggleApproach()" title="½-Anlauf: den Triaden-Griff aus einem Halbton darunter in den Zielakkord rutschen – Spannung mit sauberer Auflösung">↦ ½-Anlauf</button>
+      <button id="btn-lickshow" class="active" onclick="toggleLickShow()" title="Ausgewählten Lick auf dem Griffbrett ein-/ausblenden – die Auswahl bleibt erhalten (▶ Lick, Loop und Trainer funktionieren weiter)">🎵 Lick</button>
       <select id="superSel" onchange="setSuper(this.value)" title="Obere Struktur: eine andere Triade über den aktuellen Akkord legen, um Extensions (9, 11, 13 …) zu erzeugen. Die Töne erscheinen orange mit Intervall-Label.">
         <option value="none">Obere Struktur: aus</option>
         <option value="v9">Moll +5 → 9-Sound</option>
@@ -658,7 +659,7 @@ const S = { key: 9, scale: 'minor', pos: 1, triad: 'none', set: 'DGB', label: 'n
             exercise: null, bluesForm: null, click: true, drums: true, bass: true,
             groove: 'straight', tripletFeel: false, vol: { click: 1, drums: 1, bass: 1, guitar: 1 },
             licks: [], recording: false, lickRec: [], selectedLick: null, lickLoop: false,
-            recDur: 1, recStacc: false, recVib: false,
+            recDur: 1, recStacc: false, recVib: false, lickShow: true,
             editing: null, editSel: -1,
             trainer: null, micGate: 0.004, micBoost: 8, blue: false, blueArrows: false,
             lickOnlyMatch: true, superId: 'none', pair: false, approach: false,
@@ -1405,7 +1406,7 @@ function render() {
   // Während der Aufnahme die bisher eingespielten Töne, sonst der ausgewählte Lick.
   let lickNotes = null;
   if (capturing() && S.lickRec.length) lickNotes = S.lickRec;
-  else if (!capturing() && S.selectedLick) {
+  else if (!capturing() && S.selectedLick && S.lickShow) {   // 🎵-Lick-Schalter blendet die Overlay aus
     const lk = findLick(S.selectedLick);
     if (lk) lickNotes = transposeLick(lk);
   }
@@ -1553,7 +1554,20 @@ function updateInfo(grip) {
 }
 
 // ─── Controls ─────────────────────────────────────────────────────────────────
-function setKey(v) { S.key = v; S.anchor = null; reparseProg(); render(); }
+function setKey(v) {
+  // Aufnahme-/Editor-Buffer wandert mit der Tonart (kleinstmögliche Verschiebung, wie transposeLick)
+  if (capturing() && S.lickRec.length && v !== S.key) {
+    let d = ((v - S.key) % 12 + 12) % 12;
+    if (d > 6) d -= 12;
+    let frets = S.lickRec.map(n => n.fret + d);
+    while (frets.some(f => f < 0)) frets = frets.map(f => f + 12);
+    while (frets.some(f => f > FRETS)) frets = frets.map(f => f - 12);
+    if (!frets.some(f => f < 0 || f > FRETS)) S.lickRec.forEach((n, i) => n.fret = frets[i]);
+  }
+  S.key = v; S.anchor = null; reparseProg();
+  if (S.editing) renderEditor();       // Notennamen/Bünde in den Editor-Zeilen aktualisieren
+  render();
+}
 function setScale(v) {
   S.scale = v;
   document.getElementById('btn-minor').classList.toggle('active', v === 'minor');
@@ -1625,6 +1639,11 @@ function togglePair() {
 function toggleApproach() {
   S.approach = !S.approach;
   document.getElementById('btn-approach').classList.toggle('active', S.approach);
+  render();
+}
+function toggleLickShow() {
+  S.lickShow = !S.lickShow;
+  document.getElementById('btn-lickshow').classList.toggle('active', S.lickShow);
   render();
 }
 
@@ -1949,6 +1968,7 @@ function saveLick() {
 }
 function selectLick(id) {
   S.selectedLick = S.selectedLick === id ? null : id;
+  if (S.selectedLick && !S.lickShow) toggleLickShow();   // aktive Auswahl blendet den Lick wieder ein
   if (S.trainer && S.trainer.mode === 'lick') {
     if (!S.selectedLick) { stopTrainer(); }
     else { S.trainer.idx = 0; S.trainer.hits = 0; S.trainer.misses = 0; setTrainerStatus('Neuer Lick – spiele Ton 1.'); }
@@ -2904,7 +2924,8 @@ const SETTINGS_KEY = 'gitarrenTraining.settings';
 const PERSIST = ['key','scale','pos','triad','set','label','blue','blueArrows','pair','approach',
   'superId','bpm','beatsPerMeasure','tripletFeel','measuresPerChord','countIn','click','drums',
   'bass','groove','vol','boxMode','lickOnlyMatch','micBoost','lickLoop','sound','selectedLick',
-  'presetTab','soundOpen','showLegend','cards','fbCompact','intervalMode','intervalRef'];
+  'presetTab','soundOpen','showLegend','cards','fbCompact','intervalMode','intervalRef',
+  'lickShow','pathId','pathStep'];
 function saveSettings() {
   try {
     const o = {};
@@ -2938,6 +2959,7 @@ function applySettingsUI() {
   document.getElementById('btn-bluearr').classList.toggle('active', S.blueArrows);
   document.getElementById('btn-pair').classList.toggle('active', S.pair);
   document.getElementById('btn-approach').classList.toggle('active', S.approach);
+  document.getElementById('btn-lickshow').classList.toggle('active', S.lickShow);
   document.getElementById('superSel').value = S.superId;
   document.getElementById('bpm').value = S.bpm;
   document.getElementById('timeSig').value = S.tripletFeel ? '12-8' : String(S.beatsPerMeasure);
