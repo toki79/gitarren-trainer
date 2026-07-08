@@ -167,6 +167,9 @@ select {
 #micLevel { display: block; height: 100%; width: 0%; background: #6b7280; transition: width 0.06s; }
 .rec-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .rec-dot { width: 10px; height: 10px; border-radius: 50%; background: #dc2626; animation: recblink 1s infinite; flex-shrink: 0; }
+.rec-label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); font-weight: 600; }
+#recDurBtns button { min-width: 42px; font-size: 0.82rem; font-family: ui-monospace, monospace; padding: 5px 8px; }
+#recDurBtns button.active, #recStaccBtn.active, #recVibBtn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 @keyframes recblink { 0%,100% { opacity: 1; } 50% { opacity: 0.25; } }
 #lickName { flex: 1 1 180px; background: var(--panel2); color: var(--text); border: 1px solid var(--border); padding: 7px 10px; border-radius: 7px; font-size: 0.85rem; }
 #lickName:focus { outline: none; border-color: var(--accent); }
@@ -472,14 +475,31 @@ details.card > summary:hover { color: var(--text); }
              onchange="importLicks(this.files[0]); this.value=''">
     </div>
   </div>
-  <div id="recRow" class="rec-row" style="display:none">
-    <span class="rec-dot"></span>
-    <span id="recInfo">0 Töne</span>
-    <button onclick="undoRecNote()" title="Letzten Ton entfernen">↩ letzter Ton</button>
-    <input id="lickName" placeholder="Name des Licks (z. B. „Box-1-Turnaround“)"
-           onkeydown="if(event.key==='Enter')saveLick()">
-    <button onclick="saveLick()">💾 Speichern</button>
-    <button onclick="discardRec()">✖ Verwerfen</button>
+  <div id="recRow" style="display:none">
+    <div class="rec-row" style="border-bottom:1px solid var(--border);padding-bottom:8px;margin-bottom:8px">
+      <span class="rec-label">Notenwert</span>
+      <span class="btn-row" id="recDurBtns">
+        <button data-dur="8" onclick="setRecDur(8)" title="Ganze Note (4 Schläge)">1/1</button>
+        <button data-dur="4" onclick="setRecDur(4)" title="Halbe Note (2 Schläge)">1/2</button>
+        <button data-dur="2" onclick="setRecDur(2)" title="Viertel (1 Schlag)">1/4</button>
+        <button data-dur="1" class="active" onclick="setRecDur(1)" title="Achtel (½ Schlag)">1/8</button>
+        <button data-dur="0.5" onclick="setRecDur(0.5)" title="Sechzehntel (¼ Schlag)">1/16</button>
+      </span>
+      <span class="tb-sep"></span>
+      <span class="rec-label">Artikulation</span>
+      <button id="recStaccBtn" onclick="toggleRecStacc()" title="Staccato: kurz &amp; abgehackt anspielen">• Staccato</button>
+      <button id="recVibBtn" onclick="toggleRecVib()" title="Vibrato: Ton leiert – klassisch für lange, gehaltene Töne">∿ Vibrato</button>
+      <span class="hint" style="margin-left:auto">Wert wählen, dann Ton am Griffbrett anklicken</span>
+    </div>
+    <div class="rec-row">
+      <span class="rec-dot"></span>
+      <span id="recInfo">0 Töne</span>
+      <button onclick="undoRecNote()" title="Letzten Ton entfernen">↩ letzter Ton</button>
+      <input id="lickName" placeholder="Name des Licks (z. B. „Box-1-Turnaround“)"
+             onkeydown="if(event.key==='Enter')saveLick()">
+      <button onclick="saveLick()">💾 Speichern</button>
+      <button onclick="discardRec()">✖ Verwerfen</button>
+    </div>
   </div>
   <div id="lickLib" class="lick-list"></div>
   <div id="lickList" class="lick-list"></div>
@@ -567,6 +587,7 @@ const S = { key: 9, scale: 'minor', pos: 1, triad: 'none', set: 'DGB', label: 'n
             exercise: null, bluesForm: null, click: true, drums: true, bass: true,
             groove: 'straight', tripletFeel: false, vol: { click: 1, drums: 1, bass: 1, guitar: 1 },
             licks: [], recording: false, lickRec: [], selectedLick: null, lickLoop: false,
+            recDur: 1, recStacc: false, recVib: false,
             trainer: null, micGate: 0.004, micBoost: 8, blue: false, blueArrows: false,
             lickOnlyMatch: true, superId: 'none', pair: false, approach: false,
             presetTab: 'vorlagen', soundOpen: false, showLegend: false, fbCompact: false,
@@ -595,8 +616,9 @@ function audio() {
 }
 const midiToFreq = m => 440 * Math.pow(2, (m - 69) / 12);
 
-// Gezupfter, gitarrenähnlicher Ton: Grundton + Obertöne, Tiefpass mit Decay
-function pluck(midi, when = 0, dur = 1.1, gainMul = 1, bendSemi = 0) {
+// Gezupfter, gitarrenähnlicher Ton: Grundton + Obertöne, Tiefpass mit Decay.
+// bendSemi = Bend in Halbtönen, vib = Vibrato (leierndes Tonhöhen-Wobbeln)
+function pluck(midi, when = 0, dur = 1.1, gainMul = 1, bendSemi = 0, vib = false) {
   const ac = audio();
   const t0 = ac.currentTime + when;
   const freq = midiToFreq(midi);
@@ -611,6 +633,13 @@ function pluck(midi, when = 0, dur = 1.1, gainMul = 1, bendSemi = 0) {
   lp.frequency.setValueAtTime(4200, t0);
   lp.frequency.exponentialRampToValueAtTime(700, t0 + dur * 0.85);
   lp.connect(out);
+  let vibGain = null;                               // Vibrato-LFO (moduliert die Verstimmung)
+  if (vib) {
+    const lfo = ac.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 5.5;
+    vibGain = ac.createGain(); vibGain.gain.value = 22;   // ±22 Cent
+    lfo.connect(vibGain);
+    lfo.start(t0 + 0.08); lfo.stop(t0 + dur + 0.05);
+  }
   [[1, 1, 'triangle'], [2, 0.22, 'sine'], [3, 0.1, 'sine']].forEach(([mult, amp, type]) => {
     const o = ac.createOscillator();
     o.type = type;
@@ -619,6 +648,7 @@ function pluck(midi, when = 0, dur = 1.1, gainMul = 1, bendSemi = 0) {
       o.frequency.setValueAtTime(freq * mult, t0 + Math.min(0.08, dur * 0.25));
       o.frequency.linearRampToValueAtTime(bentFreq * mult, t0 + Math.min(0.28, dur * 0.6));
     }
+    if (vibGain) vibGain.connect(o.detune);
     const g = ac.createGain();
     g.gain.value = amp;
     o.connect(g); g.connect(lp);
@@ -1339,6 +1369,9 @@ function render() {
         x, y, fill:'#083344', 'font-size':8.5, 'font-weight':'bold',
         'text-anchor':'middle', 'dominant-baseline':'middle', style:'user-select:none;pointer-events:none'
       }, String(i + 1)));
+      if (n.stacc) svg.appendChild(el('circle', { cx:x, cy:y - 13, r:2, fill:'#22d3ee' }));          // Staccato-Punkt
+      if (n.vib) svg.appendChild(el('text', { x:x + 12, y:y - 8, fill:'#22d3ee', 'font-size':10, 'font-weight':'bold',
+        'text-anchor':'middle', style:'user-select:none;pointer-events:none' }, '∿'));               // Vibrato-Wellen
     });
   }
 
@@ -1785,36 +1818,36 @@ function toggleRecording() {
   S.recording = !S.recording;
   if (S.recording) { S.lickRec = []; S.selectedLick = null; if (S.trainer) stopTrainer(); }
   document.getElementById('recBtn').classList.toggle('active', S.recording);
-  document.getElementById('recRow').style.display = S.recording ? 'flex' : 'none';
+  document.getElementById('recRow').style.display = S.recording ? 'block' : 'none';
   updateRecInfo();
   renderLickPanel();
   render();
 }
+const DUR_LABEL = { 8: 'Ganze', 4: 'Halbe', 2: 'Viertel', 1: 'Achtel', 0.5: '16tel' };
+// Ton mit dem aktuell gewählten Notenwert + Artikulation aufnehmen
 function recordNote(s, fret) {
-  S.lickRec.push({ s, fret, t: performance.now() });   // Zeitpunkt für Rhythmus-Erkennung
-  playNote(OPEN_MIDI[s] + fret, s, fret, '#22d3ee');
+  const n = { s, fret, d: S.recDur };
+  if (S.recStacc) n.stacc = 1;
+  if (S.recVib) n.vib = 1;
+  S.lickRec.push(n);
+  pluck(OPEN_MIDI[s] + fret, 0, S.recStacc ? 0.16 : 0.9, 0.95, 0, S.recVib);   // Vorschau mit Artikulation
+  flashAt(s, fret, 0, '#22d3ee');
   updateRecInfo();
   render();
 }
-
-// Rhythmus aus den Klick-Zeitpunkten ableiten: Abstände relativ zum Median-Abstand,
-// quantisiert auf halbe Einheiten (1 Einheit = 1 Achtel bei der Wiedergabe).
-// Gleichmäßiges Klicken ergibt also durchgehende Achtel; doppelt so lange Pause = Viertel usw.
-function quantizeRec(rec) {
-  if (rec.length < 2) return rec.map(n => ({ s: n.s, fret: n.fret, d: 1 }));
-  const gaps = [];
-  for (let i = 0; i < rec.length - 1; i++) gaps.push(rec[i + 1].t - rec[i].t);
-  const med = gaps.slice().sort((a, b) => a - b)[Math.floor(gaps.length / 2)] || 1;
-  return rec.map((n, i) => {
-    const g = i < gaps.length ? gaps[i] : med;          // letzter Ton: 1 Einheit
-    const d = Math.min(4, Math.max(0.5, Math.round((g / med) * 2) / 2));
-    return { s: n.s, fret: n.fret, d };
-  });
+function setRecDur(d) {
+  S.recDur = d;
+  document.querySelectorAll('#recDurBtns button').forEach(b => b.classList.toggle('active', +b.dataset.dur === d));
+  updateRecInfo();
 }
+function toggleRecStacc() { S.recStacc = !S.recStacc; document.getElementById('recStaccBtn').classList.toggle('active', S.recStacc); updateRecInfo(); }
+function toggleRecVib() { S.recVib = !S.recVib; document.getElementById('recVibBtn').classList.toggle('active', S.recVib); updateRecInfo(); }
 function undoRecNote() { S.lickRec.pop(); updateRecInfo(); render(); }
 function updateRecInfo() {
   const el = document.getElementById('recInfo');
-  if (el) el.textContent = S.lickRec.length + (S.lickRec.length === 1 ? ' Ton' : ' Töne');
+  if (!el) return;
+  const art = [S.recStacc ? 'Staccato' : '', S.recVib ? 'Vibrato' : ''].filter(Boolean).join('+');
+  el.textContent = `${S.lickRec.length} ${S.lickRec.length === 1 ? 'Ton' : 'Töne'} · nächster: ${DUR_LABEL[S.recDur]}${art ? ' · ' + art : ''}`;
 }
 function discardRec() { S.lickRec = []; if (S.recording) toggleRecording(); }
 function saveLick() {
@@ -1824,7 +1857,7 @@ function saveLick() {
   S.licks.push({
     id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
     name, key: S.key, scale: S.scale,
-    notes: quantizeRec(S.lickRec),
+    notes: S.lickRec.map(n => ({ ...n })),      // explizite Notenwerte + Artikulation
     created: new Date().toISOString()
   });
   if (saveLicks()) {
@@ -1868,10 +1901,11 @@ function playLickAt(lick, delaySec, quiet) {
   const spb = 60 / S.bpm;
   let off = 0;
   notes.forEach((n, i) => {
-    const d = lick.notes[i].d || 1;
+    const src = lick.notes[i], d = src.d || 1;
     const start = delaySec + eighthTime(off, spb);
-    const dur = Math.max((eighthTime(off + d, spb) - eighthTime(off, spb)) * 1.05, 0.18);
-    pluck(OPEN_MIDI[n.s] + n.fret, start, dur, 0.95, n.bend || 0);   // Bend hochziehen
+    let dur = Math.max((eighthTime(off + d, spb) - eighthTime(off, spb)) * 1.05, 0.18);
+    if (src.stacc) dur = Math.min(dur, 0.16);                       // Staccato: kurz
+    pluck(OPEN_MIDI[n.s] + n.fret, start, dur, 0.95, n.bend || 0, !!src.vib);
     flashAt(n.s, n.fret, start * 1000, n.bend ? '#f59e0b' : '#22d3ee');
     off += d;
   });
