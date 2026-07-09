@@ -523,6 +523,7 @@ details.card > summary:hover { color: var(--text); }
         <label class="mix-field" title="Drums">🥁<input type="range" min="0" max="100" value="100" oninput="setVol('drums', this.value)"></label>
         <label class="mix-field" title="Bass">🎸<input type="range" min="0" max="100" value="100" oninput="setVol('bass', this.value)"></label>
         <label class="mix-field" title="Gitarre (Akkorde & angeklickte Töne)">🎼<input type="range" min="0" max="100" value="100" oninput="setVol('guitar', this.value)"></label>
+        <label class="mix-field" title="Lick-Wiedergabe (▶ Lick, Loop, Editor)">🎵<input type="range" min="0" max="100" value="100" oninput="setVol('lick', this.value)"></label>
       </div>
     </div>
   </div>
@@ -579,7 +580,7 @@ details.card > summary:hover { color: var(--text); }
       <button onclick="saveEditAsNew()" title="Als neuen Lick in die Sammlung speichern (Original bleibt)">⧉ Als Kopie</button>
       <button onclick="closeEdit()" title="Editor schließen, Änderungen verwerfen">✖ Schließen</button>
     </div>
-    <div class="hint" style="margin-bottom:8px">Töne am Griffbrett anklicken, um sie hinzuzufügen. Pro Ton: Dauer wählen, Staccato/Vibrato/Bend setzen, verschieben oder löschen. Ein Ton auf dem Brett = eine Zeile.</div>
+    <div class="hint" style="margin-bottom:8px">Töne am Griffbrett anklicken: mit markierter Zeile wird <b>dahinter eingefügt</b>, ohne Markierung ans Ende angehängt. Pro Ton: Dauer, Staccato/Vibrato, Bend und Betonung (p&nbsp;=&nbsp;leise, &gt;&nbsp;=&nbsp;Akzent) einstellen, verschieben oder löschen. Lautstärke der Wiedergabe: 🎚&nbsp;Sound&nbsp;→&nbsp;🎵-Regler.</div>
     <div id="editNotes" class="edit-notes"></div>
   </div>
   <div id="lickLib" class="lick-list"></div>
@@ -666,7 +667,7 @@ const S = { key: 9, scale: 'minor', pos: 1, triad: 'none', set: 'DGB', label: 'n
             sound: true, currentGrip: [], boxMode: 'strict', currentSet: 'DGB',
             bpm: 90, beatsPerMeasure: 4, measuresPerChord: 1, metroOn: false, countIn: true,
             exercise: null, bluesForm: null, click: true, drums: true, bass: true,
-            groove: 'straight', tripletFeel: false, vol: { click: 1, drums: 1, bass: 1, guitar: 1 },
+            groove: 'straight', tripletFeel: false, vol: { click: 1, drums: 1, bass: 1, guitar: 1, lick: 1 },
             licks: [], recording: false, lickRec: [], selectedLick: null, lickLoop: false,
             recDur: 1, recStacc: false, recVib: false, lickShow: true,
             editing: null, editSel: -1,
@@ -688,7 +689,7 @@ function audio() {
     masterGain = actx.createGain();
     masterGain.gain.value = 0.9;
     masterGain.connect(actx.destination);
-    ['click', 'drums', 'bass', 'guitar'].forEach(k => {
+    ['click', 'drums', 'bass', 'guitar', 'lick'].forEach(k => {
       trackGain[k] = actx.createGain();
       trackGain[k].gain.value = S.vol[k];
       trackGain[k].connect(masterGain);
@@ -701,13 +702,13 @@ const midiToFreq = m => 440 * Math.pow(2, (m - 69) / 12);
 
 // Gezupfter, gitarrenähnlicher Ton: Grundton + Obertöne, Tiefpass mit Decay.
 // bendSemi = Bend in Halbtönen, vib = Vibrato (leierndes Tonhöhen-Wobbeln)
-function pluck(midi, when = 0, dur = 1.1, gainMul = 1, bendSemi = 0, vib = false) {
+function pluck(midi, when = 0, dur = 1.1, gainMul = 1, bendSemi = 0, vib = false, track = 'guitar') {
   const ac = audio();
   const t0 = ac.currentTime + when;
   const freq = midiToFreq(midi);
   const bentFreq = midiToFreq(midi + bendSemi);
   const out = ac.createGain();
-  out.connect(trackGain.guitar);
+  out.connect(trackGain[track] || trackGain.guitar);
   out.gain.setValueAtTime(0.0001, t0);
   out.gain.exponentialRampToValueAtTime(0.25 * gainMul, t0 + 0.006);
   out.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
@@ -1459,6 +1460,9 @@ function render() {
       if (n.stacc) svg.appendChild(el('circle', { cx:x, cy:y - 13, r:2, fill:'#22d3ee' }));          // Staccato-Punkt
       if (n.vib) svg.appendChild(el('text', { x:x + 12, y:y - 8, fill:'#22d3ee', 'font-size':10, 'font-weight':'bold',
         'text-anchor':'middle', style:'user-select:none;pointer-events:none' }, '∿'));               // Vibrato-Wellen
+      if (n.acc) svg.appendChild(el('text', { x:x - 12, y:y - 8, fill:'#22d3ee', 'font-size':n.acc === 1 ? 10 : 9,
+        'font-weight':'bold', 'font-style':n.acc === 1 ? 'normal' : 'italic', 'text-anchor':'middle',
+        style:'user-select:none;pointer-events:none' }, n.acc === 1 ? '>' : 'p'));                   // Betonung: Akzent / leise
     });
   }
 
@@ -1937,10 +1941,17 @@ function recordNote(s, fret) {
   const n = { s, fret, d: S.recDur };
   if (S.recStacc) n.stacc = 1;
   if (S.recVib) n.vib = 1;
-  S.lickRec.push(n);
-  pluck(OPEN_MIDI[s] + fret, 0, S.recStacc ? 0.16 : 0.9, 0.95, 0, S.recVib);   // Vorschau mit Artikulation
+  // Editor mit markierter Zeile: hinter der Markierung einfügen, sonst anhängen
+  if (S.editing && S.editSel >= 0 && S.editSel < S.lickRec.length) {
+    S.lickRec.splice(S.editSel + 1, 0, n);
+    S.editSel++;
+  } else {
+    S.lickRec.push(n);
+    if (S.editing) S.editSel = S.lickRec.length - 1;
+  }
+  pluck(OPEN_MIDI[s] + fret, 0, S.recStacc ? 0.16 : 0.9, 0.95, 0, S.recVib, 'lick');   // Vorschau mit Artikulation
   flashAt(s, fret, 0, '#22d3ee');
-  if (S.editing) { S.editSel = S.lickRec.length - 1; renderEditor(); }           // neuer Ton wird direkt ausgewählt
+  if (S.editing) renderEditor();
   updateRecInfo();
   render();
 }
@@ -2015,15 +2026,23 @@ function playLickAt(lick, delaySec, quiet) {
     const start = delaySec + eighthTime(off, spb);
     let dur = Math.max((eighthTime(off + d, spb) - eighthTime(off, spb)) * 1.05, 0.18);
     if (src.stacc) dur = Math.min(dur, 0.16);                       // Staccato: kurz
-    pluck(OPEN_MIDI[n.s] + n.fret, start, dur, 0.95, n.bend || 0, !!src.vib);
+    const g = 0.95 * (src.acc === 1 ? 1.5 : src.acc === -1 ? 0.45 : 1);   // Betonung: Akzent / Ghost
+    pluck(OPEN_MIDI[n.s] + n.fret, start, dur, g, n.bend || 0, !!src.vib, 'lick');
     flashAt(n.s, n.fret, start * 1000, n.bend ? '#f59e0b' : '#22d3ee');
     off += d;
   });
   return off;                                    // Gesamtlänge in Achteln (für Loop-Ausrichtung)
 }
+// Zeit bis zur nächsten Takt-Eins des laufenden Metronoms (sonst 0 = sofort).
+// metro.nextNote ist der nächste noch nicht geplante Beat des Lookahead-Schedulers.
+function nextBarDelay() {
+  if (!S.metroOn) return 0;
+  const beatsToBar = (S.beatsPerMeasure - (metro.beat % S.beatsPerMeasure)) % S.beatsPerMeasure;
+  return Math.max(0, metro.nextNote + beatsToBar * (60 / S.bpm) - audio().currentTime);
+}
 function playLickById(id) {
   const lk = findLick(id);
-  if (lk) playLickAt(lk, 0);
+  if (lk) playLickAt(lk, nextBarDelay());   // läuft das Metronom, startet der Lick auf der nächsten Eins
 }
 function playSelectedLick() { if (S.selectedLick) playLickById(S.selectedLick); }
 function toggleLickLoop() {
@@ -2157,6 +2176,8 @@ function renderEditor() {
     const opts = EDIT_DUR_OPTS.map(([v, l]) => `<option value="${v}" ${(n.d || 1) === v ? 'selected' : ''}>${l}</option>`).join('');
     const bends = [[0, '–'], [1, '½'], [2, '1']].map(([v, l]) =>
       `<button class="en-mini ${(n.bend || 0) === v ? 'active' : ''}" onclick="event.stopPropagation();setNoteBend(${i},${v})" title="${v ? 'Bend um ' + l + ' Ton' : 'kein Bend'}">${l}</button>`).join('');
+    const accs = [[-1, 'p', 'Leise (Ghost Note)'], [0, '–', 'Normal'], [1, '&gt;', 'Betont (Akzent)']].map(([v, l, t]) =>
+      `<button class="en-mini ${(n.acc || 0) === v ? 'active' : ''}" onclick="event.stopPropagation();setNoteAcc(${i},${v})" title="${t}">${l}</button>`).join('');
     return `<div class="edit-note ${S.editSel === i ? 'sel' : ''}" onclick="selectEditNote(${i})">
       <span class="en-num">${i + 1}</span>
       <span class="en-name">${nm}<small>${STR_LABELS[n.s]}-Saite · ${n.fret}. Bund</small></span>
@@ -2164,6 +2185,7 @@ function renderEditor() {
       <button class="en-tog ${n.stacc ? 'active' : ''}" onclick="event.stopPropagation();toggleNoteStacc(${i})" title="Staccato – kurz &amp; abgehackt">•</button>
       <button class="en-tog ${n.vib ? 'active' : ''}" onclick="event.stopPropagation();toggleNoteVib(${i})" title="Vibrato">∿</button>
       <span class="en-bend"><small>Bend</small>${bends}</span>
+      <span class="en-bend"><small>Betonung</small>${accs}</span>
       <span class="en-actions">
         <button onclick="event.stopPropagation();playEditNote(${i})" title="Ton anspielen">▶</button>
         <button onclick="event.stopPropagation();moveEditNote(${i},-1)" title="nach vorne" ${i === 0 ? 'disabled' : ''}>↑</button>
@@ -2185,9 +2207,11 @@ function setNoteDur(i, d) { S.lickRec[i].d = d; updateEditMeta(); render(); }
 function toggleNoteStacc(i) { const n = S.lickRec[i]; if (n.stacc) delete n.stacc; else n.stacc = 1; renderEditor(); render(); }
 function toggleNoteVib(i) { const n = S.lickRec[i]; if (n.vib) delete n.vib; else n.vib = 1; renderEditor(); render(); }
 function setNoteBend(i, v) { const n = S.lickRec[i]; if (v) n.bend = v; else delete n.bend; renderEditor(); render(); }
+function setNoteAcc(i, v) { const n = S.lickRec[i]; if (v) n.acc = v; else delete n.acc; renderEditor(); render(); }
 function playEditNote(i) {
   const n = S.lickRec[i];
-  pluck(OPEN_MIDI[n.s] + n.fret, 0, n.stacc ? 0.16 : 1.0, 0.95, n.bend || 0, !!n.vib);
+  const g = 0.95 * (n.acc === 1 ? 1.5 : n.acc === -1 ? 0.45 : 1);
+  pluck(OPEN_MIDI[n.s] + n.fret, 0, n.stacc ? 0.16 : 1.0, g, n.bend || 0, !!n.vib, 'lick');
   flashAt(n.s, n.fret, 0, '#f59e0b');
   S.editSel = i; renderEditor(); render();
 }
@@ -2205,7 +2229,7 @@ function deleteEditNote(i) {
 }
 function playEditBuffer() {
   if (!S.lickRec.length) return;
-  playLickAt({ notes: S.lickRec, key: S.key, scale: S.scale }, 0);
+  playLickAt({ notes: S.lickRec, key: S.key, scale: S.scale }, nextBarDelay());
 }
 function saveEdit() {
   if (!S.editing) return;
@@ -3042,7 +3066,7 @@ function applySettingsUI() {
   document.getElementById('btn-grshuffle').classList.toggle('active', S.groove === 'shuffle');
   ['strict', 'variety', 'ascend'].forEach(m =>
     document.getElementById('btn-box' + m).classList.toggle('active', S.boxMode === m));
-  const order = ['click', 'drums', 'bass', 'guitar'];
+  const order = ['click', 'drums', 'bass', 'guitar', 'lick'];
   document.querySelectorAll('.mixer input[type=range]').forEach((sl, i) =>
     sl.value = Math.round((S.vol[order[i]] ?? 1) * 100));
   const boost = document.querySelector('#trainRow input[type=range]');
