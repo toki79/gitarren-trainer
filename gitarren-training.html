@@ -304,6 +304,15 @@ details.card > summary:hover { color: var(--text); }
       <input type="number" id="bpm" min="40" max="240" value="90" onchange="setBpm(this.value)">
     </label>
     <div id="beatDots" class="beat-dots" title="Zählzeiten"></div>
+    <button id="backupBtn" onclick="toggleBackupDrawer()" title="Alles sichern/laden – für Gerätewechsel oder falls der Browser-Cache gelöscht wird">💾 Sicherung</button>
+  </div>
+  <div id="backupDrawer" class="metro-row" style="display:none">
+    <div class="hint" style="flex-basis:100%">Läuft nur im Browser­speicher – wird beim Löschen des Browser-Caches gelöscht und synct nicht automatisch zwischen Geräten. „Alles sichern" lädt eine Datei mit allen eigenen Licks und Einstellungen herunter; lege sie z.&nbsp;B. in einen iCloud-Drive-Ordner. Auf dem anderen Gerät (oder nach Cache-Löschung) mit „Sicherung laden" wiederherstellen.</div>
+    <button onclick="exportAll()" title="Alle eigenen Licks + Einstellungen als JSON-Datei herunterladen">⬇ Alles sichern</button>
+    <button onclick="document.getElementById('backupFile').click()" title="Zuvor heruntergeladene Sicherungsdatei laden (ersetzt Licks &amp; Einstellungen auf diesem Gerät)">⬆ Sicherung laden</button>
+    <input type="file" id="backupFile" accept=".json,application/json" style="display:none"
+           onchange="importAll(this.files[0]); this.value=''">
+    <span id="backupInfo" class="hint"></span>
   </div>
 
   <div class="fretboard-wrap">
@@ -665,7 +674,7 @@ const S = { key: 9, scale: 'minor', pos: 1, triad: 'none', set: 'DGB', label: 'n
             lickOnlyMatch: true, superId: 'none', pair: false, approach: false,
             presetTab: 'vorlagen', soundOpen: false, showLegend: false, fbCompact: false,
             intervalMode: false, intervalRef: null,
-            pathId: 'thrill', pathStep: 0,
+            pathId: 'thrill', pathStep: 0, lastBackupAt: null,
             cards: { path: true, triad: true, prog: true, licks: false, trainer: false } };
 let metroTimer = null;
 const metro = { nextNote: 0, beat: 0, countInBeats: 0, sched: null, lickNextBeat: 0 };
@@ -2925,7 +2934,7 @@ const PERSIST = ['key','scale','pos','triad','set','label','blue','blueArrows','
   'superId','bpm','beatsPerMeasure','tripletFeel','measuresPerChord','countIn','click','drums',
   'bass','groove','vol','boxMode','lickOnlyMatch','micBoost','lickLoop','sound','selectedLick',
   'presetTab','soundOpen','showLegend','cards','fbCompact','intervalMode','intervalRef',
-  'lickShow','pathId','pathStep'];
+  'lickShow','pathId','pathStep','lastBackupAt'];
 function saveSettings() {
   try {
     const o = {};
@@ -2944,7 +2953,64 @@ function loadSettings() {
   });
   S._progText = o.progText || '';
   S._bluesForm = o.bluesForm || null;
+  S.lastBackupAt = o.lastBackupAt || null;
 }
+
+// ─── Vollständige Sicherung (Licks + Einstellungen) ─────────────────────────
+// Läuft rein lokal im Browser (localStorage) – kein automatischer Geräte-Sync.
+// Export/Import als Datei ist der Weg, Daten geräteübergreifend mitzunehmen
+// oder vor dem Löschen des Browser-Caches zu schützen.
+const BACKUP_VERSION = 1;
+function toggleBackupDrawer() {
+  const drawer = document.getElementById('backupDrawer');
+  const open = drawer.style.display === 'none';
+  drawer.style.display = open ? 'flex' : 'none';
+  document.getElementById('backupBtn').classList.toggle('active', open);
+  if (open) updateBackupInfo();
+}
+function updateBackupInfo() {
+  const el = document.getElementById('backupInfo');
+  if (!el) return;
+  el.textContent = S.lastBackupAt
+    ? 'Letzte Sicherung: ' + new Date(S.lastBackupAt).toLocaleString('de-DE')
+    : 'Noch keine Sicherung heruntergeladen.';
+}
+function exportAll() {
+  S.lastBackupAt = new Date().toISOString();
+  saveSettings();                             // aktuellen Stand inkl. Zeitstempel persistieren
+  const payload = {
+    app: 'gitarren-training', version: BACKUP_VERSION, exportedAt: S.lastBackupAt,
+    licks: S.licks,
+    settings: JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}')
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `gitarren-training-sicherung-${S.lastBackupAt.slice(0, 10)}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  updateBackupInfo();
+}
+function importAll(file) {
+  if (!file) return;
+  const rd = new FileReader();
+  rd.onload = () => {
+    try {
+      const data = JSON.parse(rd.result);
+      if (!data || typeof data !== 'object' || !Array.isArray(data.licks) || typeof data.settings !== 'object' || !data.settings)
+        throw new Error('Keine gültige Sicherungsdatei');
+      if (!confirm('Sicherung laden? Das ersetzt alle eigenen Licks und Einstellungen auf diesem Gerät durch den Stand aus der Datei.\n\nFalls du den aktuellen Stand noch behalten willst: erst „⬇ Alles sichern“, dann laden.'))
+        return;
+      localStorage.setItem(LICK_KEY, JSON.stringify(data.licks));
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(data.settings));
+      window.removeEventListener('beforeunload', saveSettings);   // sonst überschreibt der Auto-Save beim Reload den Import mit dem alten Stand
+      alert('Sicherung geladen – die Seite wird neu geladen.');
+      location.reload();
+    } catch (e) { alert('Import fehlgeschlagen: ' + e.message); }
+  };
+  rd.readAsText(file);
+}
+
 // Alle Bedienelemente auf den (geladenen) State synchronisieren
 function applySettingsUI() {
   document.getElementById('keySelect').value = S.key;
