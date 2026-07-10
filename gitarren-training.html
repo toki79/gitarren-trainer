@@ -670,7 +670,7 @@ const S = { key: 9, scale: 'minor', pos: 1, triad: 'none', set: 'DGB', label: 'n
             groove: 'straight', tripletFeel: false, vol: { click: 1, drums: 1, bass: 1, guitar: 1, lick: 1 },
             licks: [], recording: false, lickRec: [], selectedLick: null, lickLoop: false,
             recDur: 1, recStacc: false, recVib: false, lickShow: true,
-            editing: null, editSel: -1,
+            editing: null, editSel: -1, editKey: null,
             trainer: null, micGate: 0.004, micBoost: 8, blue: false, blueArrows: false,
             lickOnlyMatch: true, superId: 'none', pair: false, approach: false,
             presetTab: 'vorlagen', soundOpen: false, showLegend: false, fbCompact: false,
@@ -1448,8 +1448,9 @@ function render() {
       const c = el('circle', { cx:x, cy:y, r:8.5, fill:bendCol, stroke:'#083344', 'stroke-width':1.5 });
       c.style.cursor = 'pointer';
       c.addEventListener('click', () => {
-        if (S.editing) selectEditNote(i);
-        else if (S.recording) recordNote(n.s, n.fret);
+        // Auch im Editor fügt ein Griffbrett-Klick ein (Zeilen wählt man in der Liste) –
+        // Lick-Kreise übermalen die Box-Töne, sonst wäre Einfügen dort unmöglich
+        if (capturing()) recordNote(n.s, n.fret);
         else pluck(OPEN_MIDI[n.s] + n.fret, 0, 1.1, 0.95, n.bend || 0);
       });
       svg.appendChild(c);
@@ -1568,14 +1569,19 @@ function updateInfo(grip) {
 
 // ─── Controls ─────────────────────────────────────────────────────────────────
 function setKey(v) {
-  // Aufnahme-/Editor-Buffer wandert mit der Tonart (kleinstmögliche Verschiebung, wie transposeLick)
-  if (capturing() && S.lickRec.length && v !== S.key) {
-    let d = ((v - S.key) % 12 + 12) % 12;
+  // Aufnahme-/Editor-Buffer wandert mit der Tonart (kleinstmögliche Verschiebung, wie transposeLick).
+  // Im Editor zählt die Tonart des Buffers (editKey), nicht zwingend die App-Tonart.
+  const base = S.editing ? S.editKey : S.key;
+  if (capturing() && S.lickRec.length && v !== base) {
+    let d = ((v - base) % 12 + 12) % 12;
     if (d > 6) d -= 12;
     let frets = S.lickRec.map(n => n.fret + d);
     while (frets.some(f => f < 0)) frets = frets.map(f => f + 12);
     while (frets.some(f => f > FRETS)) frets = frets.map(f => f - 12);
-    if (!frets.some(f => f < 0 || f > FRETS)) S.lickRec.forEach((n, i) => n.fret = frets[i]);
+    if (!frets.some(f => f < 0 || f > FRETS)) {
+      S.lickRec.forEach((n, i) => n.fret = frets[i]);
+      if (S.editing) S.editKey = v;
+    }
   }
   S.key = v; S.anchor = null; reparseProg();
   if (S.editing) renderEditor();       // Notennamen/Bünde in den Editor-Zeilen aktualisieren
@@ -2137,8 +2143,10 @@ function copyLibLick(id) {
 // ─── Lick-Editor: bestehende Licks nachträglich bearbeiten ───────────────────
 // Notenwerte in Achteln → Dropdown-Beschriftung
 const EDIT_DUR_OPTS = [[8, '1/1 · ganze'], [4, '1/2 · halbe'], [2, '1/4 · viertel'], [1, '1/8 · achtel'], [0.5, '1/16 · sechzehntel']];
-// Lick in den Editor laden. Das Griffbrett wechselt in Tonart/Skala des Licks,
-// damit neu angeklickte Töne mit den vorhandenen zusammenpassen.
+// Lick in den Editor laden – transponiert in die aktuell gewählte Tonart,
+// die Tonart der App bleibt unangetastet. S.editKey merkt sich, in welcher
+// Tonart der Arbeits-Buffer ausgedrückt ist (Fallback: Original-Tonart,
+// falls die Transposition nicht aufs Brett passt).
 function beginEdit(id) {
   const lk = S.licks.find(l => l.id === id);
   if (!lk) return;
@@ -2147,13 +2155,9 @@ function beginEdit(id) {
   S.editing = id;
   S.editSel = -1;
   S.selectedLick = null;
-  S.key = lk.key; S.scale = lk.scale;
-  document.getElementById('keySelect').value = lk.key;
-  document.getElementById('btn-minor').classList.toggle('active', lk.scale === 'minor');
-  document.getElementById('btn-major').classList.toggle('active', lk.scale === 'major');
-  updateExerciseLabel();
-  reparseProg();
-  S.lickRec = lk.notes.map(n => ({ ...n }));   // Arbeitskopie – erst beim Speichern übernommen
+  const t = transposeLick(lk);             // Arbeitskopie – erst beim Speichern übernommen
+  S.lickRec = (t || lk.notes).map(n => ({ ...n }));
+  S.editKey = t ? S.key : lk.key;
   document.getElementById('editName').value = lk.name;
   document.getElementById('editorRow').style.display = 'block';
   document.getElementById('recRow').style.display = 'none';
@@ -2238,23 +2242,24 @@ function saveEdit() {
   if (!lk) { closeEdit(); return; }
   lk.name = (document.getElementById('editName').value || '').trim() || lk.name;
   lk.notes = S.lickRec.map(n => ({ ...n }));
-  lk.key = S.key; lk.scale = S.scale;
+  lk.key = S.editKey ?? S.key;               // Tonart des Buffers; scale (Dur/Moll-Kennung) bleibt
   lk.edited = new Date().toISOString();
   if (saveLicks()) { S.selectedLick = lk.id; closeEdit(); }
 }
 function saveEditAsNew() {
   if (!S.lickRec.length) { alert('Keine Töne vorhanden.'); return; }
   const base = (document.getElementById('editName').value || '').trim() || 'Lick';
+  const src = S.licks.find(l => l.id === S.editing);
   const nl = {
     id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-    name: base + ' (Kopie)', key: S.key, scale: S.scale,
+    name: base + ' (Kopie)', key: S.editKey ?? S.key, scale: src ? src.scale : S.scale,
     notes: S.lickRec.map(n => ({ ...n })), created: new Date().toISOString()
   };
   S.licks.push(nl);
   if (saveLicks()) { S.selectedLick = nl.id; closeEdit(); }
 }
 function closeEdit() {
-  S.editing = null; S.editSel = -1; S.lickRec = [];
+  S.editing = null; S.editSel = -1; S.editKey = null; S.lickRec = [];
   const row = document.getElementById('editorRow');
   if (row) row.style.display = 'none';
   renderLickPanel();
