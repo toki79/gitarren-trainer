@@ -180,6 +180,7 @@ select {
 .edit-note { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; background: var(--panel2); border: 1.5px solid var(--border); border-radius: 8px; padding: 5px 8px; cursor: pointer; }
 .edit-note.sel { border-color: #f59e0b; background: rgba(245,158,11,0.1); }
 .en-num { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: #22d3ee; color: #083344; font-size: 0.75rem; font-weight: 700; flex-shrink: 0; }
+.en-num.rest { background: var(--panel); color: var(--muted); border: 1px solid var(--border); }
 .en-name { font-weight: 600; font-size: 0.9rem; display: flex; flex-direction: column; line-height: 1.1; min-width: 62px; }
 .en-name small { font-weight: 400; font-size: 0.66rem; color: var(--muted); }
 .en-dur { background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 4px 6px; font-size: 0.8rem; font-family: ui-monospace, monospace; }
@@ -193,7 +194,7 @@ select {
 .en-actions button { min-width: 28px; padding: 4px 5px; font-size: 0.78rem; }
 .en-actions button:disabled { opacity: 0.3; cursor: default; }
 .path-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
-#pathSong { background: var(--panel2); color: var(--text); border: 1px solid var(--border); border-radius: 7px; padding: 6px 10px; font-size: 0.9rem; }
+#pathSong, #soloDensity { background: var(--panel2); color: var(--text); border: 1px solid var(--border); border-radius: 7px; padding: 6px 10px; font-size: 0.9rem; }
 .path-progress { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); font-weight: 600; margin-left: auto; }
 .path-intro { font-size: 0.82rem; color: var(--muted); line-height: 1.5; margin-bottom: 10px; }
 .path-dots { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
@@ -557,6 +558,7 @@ details.card > summary:hover { color: var(--text); }
       <span class="rec-label">Artikulation</span>
       <button id="recStaccBtn" onclick="toggleRecStacc()" title="Staccato: kurz &amp; abgehackt anspielen">• Staccato</button>
       <button id="recVibBtn" onclick="toggleRecVib()" title="Vibrato: Ton leiert – klassisch für lange, gehaltene Töne">∿ Vibrato</button>
+      <button onclick="recordRest()" title="Pause im gewählten Notenwert anhängen – Phrasen brauchen Luft">⏸ Pause</button>
       <span class="hint" style="margin-left:auto">Wert wählen, dann Ton am Griffbrett anklicken</span>
     </div>
     <div class="rec-row">
@@ -575,6 +577,7 @@ details.card > summary:hover { color: var(--text); }
       <input id="editName" placeholder="Name des Licks">
       <span id="editMeta">0 Töne</span>
       <span class="tb-sep"></span>
+      <button onclick="insertRestEdit()" title="Pause hinter der markierten Zeile einfügen (Dauer in der Zeile einstellbar)">⏸ Pause</button>
       <button onclick="playEditBuffer()" title="Aktuellen Stand abspielen (folgt Groove &amp; Tempo)">▶ Anhören</button>
       <button onclick="saveEdit()" title="Änderungen speichern (überschreibt den Lick)">💾 Speichern</button>
       <button onclick="saveEditAsNew()" title="Als neuen Lick in die Sammlung speichern (Original bleibt)">⧉ Als Kopie</button>
@@ -582,6 +585,20 @@ details.card > summary:hover { color: var(--text); }
     </div>
     <div class="hint" style="margin-bottom:8px">Töne am Griffbrett anklicken: mit markierter Zeile wird <b>dahinter eingefügt</b>, ohne Markierung ans Ende angehängt. Pro Ton: Dauer, Staccato/Vibrato, Bend und Betonung (p&nbsp;=&nbsp;leise, &gt;&nbsp;=&nbsp;Akzent) einstellen, verschieben oder löschen. Lautstärke der Wiedergabe: 🎚&nbsp;Sound&nbsp;→&nbsp;🎵-Regler.</div>
     <div id="editNotes" class="edit-notes"></div>
+  </div>
+  <div class="lick-head" style="border-top:1px solid var(--border);padding-top:8px">
+    <label>Solo-Generator</label>
+    <div class="btn-row">
+      <button onclick="generateSolo()" title="Erzeugt einen Solo-Vorschlag über die geladene Progression: akkordbewusste Zieltöne auf der Eins, Blues-Phrasierung mit Pausen, Bends &amp; Vibrato. Jeder Klick würfelt neu.">🎲 Solo-Vorschlag</button>
+      <select id="soloDensity" title="Dichte: wie viele Töne, wie viel Raum">
+        <option value="sparse">schlicht · viel Raum</option>
+        <option value="mid" selected>mittel</option>
+        <option value="dense">dicht</option>
+      </select>
+      <button onclick="playLickById('_solo')" title="Solo-Vorschlag anhören – bei laufendem Backing startet er auf der nächsten Eins">▶ Anhören</button>
+      <button onclick="saveSoloDraft()" title="Vorschlag als Lick in die eigene Sammlung übernehmen (dort auch mit ✎ editierbar)">💾 In Sammlung</button>
+    </div>
+    <span id="soloInfo" class="hint"></span>
   </div>
   <div id="lickLib" class="lick-list"></div>
   <div id="lickList" class="lick-list"></div>
@@ -670,7 +687,7 @@ const S = { key: 9, scale: 'minor', pos: 1, triad: 'none', set: 'DGB', label: 'n
             groove: 'straight', tripletFeel: false, vol: { click: 1, drums: 1, bass: 1, guitar: 1, lick: 1 },
             licks: [], recording: false, lickRec: [], selectedLick: null, lickLoop: false,
             recDur: 1, recStacc: false, recVib: false, lickShow: true,
-            editing: null, editSel: -1, editKey: null,
+            editing: null, editSel: -1, editKey: null, soloDraft: null,
             trainer: null, micGate: 0.004, micBoost: 8, blue: false, blueArrows: false,
             lickOnlyMatch: true, superId: 'none', pair: false, approach: false,
             presetTab: 'vorlagen', soundOpen: false, showLegend: false, fbCompact: false,
@@ -1421,19 +1438,24 @@ function render() {
     if (lk) lickNotes = transposeLick(lk);
   }
   if (lickNotes) {
-    for (let i = 0; i < lickNotes.length - 1; i++) {
-      const a = lickNotes[i], b = lickNotes[i + 1];
+    // Pausen klingen nicht und werden nicht gezeichnet; Linien nur zwischen direkt
+    // aufeinanderfolgenden Tönen (eine Pause dazwischen trennt die Phrase sichtbar)
+    const vis = [];
+    lickNotes.forEach((n, i) => { if (!n.rest) vis.push({ n, i }); });
+    for (let k = 0; k < vis.length - 1; k++) {
+      if (vis[k + 1].i !== vis[k].i + 1) continue;
+      const a = vis[k].n, b = vis[k + 1].n;
       svg.appendChild(el('line', {
         x1:fx(a.fret), y1:sy(a.s), x2:fx(b.fret), y2:sy(b.s),
         stroke:'rgba(34,211,238,0.45)', 'stroke-width':1.5, 'stroke-dasharray':'2 3'
       }));
     }
-    lickNotes.forEach((n, i) => {
+    vis.forEach(({ n, i }, k) => {
       const x = fx(n.fret), y = sy(n.s);
-      // Lick-Trainer aktiv: aktuellen Zielton grün umranden
-      if (S.trainer && S.trainer.mode === 'lick' && !capturing() && i === S.trainer.idx)
+      // Lick-Trainer aktiv: aktuellen Zielton grün umranden (zählt nur klingende Töne)
+      if (S.trainer && S.trainer.mode === 'lick' && !capturing() && k === S.trainer.idx)
         svg.appendChild(el('circle', { cx:x, cy:y, r:13, fill:'none', stroke:'#22c55e', 'stroke-width':2.5, 'stroke-dasharray':'4 3' }));
-      // Editor aktiv: aktuell gewählten Ton orange umranden
+      // Editor aktiv: aktuell gewählten Ton orange umranden (Index im Buffer, inkl. Pausen)
       if (S.editing && i === S.editSel)
         svg.appendChild(el('circle', { cx:x, cy:y, r:13, fill:'none', stroke:'#f59e0b', 'stroke-width':2.5, 'stroke-dasharray':'4 3' }));
       // Bend-Ton: gebogener Pfeil nach oben + Label (½ = Halbton, 1 = Ganzton)
@@ -1457,7 +1479,7 @@ function render() {
       svg.appendChild(el('text', {
         x, y, fill:'#083344', 'font-size':8.5, 'font-weight':'bold',
         'text-anchor':'middle', 'dominant-baseline':'middle', style:'user-select:none;pointer-events:none'
-      }, String(i + 1)));
+      }, String(k + 1)));
       if (n.stacc) svg.appendChild(el('circle', { cx:x, cy:y - 13, r:2, fill:'#22d3ee' }));          // Staccato-Punkt
       if (n.vib) svg.appendChild(el('text', { x:x + 12, y:y - 8, fill:'#22d3ee', 'font-size':10, 'font-weight':'bold',
         'text-anchor':'middle', style:'user-select:none;pointer-events:none' }, '∿'));               // Vibrato-Wellen
@@ -1903,6 +1925,7 @@ const BUILTIN_LICKS = [
     [[1,10,1],[1,8,1,2],[1,10,1],[1,8,1,2],[0,8,2],[1,10,2]])    // A, G↗A, A, G↗A, C, A
 ];
 function findLick(id) {
+  if (id === '_solo' && S.soloDraft) return S.soloDraft;    // aktueller Solo-Vorschlag (Entwurf)
   return S.licks.find(l => l.id === id) || BUILTIN_LICKS.find(l => l.id === id) || null;
 }
 
@@ -1922,10 +1945,11 @@ function saveLicks() {
 function transposeLick(lick) {
   let d = ((S.key - lick.key) % 12 + 12) % 12;
   if (d > 6) d -= 12;
-  let notes = lick.notes.map(n => ({ ...n, fret: n.fret + d }));
-  while (notes.some(n => n.fret < 0))  notes = notes.map(n => ({ ...n, fret: n.fret + 12 }));
-  while (notes.some(n => n.fret > FRETS)) notes = notes.map(n => ({ ...n, fret: n.fret - 12 }));
-  if (notes.some(n => n.fret < 0 || n.fret > FRETS)) return null;   // passt nicht aufs Brett
+  const shift = (n, by) => n.rest ? { ...n } : { ...n, fret: n.fret + by };   // Pausen haben keinen Bund
+  let notes = lick.notes.map(n => shift(n, d));
+  while (notes.some(n => !n.rest && n.fret < 0))  notes = notes.map(n => shift(n, 12));
+  while (notes.some(n => !n.rest && n.fret > FRETS)) notes = notes.map(n => shift(n, -12));
+  if (notes.some(n => !n.rest && (n.fret < 0 || n.fret > FRETS))) return null;   // passt nicht aufs Brett
   return notes;
 }
 
@@ -1969,11 +1993,18 @@ function setRecDur(d) {
 function toggleRecStacc() { S.recStacc = !S.recStacc; document.getElementById('recStaccBtn').classList.toggle('active', S.recStacc); updateRecInfo(); }
 function toggleRecVib() { S.recVib = !S.recVib; document.getElementById('recVibBtn').classList.toggle('active', S.recVib); updateRecInfo(); }
 function undoRecNote() { S.lickRec.pop(); updateRecInfo(); render(); }
+function recordRest() {                        // Pause im gewählten Notenwert anhängen (nur Aufnahme)
+  if (!S.recording) return;
+  S.lickRec.push({ rest: 1, d: S.recDur });
+  updateRecInfo();
+  render();
+}
 function updateRecInfo() {
   const el = document.getElementById('recInfo');
   if (!el) return;
+  const cnt = S.lickRec.filter(n => !n.rest).length;
   const art = [S.recStacc ? 'Staccato' : '', S.recVib ? 'Vibrato' : ''].filter(Boolean).join('+');
-  el.textContent = `${S.lickRec.length} ${S.lickRec.length === 1 ? 'Ton' : 'Töne'} · nächster: ${DUR_LABEL[S.recDur]}${art ? ' · ' + art : ''}`;
+  el.textContent = `${cnt} ${cnt === 1 ? 'Ton' : 'Töne'} · nächster: ${DUR_LABEL[S.recDur]}${art ? ' · ' + art : ''}`;
 }
 function discardRec() { S.lickRec = []; if (S.recording) toggleRecording(); }
 function saveLick() {
@@ -2029,6 +2060,7 @@ function playLickAt(lick, delaySec, quiet) {
   let off = 0;
   notes.forEach((n, i) => {
     const src = lick.notes[i], d = src.d || 1;
+    if (src.rest) { off += d; return; }                             // Pause: nur Zeit weiterrücken
     const start = delaySec + eighthTime(off, spb);
     let dur = Math.max((eighthTime(off + d, spb) - eighthTime(off, spb)) * 1.05, 0.18);
     if (src.stacc) dur = Math.min(dur, 0.16);                       // Staccato: kurz
@@ -2072,7 +2104,8 @@ function importLicks(file) {
       const arr = JSON.parse(rd.result);
       if (!Array.isArray(arr)) throw new Error('kein Lick-Array');
       const valid = arr.filter(l => l && Array.isArray(l.notes) && l.notes.length &&
-        l.notes.every(n => Number.isInteger(n.s) && n.s >= 0 && n.s <= 5 && Number.isInteger(n.fret)));
+        l.notes.every(n => n.rest ? Number.isFinite(+n.d) :
+          (Number.isInteger(n.s) && n.s >= 0 && n.s <= 5 && Number.isInteger(n.fret))));
       const existing = new Set(S.licks.map(l => l.id));
       let added = 0;
       for (const l of valid) {
@@ -2140,6 +2173,129 @@ function copyLibLick(id) {
   if (saveLicks()) renderLickPanel();
 }
 
+// ─── Solo-Generator: akkordbewusster Solo-Vorschlag über die Progression ────
+// Regelbasiert: Akkordtöne als Zieltöne auf den Takt-Schwerpunkten, dazwischen
+// Schritte durch die Box (+ Blue Note als Durchgang), 2-Takt-Phrasen mit Pausen
+// (Frage/Antwort), idiomatische Bends (4→5, ♭3-Curl) und Vibrato am Phrasenende.
+const SOLO_DENSITY = {
+  sparse: { restProb: 0.35, durW: [[4, 3], [2, 4], [1, 1]], blue: 0.06 },
+  mid:    { restProb: 0.22, durW: [[2, 4], [1, 4], [4, 2]], blue: 0.12 },
+  dense:  { restProb: 0.12, durW: [[1, 6], [2, 3], [0.5, 2]], blue: 0.16 }
+};
+function generateSolo() {
+  if (!S.prog.length) { alert('Erst eine Progression oder ein Blues-Preset laden – Karte „Progression & Backing“.'); return; }
+  const P = SOLO_DENSITY[document.getElementById('soloDensity').value] || SOLO_DENSITY.mid;
+  const sched = buildBeatSchedule();
+  const B = S.beatsPerMeasure, E = B * 2;                  // Achtel pro Takt
+  const bars = Math.max(1, Math.ceil(sched.total / B));
+  const chordAtBar = b => {
+    const beat = (b * B) % sched.total;
+    let best = -1;
+    for (const k in sched.starts) { const kk = +k; if (kk <= beat && kk > best) best = kk; }
+    return S.prog[sched.starts[best]] || S.prog[0];
+  };
+  // Ton-Vorrat: Pentatonik-Box, nach Tonhöhe sortiert; Blue Notes im Box-Bereich separat
+  const pool = boxNotes(S.key, S.scale, S.pos || 1)
+    .map(n => ({ ...n, midi: OPEN_MIDI[n.s] + n.fret }))
+    .sort((a, b) => a.midi - b.midi);
+  const bluePc = blueNotePc();
+  const minF = Math.min(...pool.map(n => n.fret)), maxF = Math.max(...pool.map(n => n.fret));
+  const blues = [];
+  for (let s = 0; s < 6; s++)
+    for (let f = Math.max(0, minF); f <= Math.min(FRETS, maxF); f++)
+      if (mod12(OPEN_PC[s] + f) === bluePc) blues.push({ s, fret: f, midi: OPEN_MIDI[s] + f });
+  const chordPcs = ch => [mod12(ch.rootPc), mod12(ch.rootPc + (ch.third ?? 4)), mod12(ch.rootPc + (ch.fifth ?? 7))];
+  const nearestIdx = (from, pcs) => {                      // nächstgelegener Pool-Ton einer Tonklasse
+    let best = -1, bd = 1e9;
+    pool.forEach((n, idx) => { if (pcs.includes(n.pc)) { const d = Math.abs(idx - from); if (d < bd) { bd = d; best = idx; } } });
+    return best >= 0 ? best : from;
+  };
+  const pickDur = () => {
+    let r = Math.random() * P.durW.reduce((a, [, w]) => a + w, 0);
+    for (const [d, w] of P.durW) { if ((r -= w) < 0) return d; }
+    return 1;
+  };
+  const notes = [];
+  const pushRest = d => {                                  // Pausen zusammenfassen
+    const prev = notes[notes.length - 1];
+    if (prev && prev.rest) prev.d += d; else notes.push({ rest: 1, d });
+  };
+  let pi = Math.floor(pool.length / 2) + Math.floor(Math.random() * 3) - 1;   // Start mittig in der Box
+  let dir = Math.random() < 0.5 ? 1 : -1;
+  let lastNote = null;
+  for (let bar = 0; bar < bars; bar++) {
+    const pcs = chordPcs(chordAtBar(bar));
+    const answer = bar % 2 === 1;                          // 2-Takt-Phrasen: Frage/Antwort
+    if (bar === bars - 1) {                                // Schluss: langer Grundton, Vibrato, Luft
+      pi = nearestIdx(pi, [mod12(S.key)]);
+      const d = Math.min(6, E - 1);
+      notes.push({ s: pool[pi].s, fret: pool[pi].fret, d, vib: 1, acc: 1 });
+      pushRest(E - d);
+      break;
+    }
+    let p = 0;
+    while (p < E) {
+      const remaining = E - p;
+      // Luft lassen – Antwort-Phrasen dürfen auch synkopiert (mit Pause) beginnen
+      if ((p > 0 || answer) && Math.random() < P.restProb) {
+        if (lastNote && lastNote.d >= 2 && Math.random() < 0.7) lastNote.vib = 1;   // Phrasenende singt
+        const d = Math.min(remaining, Math.random() < 0.5 ? 1 : 2);
+        pushRest(d);
+        p += d;
+        continue;
+      }
+      let d = pickDur();
+      while (d > remaining) d = d >= 2 ? d / 2 : remaining;
+      const strong = p === 0 || p === E / 2;               // Takt-Schwerpunkte (1 und 3)
+      if (strong && Math.random() < (p === 0 ? 0.95 : 0.6)) {
+        pi = nearestIdx(pi, pcs);                          // Akkordton als Zielton
+      } else {
+        pi += [1, 1, 2][Math.floor(Math.random() * 3)] * dir;
+        if (Math.random() < 0.25) dir = -dir;
+        pi = Math.min(pool.length - 1, Math.max(0, pi));
+        if (pi === 0 || pi === pool.length - 1) dir = -dir;
+      }
+      const src = pool[pi];
+      const n = { s: src.s, fret: src.fret, d };
+      if (!strong && d <= 1 && Math.random() < P.blue) {   // Blue Note als kurzer Durchgang
+        const bn = blues.find(b => Math.abs(b.midi - src.midi) <= 2);
+        if (bn) { n.s = bn.s; n.fret = bn.fret; }
+      }
+      if (d >= 2 && Math.random() < 0.18) {                // idiomatische Bends
+        const pc = mod12(OPEN_PC[n.s] + n.fret);
+        if (pc === mod12(S.key + 5)) n.bend = 2;                                    // 4 → 5
+        else if (S.scale === 'minor' && pc === mod12(S.key + 3)) n.bend = 1;        // ♭3-Curl
+      }
+      if (d >= 4 && Math.random() < 0.6) n.vib = 1;        // lange Töne singen
+      if (p === 0 && Math.random() < 0.5) n.acc = 1;       // die Eins darf man hören
+      if (d === 0.5 && Math.random() < 0.35) n.acc = -1;   // 16tel gern als Ghost Note
+      notes.push(n);
+      lastNote = n;
+      p += d;
+    }
+  }
+  S.soloDraft = { id: '_solo', name: 'Solo-Vorschlag', key: S.key, scale: S.scale, notes };
+  S.selectedLick = '_solo';
+  if (!S.lickShow) toggleLickShow();
+  const cnt = notes.filter(n => !n.rest).length;
+  document.getElementById('soloInfo').textContent =
+    `${bars} Takte · ${cnt} Töne über ${nn(S.key, S.key)}-${S.scale === 'minor' ? 'Moll' : 'Dur'} – ▶ startet bei laufendem Backing auf der nächsten Eins, 🔁 Loop wiederholt taktsynchron. Nicht gut? Nochmal würfeln.`;
+  renderLickPanel();
+  render();
+}
+function saveSoloDraft() {
+  if (!S.soloDraft) { alert('Noch kein Solo-Vorschlag – erst 🎲 würfeln.'); return; }
+  const nl = {
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    name: `Solo-Vorschlag ${nn(S.key, S.key)}${S.scale === 'minor' ? 'm' : ''} · ${new Date().toLocaleDateString('de-DE')}`,
+    key: S.soloDraft.key, scale: S.soloDraft.scale,
+    notes: S.soloDraft.notes.map(n => ({ ...n })),
+    created: new Date().toISOString()
+  };
+  S.licks.push(nl);
+  if (saveLicks()) { S.selectedLick = nl.id; renderLickPanel(); render(); }
+}
+
 // ─── Lick-Editor: bestehende Licks nachträglich bearbeiten ───────────────────
 // Notenwerte in Achteln → Dropdown-Beschriftung
 const EDIT_DUR_OPTS = [[8, '1/1 · ganze'], [4, '1/2 · halbe'], [2, '1/4 · viertel'], [1, '1/8 · achtel'], [0.5, '1/16 · sechzehntel']];
@@ -2175,27 +2331,37 @@ function renderEditor() {
     updateEditMeta();
     return;
   }
+  let num = 0;                                       // fortlaufende Nummer nur für klingende Töne
   box.innerHTML = S.lickRec.map((n, i) => {
-    const nm = nn(mod12(OPEN_MIDI[n.s] + n.fret), S.key);
     const opts = EDIT_DUR_OPTS.map(([v, l]) => `<option value="${v}" ${(n.d || 1) === v ? 'selected' : ''}>${l}</option>`).join('');
+    const actions = `<span class="en-actions">
+        ${n.rest ? '' : `<button onclick="event.stopPropagation();playEditNote(${i})" title="Ton anspielen">▶</button>`}
+        <button onclick="event.stopPropagation();moveEditNote(${i},-1)" title="nach vorne" ${i === 0 ? 'disabled' : ''}>↑</button>
+        <button onclick="event.stopPropagation();moveEditNote(${i},1)" title="nach hinten" ${i === S.lickRec.length - 1 ? 'disabled' : ''}>↓</button>
+        <button onclick="event.stopPropagation();deleteEditNote(${i})" title="Löschen">✖</button>
+      </span>`;
+    if (n.rest)
+      return `<div class="edit-note ${S.editSel === i ? 'sel' : ''}" onclick="selectEditNote(${i})">
+        <span class="en-num rest">⏸</span>
+        <span class="en-name">Pause<small>kein Ton</small></span>
+        <select class="en-dur" onclick="event.stopPropagation()" onchange="setNoteDur(${i},+this.value)">${opts}</select>
+        ${actions}
+      </div>`;
+    num++;
+    const nm = nn(mod12(OPEN_MIDI[n.s] + n.fret), S.key);
     const bends = [[0, '–'], [1, '½'], [2, '1']].map(([v, l]) =>
       `<button class="en-mini ${(n.bend || 0) === v ? 'active' : ''}" onclick="event.stopPropagation();setNoteBend(${i},${v})" title="${v ? 'Bend um ' + l + ' Ton' : 'kein Bend'}">${l}</button>`).join('');
     const accs = [[-1, 'p', 'Leise (Ghost Note)'], [0, '–', 'Normal'], [1, '&gt;', 'Betont (Akzent)']].map(([v, l, t]) =>
       `<button class="en-mini ${(n.acc || 0) === v ? 'active' : ''}" onclick="event.stopPropagation();setNoteAcc(${i},${v})" title="${t}">${l}</button>`).join('');
     return `<div class="edit-note ${S.editSel === i ? 'sel' : ''}" onclick="selectEditNote(${i})">
-      <span class="en-num">${i + 1}</span>
+      <span class="en-num">${num}</span>
       <span class="en-name">${nm}<small>${STR_LABELS[n.s]}-Saite · ${n.fret}. Bund</small></span>
       <select class="en-dur" onclick="event.stopPropagation()" onchange="setNoteDur(${i},+this.value)">${opts}</select>
       <button class="en-tog ${n.stacc ? 'active' : ''}" onclick="event.stopPropagation();toggleNoteStacc(${i})" title="Staccato – kurz &amp; abgehackt">•</button>
       <button class="en-tog ${n.vib ? 'active' : ''}" onclick="event.stopPropagation();toggleNoteVib(${i})" title="Vibrato">∿</button>
       <span class="en-bend"><small>Bend</small>${bends}</span>
       <span class="en-bend"><small>Betonung</small>${accs}</span>
-      <span class="en-actions">
-        <button onclick="event.stopPropagation();playEditNote(${i})" title="Ton anspielen">▶</button>
-        <button onclick="event.stopPropagation();moveEditNote(${i},-1)" title="nach vorne" ${i === 0 ? 'disabled' : ''}>↑</button>
-        <button onclick="event.stopPropagation();moveEditNote(${i},1)" title="nach hinten" ${i === S.lickRec.length - 1 ? 'disabled' : ''}>↓</button>
-        <button onclick="event.stopPropagation();deleteEditNote(${i})" title="Ton löschen">✖</button>
-      </span>
+      ${actions}
     </div>`;
   }).join('');
   updateEditMeta();
@@ -2203,8 +2369,9 @@ function renderEditor() {
 function updateEditMeta() {
   const m = document.getElementById('editMeta');
   if (!m) return;
+  const cnt = S.lickRec.filter(n => !n.rest).length;
   const beats = +(S.lickRec.reduce((a, n) => a + (n.d || 1), 0) / 2).toFixed(1);
-  m.textContent = `${S.lickRec.length} ${S.lickRec.length === 1 ? 'Ton' : 'Töne'} · ${beats} Schläge`;
+  m.textContent = `${cnt} ${cnt === 1 ? 'Ton' : 'Töne'} · ${beats} Schläge`;
 }
 function selectEditNote(i) { S.editSel = S.editSel === i ? -1 : i; renderEditor(); render(); }
 function setNoteDur(i, d) { S.lickRec[i].d = d; updateEditMeta(); render(); }
@@ -2212,8 +2379,15 @@ function toggleNoteStacc(i) { const n = S.lickRec[i]; if (n.stacc) delete n.stac
 function toggleNoteVib(i) { const n = S.lickRec[i]; if (n.vib) delete n.vib; else n.vib = 1; renderEditor(); render(); }
 function setNoteBend(i, v) { const n = S.lickRec[i]; if (v) n.bend = v; else delete n.bend; renderEditor(); render(); }
 function setNoteAcc(i, v) { const n = S.lickRec[i]; if (v) n.acc = v; else delete n.acc; renderEditor(); render(); }
+function insertRestEdit() {                 // Pause hinter der markierten Zeile (sonst ans Ende)
+  const r = { rest: 1, d: 2 };
+  if (S.editSel >= 0 && S.editSel < S.lickRec.length) { S.lickRec.splice(S.editSel + 1, 0, r); S.editSel++; }
+  else { S.lickRec.push(r); S.editSel = S.lickRec.length - 1; }
+  renderEditor(); render();
+}
 function playEditNote(i) {
   const n = S.lickRec[i];
+  if (n.rest) { S.editSel = i; renderEditor(); render(); return; }
   const g = 0.95 * (n.acc === 1 ? 1.5 : n.acc === -1 ? 0.45 : 1);
   pluck(OPEN_MIDI[n.s] + n.fret, 0, n.stacc ? 0.16 : 1.0, g, n.bend || 0, !!n.vib, 'lick');
   flashAt(n.s, n.fret, 0, '#f59e0b');
@@ -2462,7 +2636,7 @@ function trainerTargets() {                       // Modus 'lick': Ziele aus dem
   const lk = findLick(S.selectedLick);
   if (!lk) return null;
   const notes = transposeLick(lk);
-  return notes && notes.map(n => ({ ...n, midi: OPEN_MIDI[n.s] + n.fret }));
+  return notes && notes.filter(n => !n.rest).map(n => ({ ...n, midi: OPEN_MIDI[n.s] + n.fret }));
 }
 // Box auf- und absteigend (ohne Wiederholung des Spitzentons)
 function boxTargets() {
