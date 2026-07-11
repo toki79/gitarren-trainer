@@ -540,6 +540,8 @@ details.card > summary:hover { color: var(--text); }
       <button id="recBtn" onclick="toggleRecording()" title="Aufnahme starten – dann Töne am Griffbrett anklicken (alle Bünde klickbar, auch Blue Notes)">● Aufnehmen</button>
       <button onclick="playSelectedLick()" title="Ausgewählten Lick im BPM-Tempo abspielen (mit aufgenommenem Rhythmus)">▶ Lick</button>
       <button id="lickLoopBtn" onclick="toggleLickLoop()" title="Lick taktsynchron zum Metronom/Backing wiederholen – startet mit ▶ Play">🔁 Loop</button>
+    </div>
+    <div class="btn-row" style="margin-left:auto">
       <button onclick="exportLicks()" title="Sammlung als JSON-Datei herunterladen (Backup)">⬇ Export</button>
       <button onclick="document.getElementById('lickFile').click()" title="Sammlung aus JSON-Datei laden (wird zur bestehenden hinzugefügt)">⬆ Import</button>
       <input type="file" id="lickFile" accept=".json,application/json" style="display:none"
@@ -608,19 +610,33 @@ details.card > summary:hover { color: var(--text); }
 </details>
 
 <details class="card" id="card-trainer" ontoggle="cardToggled(this)">
-  <summary>🎤 Trainer · mit echter Gitarre (Mikrofon)</summary>
+  <summary>🎤 Trainer &amp; Jam · Übungen mit echter Gitarre</summary>
   <div class="card-body" id="trainerBar">
-  <div class="lick-head">
-    <div class="btn-row">
-      <button id="tr-box" onclick="startTrainerMode('box')" title="Die Pentatonik-Box Ton für Ton auf- und absteigend nachspielen – der Zielton ist grün umrandet">📦 Box auf & ab</button>
-      <button id="tr-arp" onclick="startTrainerMode('arp')" title="Die aktive Triade als Arpeggio spielen (tief → hoch); bei Progression schaltet jeder geschaffte Akkord weiter">🎶 Triaden-Arpeggio</button>
-      <button id="tr-find" onclick="startTrainerMode('find')" title="Griffbrett-Kenntnis: die App nennt einen Ton, du findest ihn – beliebige Lage und Oktave">🔎 Ton finden</button>
-      <button id="tr-call" onclick="startTrainerMode('call')" title="Gehörtraining: die App spielt eine kurze Phrase aus der Box vor, du spielst sie nach Gehör nach">👂 Call & Response</button>
-      <button id="tr-lick" onclick="startTrainerMode('lick')" title="Den ausgewählten Lick nachspielen – Ton für Ton abgehakt">🎵 Lick nachspielen</button>
-      <button id="tr-target" onclick="startTrainerMode('target')" title="Spannung & Auflösung: über dem Backing frei spielen (Blue Notes erlaubt), aber auf jede Eins einen Akkordton landen – die App prüft es. Backing (▶ Play) muss laufen.">🎯 Zielton auf die 1</button>
-      <button onclick="stopTrainer()" title="Trainer beenden, Mikrofon aus">■ Stop</button>
-    </div>
+  <div class="rec-row" style="margin-bottom:8px">
+    <span class="rec-label">Griffbrett &amp; Gehör</span>
+    <button id="tr-box" onclick="startTrainerMode('box')" title="Die Pentatonik-Box Ton für Ton auf- und absteigend nachspielen – der Zielton ist grün umrandet (Mikrofon)">📦 Box auf & ab</button>
+    <button id="tr-arp" onclick="startTrainerMode('arp')" title="Die aktive Triade als Arpeggio spielen (tief → hoch); bei Progression schaltet jeder geschaffte Akkord weiter (Mikrofon)">🎶 Triaden-Arpeggio</button>
+    <button id="tr-find" onclick="startTrainerMode('find')" title="Griffbrett-Kenntnis: die App nennt einen Ton, du findest ihn – beliebige Lage und Oktave (Mikrofon)">🔎 Ton finden</button>
+    <button id="tr-call" onclick="startTrainerMode('call')" title="Gehörtraining: die App spielt eine kurze Phrase aus der Box vor, du spielst sie nach Gehör nach (Mikrofon)">👂 Call & Response</button>
+    <button id="tr-lick" onclick="startTrainerMode('lick')" title="Den ausgewählten Lick nachspielen – Ton für Ton abgehakt (Mikrofon)">🎵 Lick nachspielen</button>
+    <button onclick="stopAllJam()" style="margin-left:auto" title="Alle Trainer- und Jam-Modi beenden, Mikrofon aus">■ Stop</button>
   </div>
+  <div class="rec-row">
+    <span class="rec-label">Improvisation</span>
+    <button id="tr-target" onclick="startTrainerMode('target')" title="Über dem Backing frei spielen (Blue Notes erlaubt), aber auf jede Eins einen Akkordton landen – die App prüft es per Mikrofon. Backing (▶ Play) muss laufen.">🎯 Akkordton auf die 1</button>
+    <button id="tr-third" onclick="startTrainerMode('third')" title="Wie „Akkordton auf die 1", aber das Ziel ist konkret die TERZ des Akkords – sie definiert seinen Klang und schärft das Hören der Changes am meisten. Die Terz-Positionen sind grün markiert (Mikrofon).">③ Terz auf die 1</button>
+    <button id="tradeBtn" onclick="toggleTrading()" title="Jam-Partner: die App spielt 4 Takte (frisch generiert, akkordbewusst), dann gehören 4 Takte dir – im Wechsel durch die Form. Kein Mikrofon nötig; kombinierbar mit 🎯/③.">🔁 Trading Fours</button>
+    <button id="motifBtn" onclick="toggleMotif()" title="Motiv-Entwicklung: der ausgewählte Lick (ideal: 3–5 Töne) wird pro Akkord der Progression transponiert angezeigt – trage ihn durch die Changes. Kein Mikrofon nötig.">🧬 Motiv-Reise</button>
+    <span class="tb-sep"></span>
+    <span class="rec-label">Limitierung</span>
+    <span class="btn-row" id="limitBtns">
+      <button data-limit="off" class="active" onclick="setLimit('off')" title="Keine Beschränkung">aus</button>
+      <button data-limit="s2" onclick="setLimit('s2')" title="Nur die hohen e- und B-Saiten – Melodie statt Fingermuster">2 Saiten</button>
+      <button data-limit="f4" onclick="setLimit('f4')" title="Nur ein 4-Bund-Fenster – kleiner Raum, große Fantasie">4 Bünde</button>
+      <button data-limit="n3" onclick="setLimit('n3')" title="Nur 3 zufällige Box-Töne – alles kommt aus Rhythmus, Dynamik und Vibrato. Nochmal klicken würfelt neu.">3 Töne</button>
+    </span>
+  </div>
+  <div id="jamInfo" class="hint" style="display:none;margin-top:6px"></div>
   <div id="trainRow" class="rec-row" style="display:none">
     <span class="train-dot"></span>
     <span class="mic-meter" title="Eingangspegel – muss beim Spielen ausschlagen und grün werden"><span id="micLevel"></span></span>
@@ -690,6 +706,7 @@ const S = { key: 9, scale: 'minor', pos: 1, triad: 'none', set: 'DGB', label: 'n
             licks: [], recording: false, lickRec: [], selectedLick: null, lickLoop: false,
             recDur: 1, recStacc: false, recVib: false, lickShow: true,
             editing: null, editSel: -1, editKey: null, soloDraft: null,
+            trading: false, motif: false, limit: null, limitNotes: [], limitFrets: [0, 3],
             trainer: null, micGate: 0.004, micBoost: 8, blue: false, blueArrows: false,
             lickOnlyMatch: true, superId: 'none', pair: false, approach: false,
             presetTab: 'vorlagen', soundOpen: false, showLegend: false, fbCompact: false,
@@ -697,7 +714,7 @@ const S = { key: 9, scale: 'minor', pos: 1, triad: 'none', set: 'DGB', label: 'n
             pathId: 'thrill', pathStep: 0, lastBackupAt: null,
             cards: { path: true, triad: true, prog: true, licks: false, trainer: false } };
 let metroTimer = null;
-const metro = { nextNote: 0, beat: 0, countInBeats: 0, sched: null, lickNextBeat: 0 };
+const metro = { nextNote: 0, beat: 0, countInBeats: 0, sched: null, lickNextBeat: 0, tradeSeg: -1 };
 
 // ─── Audio (Web Audio API) ────────────────────────────────────────────────────
 let actx = null, masterGain = null;
@@ -1275,9 +1292,9 @@ function render() {
     svg.appendChild(c);
   }
   // Blue Note als Raute (klar von den Skalen-/Triaden-Kreisen unterscheidbar)
-  function blueDiamond(x, y, midi, s, fret) {
+  function blueDiamond(x, y, midi, s, fret, opacity = 1) {
     const p = el('polygon', { points:`${x},${y-DR} ${x+DR},${y} ${x},${y+DR} ${x-DR},${y}`,
-      fill:BLUE_COL, stroke:'rgba(255,255,255,0.35)', 'stroke-width':1.5 });
+      fill:BLUE_COL, stroke:'rgba(255,255,255,0.35)', 'stroke-width':1.5, opacity });
     p.style.cursor = 'pointer';
     p.addEventListener('click', () => {
       if (capturing()) recordNote(s, fret);
@@ -1322,20 +1339,21 @@ function render() {
           OPEN_MIDI[s] + f, s, f, '#22d3ee');
   }
 
-  // Pentatonik-Punkte
+  // Pentatonik-Punkte (Limitierungs-Modus dunkelt verbotene Töne ab)
   for (const n of notes) {
     const isRoot = n.pc === k;
     const x = fx(n.fret), y = sy(n.s);
     const midi = OPEN_MIDI[n.s] + n.fret;
     const col = isRoot ? '#f59e0b' : '#3b82f6';
-    if (isRoot) svg.appendChild(el('circle', { cx:x, cy:y, r:DR+4, fill:'rgba(245,158,11,0.2)' }));
-    dot(x, y, DR, { fill:col, stroke:'rgba(255,255,255,0.25)', 'stroke-width':1.5 }, midi, n.s, n.fret, col);
+    const op = limitAllowed(n.s, n.fret) ? 1 : 0.12;
+    if (isRoot) svg.appendChild(el('circle', { cx:x, cy:y, r:DR+4, fill:'rgba(245,158,11,0.2)', opacity:op }));
+    dot(x, y, DR, { fill:col, stroke:'rgba(255,255,255,0.25)', 'stroke-width':1.5, opacity:op }, midi, n.s, n.fret, col);
     let txt = '';
     if (label === 'names') txt = nn(n.pc, k);
     else txt = DEGREE[scale][mod12(n.pc - k)] || '';
     if (txt)
       svg.appendChild(el('text', {
-        x, y, fill: isRoot ? '#000' : '#fff',
+        x, y, fill: isRoot ? '#000' : '#fff', opacity: op,
         'font-size': txt.length > 1 ? 8.5 : 10, 'font-weight':'bold',
         'text-anchor':'middle', 'dominant-baseline':'middle', style:'user-select:none;pointer-events:none'
       }, txt));
@@ -1355,10 +1373,11 @@ function render() {
         [-1, 1].forEach(d => { if (b.f + d >= 0 && b.f + d <= FRETS) blueArrow(b.f, b.f + d, b.s); });
     for (const b of blues) {
       const x = fx(b.f), y = sy(b.s);
-      blueDiamond(x, y, OPEN_MIDI[b.s] + b.f, b.s, b.f);
+      const op = limitAllowed(b.s, b.f) ? 1 : 0.12;
+      blueDiamond(x, y, OPEN_MIDI[b.s] + b.f, b.s, b.f, op);
       const txt = label === 'names' ? nn(bpc, k) : blueNoteLabel();
       svg.appendChild(el('text', {
-        x, y, fill:'#fff', 'font-size': txt.length > 1 ? 8 : 9.5, 'font-weight':'bold',
+        x, y, fill:'#fff', opacity: op, 'font-size': txt.length > 1 ? 8 : 9.5, 'font-weight':'bold',
         'text-anchor':'middle', 'dominant-baseline':'middle', style:'user-select:none;pointer-events:none'
       }, txt));
     }
@@ -1437,7 +1456,11 @@ function render() {
   if (capturing() && S.lickRec.length) lickNotes = S.lickRec;
   else if (!capturing() && S.selectedLick && S.lickShow) {   // 🎵-Lick-Schalter blendet die Overlay aus
     const lk = findLick(S.selectedLick);
-    if (lk) lickNotes = transposeLick(lk);
+    if (lk) {
+      // Motiv-Reise: Motiv zusätzlich zum aktuellen Akkord der Progression verschieben
+      const ch = (S.motif && S.prog.length && S.progIdx >= 0) ? S.prog[S.progIdx] : null;
+      lickNotes = transposeLick(ch ? { ...lk, key: mod12(lk.key - mod12(ch.rootPc - S.key)) } : lk);
+    }
   }
   if (lickNotes) {
     // Pausen klingen nicht und werden nicht gezeichnet; Linien nur zwischen direkt
@@ -1489,6 +1512,23 @@ function render() {
         'font-weight':'bold', 'font-style':n.acc === 1 ? 'normal' : 'italic', 'text-anchor':'middle',
         style:'user-select:none;pointer-events:none' }, n.acc === 1 ? '>' : 'p'));                   // Betonung: Akzent / leise
     });
+  }
+
+  // Terz-Targeting: alle Positionen der Terz des aktuellen Akkords grün markieren
+  // (chromatisch im Box-Fenster – die Terz kann außerhalb der Pentatonik liegen, z. B. G♯ bei E-Dur)
+  if (S.trainer && S.trainer.mode === 'third' && S.prog.length && S.progIdx >= 0 && !capturing()) {
+    const ch = S.prog[S.progIdx];
+    const tp = mod12(ch.rootPc + ch.third);
+    const win = boxWindowNow();
+    const lo = win ? win[0] : 0, hi = win ? win[1] : FRETS;
+    for (let s = 0; s < 6; s++)
+      for (let f = lo; f <= hi; f++)
+        if (mod12(OPEN_PC[s] + f) === tp) {
+          const x = fx(f), y = sy(s);
+          svg.appendChild(el('circle', { cx:x, cy:y, r:DR - 2, fill:'rgba(34,197,94,0.3)', stroke:'#22c55e', 'stroke-width':2 }));
+          svg.appendChild(el('text', { x, y, fill:'#fff', 'font-size':9, 'font-weight':'bold',
+            'text-anchor':'middle', 'dominant-baseline':'middle', style:'user-select:none;pointer-events:none' }, nn(tp, S.key)));
+        }
   }
 
   // Trainer-Zielton (Box-/Arpeggio-Übung) grün markieren; "Ton finden" und
@@ -2186,12 +2226,10 @@ const SOLO_DENSITY = {
   mid:    { restProb: 0.22, durW: [[2, 4], [1, 4], [4, 2]], blue: 0.12 },
   dense:  { restProb: 0.12, durW: [[1, 6], [2, 3], [0.5, 2]], blue: 0.16 }
 };
-function generateSolo() {
-  if (!S.prog.length) { alert('Erst eine Progression oder ein Blues-Preset laden – Karte „Progression & Backing“.'); return; }
-  const P = SOLO_DENSITY[document.getElementById('soloDensity').value] || SOLO_DENSITY.mid;
-  const sched = buildBeatSchedule();
+// Kern: numBars Takte ab startBar (Form wiederholt sich via Modulo) als Noten-Array.
+// withFinal = letzter Takt endet auf langem Grundton mit Vibrato (Solo-Schluss).
+function generateSoloNotes(startBar, numBars, P, sched, withFinal) {
   const B = S.beatsPerMeasure, E = B * 2;                  // Achtel pro Takt
-  const bars = Math.max(1, Math.ceil(sched.total / B));
   const chordAtBar = b => {
     const beat = (b * B) % sched.total;
     let best = -1;
@@ -2227,10 +2265,10 @@ function generateSolo() {
   let pi = Math.floor(pool.length / 2) + Math.floor(Math.random() * 3) - 1;   // Start mittig in der Box
   let dir = Math.random() < 0.5 ? 1 : -1;
   let lastNote = null;
-  for (let bar = 0; bar < bars; bar++) {
-    const pcs = chordPcs(chordAtBar(bar));
-    const answer = bar % 2 === 1;                          // 2-Takt-Phrasen: Frage/Antwort
-    if (bar === bars - 1) {                                // Schluss: langer Grundton, Vibrato, Luft
+  for (let bi = 0; bi < numBars; bi++) {
+    const pcs = chordPcs(chordAtBar(startBar + bi));
+    const answer = bi % 2 === 1;                           // 2-Takt-Phrasen: Frage/Antwort
+    if (withFinal && bi === numBars - 1) {                 // Schluss: langer Grundton, Vibrato, Luft
       pi = nearestIdx(pi, [mod12(S.key)]);
       const d = Math.min(6, E - 1);
       notes.push({ s: pool[pi].s, fret: pool[pi].fret, d, vib: 1, acc: 1 });
@@ -2278,6 +2316,14 @@ function generateSolo() {
       p += d;
     }
   }
+  return notes;
+}
+function generateSolo() {
+  if (!S.prog.length) { alert('Erst eine Progression oder ein Blues-Preset laden – Karte „Progression & Backing“.'); return; }
+  const P = SOLO_DENSITY[document.getElementById('soloDensity').value] || SOLO_DENSITY.mid;
+  const sched = buildBeatSchedule();
+  const bars = Math.max(1, Math.ceil(sched.total / S.beatsPerMeasure));
+  const notes = generateSoloNotes(0, bars, P, sched, true);
   S.soloDraft = { id: '_solo', name: 'Solo-Vorschlag', key: S.key, scale: S.scale, notes };
   S.selectedLick = '_solo';
   if (!S.lickShow) toggleLickShow();
@@ -2298,6 +2344,72 @@ function saveSoloDraft() {
   };
   S.licks.push(nl);
   if (saveLicks()) { S.selectedLick = nl.id; renderLickPanel(); render(); }
+}
+
+// ─── Jam-Modi: Trading Fours, Motiv-Reise, Limitierung ───────────────────────
+function jamInfo(txt) {
+  const el = document.getElementById('jamInfo');
+  if (!el) return;
+  el.textContent = txt;
+  el.style.display = txt ? 'block' : 'none';
+}
+// Limitierung: nur ein Teil des Griffbretts ist "erlaubt", der Rest wird abgedunkelt
+function limitAllowed(s, fret) {
+  if (!S.limit) return true;
+  if (S.limit === 's2') return s <= 1;                                     // hohe e- und B-Saite
+  if (S.limit === 'f4') return fret >= S.limitFrets[0] && fret <= S.limitFrets[1];
+  if (S.limit === 'n3') return S.limitNotes.some(n => n.s === s && n.fret === fret);
+  return true;
+}
+function setLimit(v) {
+  S.limit = v === 'off' ? null : v;
+  if (S.limit === 'f4') {
+    // Zufälliges 4-Bund-Fenster irgendwo am Hals – zwingt aus der gewohnten Lage heraus.
+    // Braucht die Ganzhals-Ansicht, sonst wäre außerhalb der Box nichts zu sehen.
+    if (S.pos !== 0) setPos(0);
+    const lo = 1 + Math.floor(Math.random() * (FRETS - 4));
+    S.limitFrets = [lo, lo + 3];
+  } else if (S.limit === 'n3') {
+    const pool = boxNotes(S.key, S.scale, S.pos || 1);
+    S.limitNotes = [...pool].sort(() => Math.random() - 0.5).slice(0, 3).map(n => ({ s: n.s, fret: n.fret }));
+  }
+  document.querySelectorAll('#limitBtns button').forEach(b =>
+    b.classList.toggle('active', (b.dataset.limit || 'off') === (S.limit || 'off')));
+  jamInfo(!S.limit ? ''
+    : S.limit === 's2' ? '🔒 Nur e- und B-Saite: Melodie statt Fingermuster. Backing starten und improvisieren – alles andere ist tabu.'
+    : S.limit === 'f4' ? `🔒 Nur Bund ${S.limitFrets[0]}–${S.limitFrets[1]} (ganzer Hals eingeblendet): kleiner Raum, große Fantasie. Nochmal klicken würfelt ein neues Fenster.`
+    : '🔒 Nur diese 3 Töne: alles kommt aus Rhythmus, Betonung und Vibrato. Nochmal klicken würfelt 3 neue.');
+  render();
+}
+// Trading Fours: die App spielt 4 Takte (generiert), dann der Spieler – im Wechsel
+function toggleTrading() {
+  if (!S.trading && !S.prog.length) { alert('Trading Fours braucht ein Backing – erst eine Progression oder ein Blues-Preset laden.'); return; }
+  S.trading = !S.trading;
+  document.getElementById('tradeBtn').classList.toggle('active', S.trading);
+  metro.tradeSeg = -1;
+  if (S.trading) {
+    if (S.lickLoop) toggleLickLoop();          // Loop würde dem Jam dazwischenfunken
+    jamInfo('🔁 Trading Fours: die App spielt 4 Takte, dann gehören 4 Takte dir – immer im Wechsel.');
+    if (!S.metroOn) startMetro();
+  } else jamInfo('');
+}
+// Motiv-Reise: der ausgewählte Lick wird pro Akkord der Progression transponiert gezeigt
+function toggleMotif() {
+  if (!S.motif) {
+    if (!S.selectedLick) { alert('Erst ein kurzes Motiv wählen: einen eigenen Lick (ideal 3–5 Töne) aufnehmen oder in der Sammlung anklicken.'); return; }
+    if (!S.prog.length) { alert('Motiv-Reise braucht eine Progression – erst laden (z. B. ein Blues-Preset).'); return; }
+  }
+  S.motif = !S.motif;
+  document.getElementById('motifBtn').classList.toggle('active', S.motif);
+  if (S.motif && !S.lickShow) toggleLickShow();
+  jamInfo(S.motif ? '🧬 Motiv-Reise: das Motiv wandert mit jedem Akkordwechsel (▶ Play oder ‹/›-Transport). Spiele es an jeder Station – erst exakt, dann variiert.' : '');
+  render();
+}
+function stopAllJam() {
+  stopTrainer();
+  if (S.trading) toggleTrading();
+  if (S.motif) toggleMotif();
+  if (S.limit) setLimit('off');
 }
 
 // ─── Lick-Editor: bestehende Licks nachträglich bearbeiten ───────────────────
@@ -2713,14 +2825,14 @@ function playPhrase(seq) {                        // Phrase vorspielen, Dauer in
 }
 
 function markTrainerBtns() {
-  ['box', 'arp', 'find', 'call', 'lick', 'target'].forEach(m => {
+  ['box', 'arp', 'find', 'call', 'lick', 'target', 'third'].forEach(m => {
     const b = document.getElementById('tr-' + m);
     if (b) b.classList.toggle('active', !!S.trainer && S.trainer.mode === m);
   });
 }
 function startTrainerMode(mode) {
   if (mode === 'lick' && !S.selectedLick) { alert('Erst einen Lick in der Sammlung auswählen.'); return; }
-  if (mode === 'target' && !S.prog.length) { alert('„Zielton auf die 1“ braucht ein Backing – lade eine Progression oder ein Blues-Preset.'); return; }
+  if (['target', 'third'].includes(mode) && !S.prog.length) { alert('Diese Übung braucht ein Backing – lade eine Progression oder ein Blues-Preset.'); return; }
   startMic().then(ok => {
     if (!ok) return;
     S.trainer = { mode, idx: 0, hits: 0, misses: 0, targets: null, findPc: null, muteUntil: 0, phraseMisses: 0, window: null };
@@ -2763,6 +2875,11 @@ function trainerSetup() {
     setTrainerStatus(S.metroOn
       ? 'Spiele frei (Blue Notes erlaubt) – lande auf JEDER Eins einen Akkordton. Die App prüft die 1.'
       : '▶ Play starten – dann auf jede Eins einen Akkordton landen (Blue Notes dazwischen frei).');
+  } else if (tr.mode === 'third') {
+    tr.window = null;
+    setTrainerStatus(S.metroOn
+      ? 'Lande auf JEDER Eins die TERZ des Akkords – die grünen Punkte am Griffbrett wandern mit den Changes.'
+      : '▶ Play starten – dann auf jede Eins die Terz des Akkords landen (grün markiert, wandert mit den Changes).');
   }
 }
 function stopTrainer() {
@@ -2781,14 +2898,25 @@ function trainerHearNote(midi) {
   const tr = S.trainer;
   if (!tr) return;
   if (tr.muteUntil && performance.now() < tr.muteUntil) return;   // App spielt gerade selbst vor
-  // Modus "Zielton auf die 1": nur im Fenster um die Eins wird geprüft; dazwischen frei (Blue Notes)
-  if (tr.mode === 'target') {
+  // Modi "Akkordton/Terz auf die 1": nur im Fenster um die Eins wird geprüft; dazwischen frei
+  if (tr.mode === 'target' || tr.mode === 'third') {
     const w = tr.window;
     if (!w || performance.now() > w.until || w.judged) return;   // außerhalb der Eins → nicht bewerten
     w.judged = true;
     const ch = w.chord;
-    const pcs = [mod12(ch.rootPc), mod12(ch.rootPc + ch.third), mod12(ch.rootPc + ch.fifth)];
     const hp = mod12(midi);
+    if (tr.mode === 'third') {                                   // nur die Terz zählt
+      const tp = mod12(ch.rootPc + ch.third);
+      if (hp === tp) {
+        tr.hits++;
+        setTrainerStatus(`✔ Terz von ${ch.name} (${nn(tp, S.key)}) auf der 1 – genau der Klang! [${tr.hits}✓ / ${tr.misses}✗]`);
+      } else {
+        tr.misses++;
+        setTrainerStatus(`✗ ${nn(hp, S.key)} – die Terz von ${ch.name} ist ${nn(tp, S.key)} (grün markiert). [${tr.hits}✓ / ${tr.misses}✗]`);
+      }
+      return;
+    }
+    const pcs = [mod12(ch.rootPc), mod12(ch.rootPc + ch.third), mod12(ch.rootPc + ch.fifth)];
     if (pcs.includes(hp)) {
       tr.hits++;
       const role = hp === pcs[0] ? 'Grundton' : hp === pcs[1] ? 'Terz' : 'Quinte';
@@ -3042,8 +3170,8 @@ function metroScheduler() {
     if (!isCountIn) {
       if (S.drums) scheduleDrums(t, beatInMeasure);
       if (S.bass && mm >= 0 && S.prog.length) scheduleBass(t, beatInMeasure, mm);
-      // Lick-Loop: ausgewählten Lick an Taktgrenzen wiederholen (Länge in ganzen Takten)
-      if (S.lickLoop && S.selectedLick && beatInMeasure === 0 && m >= metro.lickNextBeat) {
+      // Lick-Loop: ausgewählten Lick an Taktgrenzen wiederholen (pausiert bei Trading Fours)
+      if (S.lickLoop && !S.trading && S.selectedLick && beatInMeasure === 0 && m >= metro.lickNextBeat) {
         const lk = findLick(S.selectedLick);
         if (lk) {
           const total = playLickAt(lk, t - ac.currentTime, true);   // Länge in Achteln
@@ -3051,12 +3179,27 @@ function metroScheduler() {
           metro.lickNextBeat = m + meas * S.beatsPerMeasure;
         }
       }
-      // Zielton-Trainer: auf jeder Eins ein Prüf-Fenster öffnen (etwas vor dem Beat, damit
-      // ein knapp zu früh gespielter Ton noch zählt); der Akkord dieser Zählzeit ist das Ziel.
-      if (S.trainer && S.trainer.mode === 'target' && beatInMeasure === 0 && mm >= 0) {
+      // Trading Fours: alle 4 Takte wechseln sich App (generiertes Segment) und Spieler ab
+      if (S.trading && S.prog.length && beatInMeasure === 0 && m % (4 * S.beatsPerMeasure) === 0) {
+        const seg = Math.floor(m / (4 * S.beatsPerMeasure));
+        if (seg !== metro.tradeSeg) {
+          metro.tradeSeg = seg;
+          if (seg % 2 === 0) {                                       // App ist dran
+            const P = SOLO_DENSITY[document.getElementById('soloDensity').value] || SOLO_DENSITY.mid;
+            const notes = generateSoloNotes(Math.floor(m / S.beatsPerMeasure), 4, P, metro.sched, false);
+            playLickAt({ notes, key: S.key, scale: S.scale }, t - ac.currentTime, true);
+            setTimeout(() => jamInfo('🤖 App spielt 4 Takte – hör zu, merk dir eine Idee …'), Math.max(0, aheadMs));
+          } else {
+            setTimeout(() => jamInfo('🎸 Deine 4 Takte – antworte auf das, was du gehört hast!'), Math.max(0, aheadMs));
+          }
+        }
+      }
+      // Zielton-Trainer (Akkordton/Terz auf die 1): auf jeder Eins ein Prüf-Fenster öffnen
+      // (etwas vor dem Beat, damit ein knapp zu früh gespielter Ton noch zählt).
+      if (S.trainer && ['target', 'third'].includes(S.trainer.mode) && beatInMeasure === 0 && mm >= 0) {
         const ch = chordAtBeat(mm);
         if (ch) setTimeout(() => {
-          if (S.trainer && S.trainer.mode === 'target')
+          if (S.trainer && ['target', 'third'].includes(S.trainer.mode))
             S.trainer.window = { chord: ch, until: performance.now() + 370, judged: false };
         }, Math.max(0, aheadMs - 120));
       }
@@ -3082,6 +3225,7 @@ function startMetro() {
   metro.countInBeats = (S.countIn && S.prog.length) ? S.beatsPerMeasure : 0;  // ein Takt Vorzähler
   metro.sched = S.prog.length ? buildBeatSchedule() : null;
   metro.lickNextBeat = 0;                                                     // Lick-Loop neu starten
+  metro.tradeSeg = -1;                                                        // Trading Fours neu starten
   metro.nextNote = audio().currentTime + 0.12;
   if (S.prog.length) { S.progIdx = 0; renderChips(); render(); }
   const b = document.getElementById('metroBtn');
