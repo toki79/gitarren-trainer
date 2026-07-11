@@ -181,6 +181,8 @@ select {
 .edit-note.sel { border-color: #f59e0b; background: rgba(245,158,11,0.1); }
 .en-num { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: #22d3ee; color: #083344; font-size: 0.75rem; font-weight: 700; flex-shrink: 0; }
 .en-num.rest { background: var(--panel); color: var(--muted); border: 1px solid var(--border); }
+.edit-bar { display: flex; align-items: center; gap: 8px; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 1px; color: var(--scale-col); font-weight: 600; margin-top: 6px; }
+.edit-bar::after { content: ''; flex: 1; height: 1px; background: var(--border); }
 .en-name { font-weight: 600; font-size: 0.9rem; display: flex; flex-direction: column; line-height: 1.1; min-width: 62px; }
 .en-name small { font-weight: 400; font-size: 0.66rem; color: var(--muted); }
 .en-dur { background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 4px 6px; font-size: 0.8rem; font-family: ui-monospace, monospace; }
@@ -1616,6 +1618,7 @@ function setScale(v) {
   S.anchor = null;
   updateExerciseLabel();
   reparseProg();
+  if (S.editing) renderEditor();       // Akkord-Labels (z. B. Am → A) im Editor aktualisieren
   renderLickPanel();
   render();
 }
@@ -1761,6 +1764,7 @@ function applyProg() {
   if (S.prog.length && S.triad === 'none') { S.triad = 'auto'; updateTriadButtons(); }
   if (S.metroOn) metro.sched = S.prog.length ? buildBeatSchedule() : null;
   if (!S.prog.length) stopMetro();
+  if (S.editing) renderEditor();       // Takt-/Akkord-Labels im Lick-Editor aktualisieren
   renderChips();
   render();
 }
@@ -2323,6 +2327,16 @@ function beginEdit(id) {
   render();
   document.getElementById('editorRow').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
+// Akkord an einer Achtel-Position des Licks – aus dem Zählzeit-Fahrplan der
+// Progression (Form wiederholt sich). Folgt der Tonart, weil S.prog bei
+// jedem Tonartwechsel neu geparst wird (reparseProg).
+function chordAtLickEighth(sched, off) {
+  if (!sched || !sched.total) return null;
+  const beat = Math.floor(off / 2) % sched.total;
+  let best = -1;
+  for (const k in sched.starts) { const kk = +k; if (kk <= beat && kk > best) best = kk; }
+  return best >= 0 ? S.prog[sched.starts[best]] : null;
+}
 function renderEditor() {
   const box = document.getElementById('editNotes');
   if (!box) return;
@@ -2331,8 +2345,32 @@ function renderEditor() {
     updateEditMeta();
     return;
   }
-  let num = 0;                                       // fortlaufende Nummer nur für klingende Töne
+  // Takt-Trennzeilen mit Akkord der geladenen Progression (z. B. „Takt 5 · Dm")
+  const sched = S.prog.length ? buildBeatSchedule() : null;
+  const E = S.beatsPerMeasure * 2;                   // Achtel pro Takt
+  const lickLen = S.lickRec.reduce((a, n) => a + (n.d || 1), 0);
+  const showBars = !!sched || lickLen > E;
+  const barLabel = b => {
+    const names = [];
+    if (sched) {
+      const act = chordAtLickEighth(sched, b * E);
+      if (act) names.push(act.name);
+      const base = (b * S.beatsPerMeasure) % sched.total;
+      Object.keys(sched.starts).map(Number).sort((x, y) => x - y).forEach(k => {
+        if (k > base && k < base + S.beatsPerMeasure) {         // Akkordwechsel mitten im Takt
+          const nm = S.prog[sched.starts[k]].name;
+          if (names[names.length - 1] !== nm) names.push(nm);
+        }
+      });
+    }
+    return `Takt ${b + 1}${names.length ? ' · ' + names.join(' → ') : ''}`;
+  };
+  let num = 0, off = 0, curBar = -1;                 // fortlaufende Nummer nur für klingende Töne
   box.innerHTML = S.lickRec.map((n, i) => {
+    let barDiv = '';
+    const b = Math.floor(off / E + 1e-9);
+    if (showBars && b !== curBar) { barDiv = `<div class="edit-bar">${barLabel(b)}</div>`; curBar = b; }
+    off += n.d || 1;
     const opts = EDIT_DUR_OPTS.map(([v, l]) => `<option value="${v}" ${(n.d || 1) === v ? 'selected' : ''}>${l}</option>`).join('');
     const actions = `<span class="en-actions">
         ${n.rest ? '' : `<button onclick="event.stopPropagation();playEditNote(${i})" title="Ton anspielen">▶</button>`}
@@ -2341,7 +2379,7 @@ function renderEditor() {
         <button onclick="event.stopPropagation();deleteEditNote(${i})" title="Löschen">✖</button>
       </span>`;
     if (n.rest)
-      return `<div class="edit-note ${S.editSel === i ? 'sel' : ''}" onclick="selectEditNote(${i})">
+      return `${barDiv}<div class="edit-note ${S.editSel === i ? 'sel' : ''}" onclick="selectEditNote(${i})">
         <span class="en-num rest">⏸</span>
         <span class="en-name">Pause<small>kein Ton</small></span>
         <select class="en-dur" onclick="event.stopPropagation()" onchange="setNoteDur(${i},+this.value)">${opts}</select>
@@ -2353,7 +2391,7 @@ function renderEditor() {
       `<button class="en-mini ${(n.bend || 0) === v ? 'active' : ''}" onclick="event.stopPropagation();setNoteBend(${i},${v})" title="${v ? 'Bend um ' + l + ' Ton' : 'kein Bend'}">${l}</button>`).join('');
     const accs = [[-1, 'p', 'Leise (Ghost Note)'], [0, '–', 'Normal'], [1, '&gt;', 'Betont (Akzent)']].map(([v, l, t]) =>
       `<button class="en-mini ${(n.acc || 0) === v ? 'active' : ''}" onclick="event.stopPropagation();setNoteAcc(${i},${v})" title="${t}">${l}</button>`).join('');
-    return `<div class="edit-note ${S.editSel === i ? 'sel' : ''}" onclick="selectEditNote(${i})">
+    return `${barDiv}<div class="edit-note ${S.editSel === i ? 'sel' : ''}" onclick="selectEditNote(${i})">
       <span class="en-num">${num}</span>
       <span class="en-name">${nm}<small>${STR_LABELS[n.s]}-Saite · ${n.fret}. Bund</small></span>
       <select class="en-dur" onclick="event.stopPropagation()" onchange="setNoteDur(${i},+this.value)">${opts}</select>
@@ -3071,8 +3109,13 @@ function setTimeSig(v) {
   document.getElementById('grooveField').style.pointerEvents = S.tripletFeel ? 'none' : 'auto';
   renderBeatDots();
   if (S.metroOn) metro.sched = buildBeatSchedule();
+  if (S.editing) renderEditor();       // Takt-Grenzen im Lick-Editor neu ziehen
 }
-function setMeasPerChord(v) { S.measuresPerChord = +v; if (S.metroOn) metro.sched = buildBeatSchedule(); }
+function setMeasPerChord(v) {
+  S.measuresPerChord = +v;
+  if (S.metroOn) metro.sched = buildBeatSchedule();
+  if (S.editing) renderEditor();
+}
 function toggleCountIn() {
   S.countIn = !S.countIn;
   document.getElementById('countInBtn').classList.toggle('active', S.countIn);
