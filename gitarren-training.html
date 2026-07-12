@@ -520,6 +520,13 @@ details.card > summary:hover { color: var(--text); }
           <button id="btn-grshuffle" onclick="setGroove('shuffle')" title="Triolisches Achtel-Feel (Swing/Blues)">Shuffle</button>
         </span>
       </label>
+      <label class="metro-field" title="Verzerrung der Lick-Spur (▶ Lick, Loop, Editor, Solo-Generator, Trading Fours) – Akkorde und Backing bleiben clean">Lick-Sound
+        <span class="btn-row" id="driveBtns">
+          <button data-drive="clean" class="active" onclick="setDrive('clean')" title="Unverzerrter Zupf-Ton">Clean</button>
+          <button data-drive="crunch" onclick="setDrive('crunch')" title="Warmer Blues-Overdrive – leicht angezerrt">Crunch</button>
+          <button data-drive="lead" onclick="setDrive('lead')" title="Singender Lead-Ton – mehr Sättigung und Sustain">Lead</button>
+        </span>
+      </label>
       <div class="mixer" title="Lautstärke-Balance der Spuren">
         <span class="mix-label">Mixer</span>
         <label class="mix-field" title="Metronom-Klick">🔔<input type="range" min="0" max="100" value="100" oninput="setVol('click', this.value)"></label>
@@ -703,6 +710,7 @@ const S = { key: 9, scale: 'minor', pos: 1, triad: 'none', set: 'DGB', label: 'n
             bpm: 90, beatsPerMeasure: 4, measuresPerChord: 1, metroOn: false, countIn: true,
             exercise: null, bluesForm: null, click: true, drums: true, bass: true,
             groove: 'straight', tripletFeel: false, vol: { click: 1, drums: 1, bass: 1, guitar: 1, lick: 1 },
+            drive: 'clean',
             licks: [], recording: false, lickRec: [], selectedLick: null, lickLoop: false,
             recDur: 1, recStacc: false, recVib: false, lickShow: true,
             editing: null, editSel: -1, editKey: null, soloDraft: null,
@@ -717,8 +725,34 @@ let metroTimer = null;
 const metro = { nextNote: 0, beat: 0, countInBeats: 0, sched: null, lickNextBeat: 0, tradeSeg: -1 };
 
 // ─── Audio (Web Audio API) ────────────────────────────────────────────────────
-let actx = null, masterGain = null;
+let actx = null, masterGain = null, driveNodes = null;
 const trackGain = {};                      // Mixer: eigene Lautstärke pro Spur
+// Verzerrung der Lick-Spur: Vorverstärkung → Sättigung (tanh) → Tone-Filter → Pegel-Ausgleich
+const DRIVE = {
+  clean:  null,                                              // Bypass
+  crunch: { pre: 3.5, curve: 2.5, tone: 3800, post: 0.5 },   // warmer Blues-Overdrive
+  lead:   { pre: 9,   curve: 5,   tone: 3200, post: 0.34 }   // singender Lead-Ton
+};
+function makeDriveCurve(amount) {
+  const n = 1024, curve = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const x = i * 2 / (n - 1) - 1;
+    curve[i] = Math.tanh(amount * x);
+  }
+  return curve;
+}
+// Lick-Spur je nach S.drive direkt oder durch die Verzerrer-Kette zum Master routen
+function applyDrive() {
+  if (!actx || !driveNodes) return;
+  const cfg = DRIVE[S.drive];
+  try { trackGain.lick.disconnect(); } catch { }
+  if (!cfg) { trackGain.lick.connect(masterGain); return; }
+  driveNodes.pre.gain.value = cfg.pre;
+  driveNodes.shaper.curve = makeDriveCurve(cfg.curve);
+  driveNodes.tone.frequency.value = cfg.tone;
+  driveNodes.post.gain.value = cfg.post;
+  trackGain.lick.connect(driveNodes.pre);
+}
 function audio() {
   if (!actx) {
     actx = new (window.AudioContext || window.webkitAudioContext)();
@@ -730,9 +764,25 @@ function audio() {
       trackGain[k].gain.value = S.vol[k];
       trackGain[k].connect(masterGain);
     });
+    driveNodes = { pre: actx.createGain(), shaper: actx.createWaveShaper(),
+                   tone: actx.createBiquadFilter(), post: actx.createGain() };
+    driveNodes.shaper.oversample = '4x';               // weniger Aliasing beim Clipping
+    driveNodes.tone.type = 'lowpass';                  // "Lautsprecher": dämpft hartes Fizzeln
+    driveNodes.pre.connect(driveNodes.shaper);
+    driveNodes.shaper.connect(driveNodes.tone);
+    driveNodes.tone.connect(driveNodes.post);
+    driveNodes.post.connect(masterGain);
+    applyDrive();
   }
   if (actx.state === 'suspended') actx.resume();
   return actx;
+}
+function setDrive(v) {
+  S.drive = DRIVE[v] !== undefined ? v : 'clean';
+  document.querySelectorAll('#driveBtns button').forEach(b =>
+    b.classList.toggle('active', b.dataset.drive === S.drive));
+  applyDrive();
+  saveSettings();
 }
 const midiToFreq = m => 440 * Math.pow(2, (m - 69) / 12);
 
@@ -3324,7 +3374,7 @@ const PERSIST = ['key','scale','pos','triad','set','label','blue','blueArrows','
   'superId','bpm','beatsPerMeasure','tripletFeel','measuresPerChord','countIn','click','drums',
   'bass','groove','vol','boxMode','lickOnlyMatch','micBoost','lickLoop','sound','selectedLick',
   'presetTab','soundOpen','showLegend','cards','fbCompact','intervalMode','intervalRef',
-  'lickShow','pathId','pathStep','lastBackupAt'];
+  'lickShow','pathId','pathStep','lastBackupAt','drive'];
 function saveSettings() {
   try {
     const o = {};
@@ -3435,6 +3485,9 @@ function applySettingsUI() {
   const order = ['click', 'drums', 'bass', 'guitar', 'lick'];
   document.querySelectorAll('.mixer input[type=range]').forEach((sl, i) =>
     sl.value = Math.round((S.vol[order[i]] ?? 1) * 100));
+  if (DRIVE[S.drive] === undefined) S.drive = 'clean';     // ungültige gespeicherte Werte abfangen
+  document.querySelectorAll('#driveBtns button').forEach(b =>
+    b.classList.toggle('active', b.dataset.drive === S.drive));
   const boost = document.querySelector('#trainRow input[type=range]');
   if (boost) boost.value = S.micBoost;
   const sb = document.getElementById('btn-sound');
