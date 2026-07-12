@@ -275,7 +275,10 @@ details.card > summary:hover { color: var(--text); }
 .preset-tabs button.active { background: var(--panel2); border-color: var(--border); color: var(--text); font-weight: 600; }
 .ptab { background: var(--panel2); border: 1px solid var(--border); border-radius: 0 8px 8px 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
 .ptab-label { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 1.2px; color: var(--muted); font-weight: 600; }
-#soundBtn.active, #btn-legend.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+#btn-legend.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+#panelMenu { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 2px 0 10px; padding: 0 2px; }
+#panelMenu button { padding: 4px 10px; font-size: 0.74rem; opacity: 0.55; }
+#panelMenu button.active { opacity: 1; background: var(--panel2); border-color: var(--muted); color: var(--text); }
 </style>
 </head>
 <body>
@@ -360,6 +363,16 @@ details.card > summary:hover { color: var(--text); }
   </div>
 </div>
 
+<div id="panelMenu" title="Bereiche ein-/ausblenden – ausgeblendete Bereiche behalten ihre Einstellungen">
+  <span class="tb-label">Bereiche</span>
+  <button data-panel="path" class="active" onclick="togglePanel('path')">🗺 Lernpfad</button>
+  <button data-panel="triad" class="active" onclick="togglePanel('triad')">🎸 Triade</button>
+  <button data-panel="prog" class="active" onclick="togglePanel('prog')">🎼 Progression</button>
+  <button data-panel="licks" class="active" onclick="togglePanel('licks')">🎵 Licks</button>
+  <button data-panel="trainer" class="active" onclick="togglePanel('trainer')">🎤 Trainer</button>
+  <button data-panel="ton" class="active" onclick="togglePanel('ton')">🎚 Ton</button>
+</div>
+
 <details class="card" id="card-path" open ontoggle="cardToggled(this)">
   <summary>🗺 Song-Lernpfad · Schritt für Schritt zum Song</summary>
   <div class="card-body">
@@ -411,9 +424,8 @@ details.card > summary:hover { color: var(--text); }
       </div>
     </div>
     <div class="ctrl">
-      <label>Klang</label>
+      <label>Anspielen</label>
       <div class="btn-row">
-        <button id="btn-sound" class="active" onclick="toggleSound()">🔊 An</button>
         <button onclick="playScale()" title="Pentatonik-Box auf/ab">♪ Skala</button>
         <button onclick="playChord()" title="Aktive Triade anschlagen">♪ Triade</button>
       </div>
@@ -506,35 +518,6 @@ details.card > summary:hover { color: var(--text); }
         <button onclick="progStep(-1)" title="Vorheriger Akkord">‹ zurück</button>
         <button onclick="progStep(1)" title="Nächster Akkord">weiter ›</button>
       </span>
-      <button id="soundBtn" onclick="toggleSoundDrawer()" style="margin-left:auto"
-        title="Sound-Einstellungen: Klick/Drums/Bass, Groove und Mixer">🎚 Sound</button>
-    </div>
-
-    <div id="soundDrawer" class="metro-row" style="display:none;padding-top:0">
-      <button id="clickBtn" class="active" onclick="toggleClick()" title="Metronom-Klick an/aus (Akkorde spielen unabhängig davon weiter)">🔔 Klick</button>
-      <button id="drumsBtn" class="active" onclick="toggleDrums()" title="Schlagzeug-Begleitung (Kick/Snare/HiHat) an/aus">🥁 Drums</button>
-      <button id="bassBtn" class="active" onclick="toggleBass()" title="Bass-Begleitung an/aus – spielt Grundton und Quinte des aktuellen Akkords">🎸 Bass</button>
-      <label class="metro-field" id="grooveField">Groove
-        <span class="btn-row">
-          <button id="btn-grstraight" class="active" onclick="setGroove('straight')" title="Gerade Achtel">Gerade</button>
-          <button id="btn-grshuffle" onclick="setGroove('shuffle')" title="Triolisches Achtel-Feel (Swing/Blues)">Shuffle</button>
-        </span>
-      </label>
-      <label class="metro-field" title="Verzerrung der Lick-Spur (▶ Lick, Loop, Editor, Solo-Generator, Trading Fours) – Akkorde und Backing bleiben clean">Lick-Sound
-        <span class="btn-row" id="driveBtns">
-          <button data-drive="clean" class="active" onclick="setDrive('clean')" title="Unverzerrter Zupf-Ton">Clean</button>
-          <button data-drive="crunch" onclick="setDrive('crunch')" title="Warmer Blues-Overdrive – leicht angezerrt">Crunch</button>
-          <button data-drive="lead" onclick="setDrive('lead')" title="Singender Lead-Ton – mehr Sättigung und Sustain">Lead</button>
-        </span>
-      </label>
-      <div class="mixer" title="Lautstärke-Balance der Spuren">
-        <span class="mix-label">Mixer</span>
-        <label class="mix-field" title="Metronom-Klick">🔔<input type="range" min="0" max="100" value="100" oninput="setVol('click', this.value)"></label>
-        <label class="mix-field" title="Drums">🥁<input type="range" min="0" max="100" value="100" oninput="setVol('drums', this.value)"></label>
-        <label class="mix-field" title="Bass">🎸<input type="range" min="0" max="100" value="100" oninput="setVol('bass', this.value)"></label>
-        <label class="mix-field" title="Gitarre (Akkorde & angeklickte Töne)">🎼<input type="range" min="0" max="100" value="100" oninput="setVol('guitar', this.value)"></label>
-        <label class="mix-field" title="Lick-Wiedergabe (▶ Lick, Loop, Editor)">🎵<input type="range" min="0" max="100" value="100" oninput="setVol('lick', this.value)"></label>
-      </div>
     </div>
   </div>
 </details>
@@ -594,7 +577,7 @@ details.card > summary:hover { color: var(--text); }
       <button onclick="saveEditAsNew()" title="Als neuen Lick in die Sammlung speichern (Original bleibt)">⧉ Als Kopie</button>
       <button onclick="closeEdit()" title="Editor schließen, Änderungen verwerfen">✖ Schließen</button>
     </div>
-    <div class="hint" style="margin-bottom:8px">Töne am Griffbrett anklicken: mit markierter Zeile wird <b>dahinter eingefügt</b>, ohne Markierung ans Ende angehängt. Pro Ton: Dauer, Staccato/Vibrato, Bend und Betonung (p&nbsp;=&nbsp;leise, &gt;&nbsp;=&nbsp;Akzent) einstellen, verschieben oder löschen. Lautstärke der Wiedergabe: 🎚&nbsp;Sound&nbsp;→&nbsp;🎵-Regler.</div>
+    <div class="hint" style="margin-bottom:8px">Töne am Griffbrett anklicken: mit markierter Zeile wird <b>dahinter eingefügt</b>, ohne Markierung ans Ende angehängt. Pro Ton: Dauer, Staccato/Vibrato, Bend und Betonung (p&nbsp;=&nbsp;leise, &gt;&nbsp;=&nbsp;Akzent) einstellen, verschieben oder löschen. Lautstärke &amp; Zerre der Wiedergabe: Panel „🎚&nbsp;Ton".</div>
     <div id="editNotes" class="edit-notes"></div>
   </div>
   <div class="lick-head" style="border-top:1px solid var(--border);padding-top:8px">
@@ -646,15 +629,63 @@ details.card > summary:hover { color: var(--text); }
   <div id="jamInfo" class="hint" style="display:none;margin-top:6px"></div>
   <div id="trainRow" class="rec-row" style="display:none">
     <span class="train-dot"></span>
-    <span class="mic-meter" title="Eingangspegel – muss beim Spielen ausschlagen und grün werden"><span id="micLevel"></span></span>
     <span style="font-size:0.85rem">Gehört: <b id="micNote">–</b></span>
-    <label class="mix-field" title="Boost: verstärkt das Mikrofonsignal in der App – erhöhen, bis der Balken beim Spielen grün ausschlägt">
-      🔊<input type="range" min="1" max="40" value="8" oninput="setMicBoost(this.value)">
-    </label>
-    <select id="micSelect" onchange="switchMic(this.value)" title="Eingabegerät wählen – falls der Browser das falsche Mikrofon nutzt" style="max-width:170px;font-size:0.75rem"></select>
+    <span class="hint">(Eingabegerät &amp; Pegel: Panel „🎚 Ton")</span>
     <span id="trainStatus" class="hint" style="flex:1 1 200px"></span>
     <span class="hint">💡 Einzeltöne sauber anschlagen · Backing über Kopfhörer</span>
   </div>
+  </div>
+</details>
+
+<details class="card" id="card-ton" ontoggle="cardToggled(this)">
+  <summary>🎚 Ton · Klang, Mixer &amp; Geräte</summary>
+  <div class="card-body">
+    <div class="rec-row" style="margin-bottom:8px">
+      <span class="rec-label">Klang</span>
+      <button id="btn-sound" class="active" onclick="toggleSound()" title="Alle App-Klänge an/aus (Griffbrett-Töne, Akkorde, Licks)">🔊 An</button>
+      <button id="clickBtn" class="active" onclick="toggleClick()" title="Metronom-Klick an/aus (Akkorde spielen unabhängig davon weiter)">🔔 Klick</button>
+      <button id="drumsBtn" class="active" onclick="toggleDrums()" title="Schlagzeug-Begleitung (Kick/Snare/HiHat) an/aus">🥁 Drums</button>
+      <button id="bassBtn" class="active" onclick="toggleBass()" title="Bass-Begleitung an/aus – spielt Grundton und Quinte des aktuellen Akkords">🎸 Bass</button>
+      <span class="tb-sep"></span>
+      <label class="metro-field" id="grooveField">Groove
+        <span class="btn-row">
+          <button id="btn-grstraight" class="active" onclick="setGroove('straight')" title="Gerade Achtel">Gerade</button>
+          <button id="btn-grshuffle" onclick="setGroove('shuffle')" title="Triolisches Achtel-Feel (Swing/Blues)">Shuffle</button>
+        </span>
+      </label>
+      <label class="metro-field" title="Verzerrung der Lick-Spur (▶ Lick, Loop, Editor, Solo-Generator, Trading Fours) – Akkorde und Backing bleiben clean">Lick-Sound
+        <span class="btn-row" id="driveBtns">
+          <button data-drive="clean" class="active" onclick="setDrive('clean')" title="Unverzerrter Zupf-Ton">Clean</button>
+          <button data-drive="crunch" onclick="setDrive('crunch')" title="Warmer Blues-Overdrive – leicht angezerrt">Crunch</button>
+          <button data-drive="lead" onclick="setDrive('lead')" title="Singender Lead-Ton – mehr Sättigung und Sustain">Lead</button>
+        </span>
+      </label>
+    </div>
+    <div class="rec-row" style="margin-bottom:8px">
+      <div class="mixer" style="margin-left:0" title="Lautstärke-Balance der Spuren">
+        <span class="mix-label">Mixer</span>
+        <label class="mix-field" title="Metronom-Klick">🔔<input type="range" min="0" max="100" value="100" oninput="setVol('click', this.value)"></label>
+        <label class="mix-field" title="Drums">🥁<input type="range" min="0" max="100" value="100" oninput="setVol('drums', this.value)"></label>
+        <label class="mix-field" title="Bass">🎸<input type="range" min="0" max="100" value="100" oninput="setVol('bass', this.value)"></label>
+        <label class="mix-field" title="Gitarre (Akkorde & angeklickte Töne)">🎼<input type="range" min="0" max="100" value="100" oninput="setVol('guitar', this.value)"></label>
+        <label class="mix-field" title="Lick-Wiedergabe (▶ Lick, Loop, Editor)">🎵<input type="range" min="0" max="100" value="100" oninput="setVol('lick', this.value)"></label>
+      </div>
+    </div>
+    <div class="rec-row">
+      <span class="rec-label">Eingang (Trainer)</span>
+      <select id="micSelect" onchange="switchMic(this.value)" title="Eingabegerät – z. B. Audio-Interface oder Kemper Profiler (trockenes Signal). Gerätenamen erscheinen nach dem ersten Trainer-Start." style="max-width:190px;font-size:0.75rem"></select>
+      <label class="mix-field" title="Boost: verstärkt das Eingangssignal in der App – erhöhen, bis der Balken beim Spielen grün ausschlägt">
+        🔊<input id="micBoostSlider" type="range" min="1" max="40" value="8" oninput="setMicBoost(this.value)">
+      </label>
+      <span class="mic-meter" title="Eingangspegel – läuft bei aktivem Trainer"><span id="micLevel"></span></span>
+      <span class="tb-sep"></span>
+      <span class="rec-label">Ausgabe</span>
+      <span id="outCtrl">
+        <select id="outSelect" onchange="setOutDevice(this.value)" title="Ausgabegerät der App – z. B. Kemper Profiler oder MacBook-Lautsprecher" style="max-width:190px;font-size:0.75rem"></select>
+        <button onclick="refreshOutDevices()" title="Geräteliste neu laden (Namen erscheinen nach dem ersten Trainer-Start)">🔄</button>
+      </span>
+      <span id="outHint" class="hint"></span>
+    </div>
   </div>
 </details>
 
@@ -717,10 +748,11 @@ const S = { key: 9, scale: 'minor', pos: 1, triad: 'none', set: 'DGB', label: 'n
             trading: false, motif: false, limit: null, limitNotes: [], limitFrets: [0, 3],
             trainer: null, micGate: 0.004, micBoost: 8, blue: false, blueArrows: false,
             lickOnlyMatch: true, superId: 'none', pair: false, approach: false,
-            presetTab: 'vorlagen', soundOpen: false, showLegend: false, fbCompact: false,
+            presetTab: 'vorlagen', showLegend: false, fbCompact: false, outDevice: '',
+            panels: { path: true, triad: true, prog: true, licks: true, trainer: true, ton: true },
             intervalMode: false, intervalRef: null,
             pathId: 'thrill', pathStep: 0, lastBackupAt: null,
-            cards: { path: true, triad: true, prog: true, licks: false, trainer: false } };
+            cards: { path: true, triad: true, prog: true, licks: false, trainer: false, ton: false } };
 let metroTimer = null;
 const metro = { nextNote: 0, beat: 0, countInBeats: 0, sched: null, lickNextBeat: 0, tradeSeg: -1 };
 
@@ -773,6 +805,8 @@ function audio() {
     driveNodes.tone.connect(driveNodes.post);
     driveNodes.post.connect(masterGain);
     applyDrive();
+    if (S.outDevice && canSetSink)                      // gespeichertes Ausgabegerät wiederherstellen
+      actx.setSinkId(S.outDevice).catch(() => { S.outDevice = ''; });
   }
   if (actx.state === 'suspended') actx.resume();
   return actx;
@@ -783,6 +817,44 @@ function setDrive(v) {
     b.classList.toggle('active', b.dataset.drive === S.drive));
   applyDrive();
   saveSettings();
+}
+
+// Ausgabegerät der App (z. B. Kemper statt MacBook-Lautsprecher).
+// setSinkId gibt es in Chrome/Edge; Safari folgt nur der macOS-Systemeinstellung.
+const canSetSink = 'AudioContext' in window && 'setSinkId' in AudioContext.prototype;
+async function refreshOutDevices() {
+  if (!canSetSink) return;
+  const sel = document.getElementById('outSelect');
+  if (!sel) return;
+  try {
+    const devs = await navigator.mediaDevices.enumerateDevices();
+    const outs = devs.filter(d => d.kind === 'audiooutput');
+    sel.innerHTML = '<option value="">System-Standard</option>' + outs.map(d =>
+      `<option value="${d.deviceId}"${S.outDevice === d.deviceId ? ' selected' : ''}>${(d.label || 'Ausgabegerät').replace(/</g, '&lt;')}</option>`).join('');
+  } catch { }
+}
+async function setOutDevice(id) {
+  S.outDevice = id || '';
+  const hint = document.getElementById('outHint');
+  try {
+    await audio().setSinkId(S.outDevice);
+    if (hint) hint.textContent = S.outDevice ? '✓ Ausgabe umgeschaltet' : '✓ Ausgabe: System-Standard';
+  } catch (e) {
+    if (hint) hint.textContent = 'Umschalten fehlgeschlagen: ' + e.message;
+    S.outDevice = '';
+  }
+  saveSettings();
+}
+function initOutCtrl() {
+  if (!canSetSink) {
+    const c = document.getElementById('outCtrl');
+    if (c) c.style.display = 'none';
+    const hint = document.getElementById('outHint');
+    if (hint) hint.textContent = 'Ausgabewahl in diesem Browser nicht verfügbar (z. B. Safari) – Gerät in den macOS-Soundeinstellungen wählen.';
+    return;
+  }
+  refreshOutDevices();
+  navigator.mediaDevices?.addEventListener?.('devicechange', refreshOutDevices);
 }
 const midiToFreq = m => 440 * Math.pow(2, (m - 69) / 12);
 
@@ -1790,10 +1862,18 @@ function setPresetTab(v) {
   });
   saveSettings();
 }
-function toggleSoundDrawer() {
-  S.soundOpen = !S.soundOpen;
-  document.getElementById('soundDrawer').style.display = S.soundOpen ? 'flex' : 'none';
-  document.getElementById('soundBtn').classList.toggle('active', S.soundOpen);
+// Bereichs-Menü: ganze Karten ein-/ausblenden (Einstellungen bleiben erhalten)
+function applyPanels() {
+  Object.entries(S.panels || {}).forEach(([k, v]) => {
+    const card = document.getElementById('card-' + k);
+    if (card) card.style.display = v ? '' : 'none';
+    const btn = document.querySelector(`#panelMenu button[data-panel="${k}"]`);
+    if (btn) btn.classList.toggle('active', !!v);
+  });
+}
+function togglePanel(k) {
+  S.panels[k] = !S.panels[k];
+  applyPanels();
   saveSettings();
 }
 function toggleLegend() {
@@ -3373,8 +3453,8 @@ const SETTINGS_KEY = 'gitarrenTraining.settings';
 const PERSIST = ['key','scale','pos','triad','set','label','blue','blueArrows','pair','approach',
   'superId','bpm','beatsPerMeasure','tripletFeel','measuresPerChord','countIn','click','drums',
   'bass','groove','vol','boxMode','lickOnlyMatch','micBoost','lickLoop','sound','selectedLick',
-  'presetTab','soundOpen','showLegend','cards','fbCompact','intervalMode','intervalRef',
-  'lickShow','pathId','pathStep','lastBackupAt','drive'];
+  'presetTab','showLegend','cards','fbCompact','intervalMode','intervalRef',
+  'lickShow','pathId','pathStep','lastBackupAt','drive','panels','outDevice'];
 function saveSettings() {
   try {
     const o = {};
@@ -3389,7 +3469,8 @@ function loadSettings() {
   try { o = JSON.parse(localStorage.getItem(SETTINGS_KEY)); } catch { }
   if (!o) return;
   PERSIST.forEach(k => {
-    if (o[k] !== undefined) S[k] = k === 'vol' ? { ...S.vol, ...o.vol } : o[k];
+    if (o[k] !== undefined)
+      S[k] = (k === 'vol' || k === 'panels') ? { ...S[k], ...o[k] } : o[k];
   });
   S._progText = o.progText || '';
   S._bluesForm = o.bluesForm || null;
@@ -3488,16 +3569,15 @@ function applySettingsUI() {
   if (DRIVE[S.drive] === undefined) S.drive = 'clean';     // ungültige gespeicherte Werte abfangen
   document.querySelectorAll('#driveBtns button').forEach(b =>
     b.classList.toggle('active', b.dataset.drive === S.drive));
-  const boost = document.querySelector('#trainRow input[type=range]');
+  const boost = document.getElementById('micBoostSlider');
   if (boost) boost.value = S.micBoost;
   const sb = document.getElementById('btn-sound');
   sb.textContent = S.sound ? '🔊 An' : '🔇 Aus'; sb.classList.toggle('active', S.sound);
   document.getElementById('lickLoopBtn').classList.toggle('active', S.lickLoop);
   if (!findLick(S.selectedLick)) S.selectedLick = null;   // gelöschte Licks nicht wiederherstellen
-  // Layout: Preset-Tab, Sound-Schublade, Legende, Karten-Zustände
+  // Layout: Preset-Tab, Bereichs-Menü, Legende, Karten-Zustände
   setPresetTab(S.presetTab || 'vorlagen');
-  document.getElementById('soundDrawer').style.display = S.soundOpen ? 'flex' : 'none';
-  document.getElementById('soundBtn').classList.toggle('active', S.soundOpen);
+  applyPanels();
   document.getElementById('fbLegend').style.display = S.showLegend ? 'flex' : 'none';
   document.getElementById('btn-legend').classList.toggle('active', S.showLegend);
   applyFbSize();
@@ -3532,6 +3612,7 @@ function applySettingsUI() {
   renderLickPanel();
   renderPathSongs();
   renderPath();
+  initOutCtrl();
   render();
   window.addEventListener('beforeunload', saveSettings);   // letzter Stand beim Schließen
 })();
