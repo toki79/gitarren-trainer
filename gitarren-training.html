@@ -119,6 +119,12 @@ select {
 .presets .style-btn { font-family: inherit; border-color: #a78bfa; color: #a78bfa; }
 .presets .style-btn:hover { background: rgba(167,139,250,0.12); }
 .prog-chips { display: flex; flex-wrap: wrap; gap: 8px; min-height: 4px; }
+#fbProg { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 5px; padding: 0 2px; }
+.fbp-chip { font-size: 0.7rem; padding: 2px 8px; border-radius: 6px; background: var(--panel2);
+  border: 1px solid var(--border); color: var(--muted); cursor: pointer; line-height: 1.4; }
+.fbp-chip:hover { border-color: var(--muted); }
+.fbp-chip.cur { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.fbp-sep { width: 1px; height: 14px; background: var(--border); margin: 0 2px; }
 .chord-chip {
   background: var(--panel2); border: 1.5px solid var(--border); border-radius: 9px;
   padding: 7px 13px; cursor: pointer; text-align: center; min-width: 58px;
@@ -347,6 +353,7 @@ details.card > summary:hover { color: var(--text); }
       <button id="btn-legend" onclick="toggleLegend()" title="Legende ein-/ausblenden">？ Legende</button>
     </div>
     <svg id="fb" viewBox="0 0 920 235"></svg>
+    <div id="fbProg" style="display:none" title="Laufende Progression – Klick springt zum Akkord"></div>
     <div id="superInfo" class="hint" style="margin-top:6px"></div>
     <div id="fbLegend" class="fb-legend" style="display:none">
       <span class="leg"><span class="ldot" style="background:var(--root-col)"></span>Grundton</span>
@@ -3132,9 +3139,11 @@ const INV_SHORT = { root:'Grundst.', inv1:'1. Umk.', inv2:'2. Umk.' };
 function renderChips() {
   const box = document.getElementById('progChips');
   const transport = document.getElementById('progTransport');
+  const strip = document.getElementById('fbProg');
   if (!S.prog.length) {
     box.innerHTML = '<span class="prog-empty">Noch keine Progression – gib Stufen ein oder wähle eine Vorlage. Die Akkordtöne richten sich nach der gewählten Tonart.</span>';
     transport.style.display = 'none';
+    if (strip) strip.style.display = 'none';
     return;
   }
   computePath();
@@ -3149,6 +3158,14 @@ function renderChips() {
        <div class="cc-name">${c.name}</div>${tag}${beats}
      </div>`;
   }).join('');
+  // Mini-Ansicht direkt unterm Griffbrett: nur Akkordnamen, aktueller hervorgehoben
+  if (strip) {
+    strip.style.display = 'flex';
+    strip.innerHTML = S.prog.map((c, i) => {
+      const sep = (c.barCount && c.posInBar === 0 && i > 0) ? '<span class="fbp-sep"></span>' : '';
+      return `${sep}<span class="fbp-chip ${i === S.progIdx ? 'cur' : ''}" onclick="selectChord(${i})">${c.name}</span>`;
+    }).join('');
+  }
 }
 function selectChord(i) {
   S.progIdx = i;
