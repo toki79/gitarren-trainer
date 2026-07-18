@@ -2158,7 +2158,13 @@ const BUILTIN_LICKS = [
      [2,7,0.5,0,'',1],[2,7,0.5],[2,5,0.5],                       // D→♭5-Slide, D, C
      [3,7,1],                                                    // Grundton A verankern
      [1,8,0.5],[2,7,0.5,0,'',1],[2,7,0.5],[2,5,0.5],             // G, ♭5-Slide, D, C
-     [2,5,3,0,'v',2],['r',1]])                                   // C→D-Slide, hält mit Vibrato
+     [2,5,3,0,'v',2],['r',1]]),                                  // C→D-Slide, hält mit Vibrato
+  _lk('srv-slides', 'SRV-Lick: Slide-Frage & Scoop-Antwort', 'minor', 1, '🌪 SRV-Style (Slides)',
+    [[2,5,6,0,'v',2],['r',2],                                    // Takt 1: C⁀D-Slide, lange halten
+     [1,5,1],[2,7,1,0,'',-2],[3,7,1],                            // E, D⁀C abwärts, Grundton A
+     [2,7,1,0,'',-2],[3,7,1],                                    // nochmal D⁀C, A
+     [3,5,0.5,0,'',2],[3,7,1],                                   // Scoop G⁀A ins Landing
+     [3,5,0.5,0,'',2],[3,7,1,0,'v']])                            // Scoop G⁀A, A singt
 ];
 function findLick(id) {
   if (id === '_solo' && S.soloDraft) return S.soloDraft;    // aktueller Solo-Vorschlag (Entwurf)
