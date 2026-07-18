@@ -2412,8 +2412,9 @@ function lickChip(l, lib) {
     </div>
     <button onclick="event.stopPropagation(); playLickById('${l.id}')" title="Abspielen (folgt Groove & Tempo)">▶</button>
     ${lib
-      ? `<button onclick="event.stopPropagation(); copyLibLick('${l.id}')" title="In eigene Sammlung kopieren">＋</button>`
-      : `<button onclick="event.stopPropagation(); beginEdit('${l.id}')" title="Im Lick-Editor bearbeiten – Dauer, Staccato, Vibrato &amp; Bends pro Ton">✎</button>
+      ? `<button onclick="event.stopPropagation(); copyLibLick('${l.id}')" title="In eigene Sammlung kopieren">＋</button>
+         <button onclick="event.stopPropagation(); editLibLick('${l.id}')" title="Bearbeiten: legt automatisch eine Kopie in deiner Sammlung an und öffnet sie im Editor – das Original bleibt unverändert">✎</button>`
+      : `<button onclick="event.stopPropagation(); beginEdit('${l.id}')" title="Im Lick-Editor bearbeiten – Dauer, Staccato, Vibrato, Slides &amp; Bends pro Ton">✎</button>
          <button onclick="event.stopPropagation(); deleteLick('${l.id}')" title="Löschen">🗑</button>`}
   </div>`;
 }
@@ -2439,11 +2440,19 @@ function renderLickPanel() {
 }
 function copyLibLick(id) {
   const src = BUILTIN_LICKS.find(l => l.id === id);
-  if (!src) return;
-  S.licks.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+  if (!src) return null;
+  const nl = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
     name: src.name, key: src.key, scale: src.scale,
-    notes: src.notes.map(n => ({ ...n })), created: new Date().toISOString() });
-  if (saveLicks()) renderLickPanel();
+    notes: src.notes.map(n => ({ ...n })), created: new Date().toISOString() };
+  S.licks.push(nl);
+  if (!saveLicks()) { S.licks.pop(); return null; }
+  renderLickPanel();
+  return nl;
+}
+// Bibliotheks-Lick bearbeiten: automatisch als Kopie übernehmen und Editor öffnen
+function editLibLick(id) {
+  const nl = copyLibLick(id);
+  if (nl) beginEdit(nl.id);
 }
 
 // ─── Solo-Generator: akkordbewusster Solo-Vorschlag über die Progression ────
