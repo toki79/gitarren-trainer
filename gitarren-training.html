@@ -538,6 +538,8 @@ details.card > summary:hover { color: var(--text); }
       <button id="recBtn" onclick="toggleRecording()" title="Aufnahme starten – dann Töne am Griffbrett anklicken (alle Bünde klickbar, auch Blue Notes)">● Aufnehmen</button>
       <button onclick="playSelectedLick()" title="Ausgewählten Lick im BPM-Tempo abspielen (mit aufgenommenem Rhythmus)">▶ Lick</button>
       <button id="lickLoopBtn" onclick="toggleLickLoop()" title="Lick taktsynchron zum Metronom/Backing wiederholen – startet mit ▶ Play">🔁 Loop</button>
+      <button onclick="stepLick(-1)" title="Einen Ton zurück">|◀</button>
+      <button id="lickStepBtn" onclick="stepLick(1)" title="Lick Ton für Ton durchgehen: jeder Klick spielt den nächsten Ton, der aktuelle ist grün umrandet. Nach dem letzten Ton geht es von vorn los.">▶| Schritt</button>
     </div>
     <div class="btn-row" style="margin-left:auto">
       <button onclick="exportLicks()" title="Sammlung als JSON-Datei herunterladen (Backup)">⬇ Export</button>
@@ -752,7 +754,7 @@ const S = { key: 9, scale: 'minor', pos: 1, triad: 'none', set: 'DGB', label: 'n
             drive: 'clean',
             licks: [], recording: false, lickRec: [], selectedLick: null, lickLoop: false,
             recDur: 1, recStacc: false, recVib: false, lickShow: true,
-            editing: null, editSel: -1, editKey: null, soloDraft: null,
+            editing: null, editSel: -1, editKey: null, soloDraft: null, lickStep: -1,
             trading: false, motif: false, limit: null, limitNotes: [], limitFrets: [0, 3],
             trainer: null, micGate: 0.004, micBoost: 8, blue: false, blueArrows: false,
             lickOnlyMatch: true, superId: 'none', pair: false, approach: false,
@@ -1610,6 +1612,9 @@ function render() {
       // Lick-Trainer aktiv: aktuellen Zielton grün umranden (zählt nur klingende Töne)
       if (S.trainer && S.trainer.mode === 'lick' && !capturing() && k === S.trainer.idx)
         svg.appendChild(el('circle', { cx:x, cy:y, r:13, fill:'none', stroke:'#22c55e', 'stroke-width':2.5, 'stroke-dasharray':'4 3' }));
+      // Ton-für-Ton-Modus (▶| Schritt): aktuellen Ton grün umranden
+      if (S.lickStep === k && !capturing() && !(S.trainer && S.trainer.mode === 'lick'))
+        svg.appendChild(el('circle', { cx:x, cy:y, r:13, fill:'none', stroke:'#22c55e', 'stroke-width':2.5, 'stroke-dasharray':'4 3' }));
       // Editor aktiv: aktuell gewählten Ton orange umranden (Index im Buffer, inkl. Pausen)
       if (S.editing && i === S.editSel)
         svg.appendChild(el('circle', { cx:x, cy:y, r:13, fill:'none', stroke:'#f59e0b', 'stroke-width':2.5, 'stroke-dasharray':'4 3' }));
@@ -2169,7 +2174,7 @@ function capturing() { return S.recording || !!S.editing; }
 function toggleRecording() {
   if (S.editing) closeEdit();          // Editor und Aufnahme schließen sich aus
   S.recording = !S.recording;
-  if (S.recording) { S.lickRec = []; S.selectedLick = null; if (S.trainer) stopTrainer(); }
+  if (S.recording) { S.lickRec = []; S.selectedLick = null; resetLickStep(); if (S.trainer) stopTrainer(); }
   document.getElementById('recBtn').classList.toggle('active', S.recording);
   document.getElementById('recRow').style.display = S.recording ? 'block' : 'none';
   updateRecInfo();
@@ -2235,6 +2240,19 @@ function saveLick() {
   }
 }
 function selectLick(id) {
+  // Editor offen: Klick auf ein eigenes Lick wechselt den Editor dorthin,
+  // Klick auf ein Bibliotheks-Lick schließt den Editor und wählt normal aus.
+  // (Sonst zeigte das Brett weiter den Editor-Buffer – „Ansicht wechselt nicht".)
+  if (S.editing) {
+    if (id === S.editing) return;                        // Chip des gerade bearbeiteten Licks: nichts tun
+    if (S.licks.some(l => l.id === id)) { beginEdit(id); return; }
+    closeEdit();
+  }
+  if (S.recording) {
+    if (S.lickRec.length) return;                        // laufende Aufnahme mit Tönen nicht wegwerfen
+    toggleRecording();                                   // leere Aufnahme beenden, dann auswählen
+  }
+  resetLickStep();
   S.selectedLick = S.selectedLick === id ? null : id;
   if (S.selectedLick && !S.lickShow) toggleLickShow();   // aktive Auswahl blendet den Lick wieder ein
   if (S.trainer && S.trainer.mode === 'lick') {
@@ -2294,6 +2312,30 @@ function playLickById(id) {
   if (lk) playLickAt(lk, nextBarDelay());   // läuft das Metronom, startet der Lick auf der nächsten Eins
 }
 function playSelectedLick() { if (S.selectedLick) playLickById(S.selectedLick); }
+// Lick Ton für Ton durchgehen: jeder Klick spielt den nächsten/vorherigen Ton
+// (mit Artikulation), der aktuelle ist am Griffbrett grün umrandet.
+function stepLick(dir) {
+  const lk = findLick(S.selectedLick);
+  if (!lk) { alert('Erst ein Lick auswählen (Bibliothek oder eigene Sammlung).'); return; }
+  const notes = (transposeLick(lk) || []).filter(n => !n.rest);
+  if (!notes.length) return;
+  if (!S.lickShow) toggleLickShow();
+  S.lickStep = S.lickStep < 0
+    ? (dir > 0 ? 0 : notes.length - 1)
+    : (S.lickStep + dir + notes.length) % notes.length;
+  const n = notes[S.lickStep];
+  const g = 0.95 * (n.acc === 1 ? 1.5 : n.acc === -1 ? 0.45 : 1);
+  pluck(OPEN_MIDI[n.s] + n.fret, 0, n.stacc ? 0.16 : 1.1, g, n.bend || 0, !!n.vib, 'lick');
+  flashAt(n.s, n.fret, 0, '#22c55e');
+  const btn = document.getElementById('lickStepBtn');
+  if (btn) btn.textContent = `▶| ${S.lickStep + 1}/${notes.length}`;
+  render();
+}
+function resetLickStep() {
+  S.lickStep = -1;
+  const btn = document.getElementById('lickStepBtn');
+  if (btn) btn.textContent = '▶| Schritt';
+}
 function toggleLickLoop() {
   S.lickLoop = !S.lickLoop;
   document.getElementById('lickLoopBtn').classList.toggle('active', S.lickLoop);
@@ -2493,6 +2535,7 @@ function generateSolo() {
   const notes = generateSoloNotes(0, bars, P, sched, true);
   S.soloDraft = { id: '_solo', name: 'Solo-Vorschlag', key: S.key, scale: S.scale, notes };
   S.selectedLick = '_solo';
+  resetLickStep();
   if (!S.lickShow) toggleLickShow();
   const cnt = notes.filter(n => !n.rest).length;
   document.getElementById('soloInfo').textContent =
@@ -2594,6 +2637,7 @@ function beginEdit(id) {
   S.editing = id;
   S.editSel = -1;
   S.selectedLick = null;
+  resetLickStep();
   const t = transposeLick(lk);             // Arbeitskopie – erst beim Speichern übernommen
   S.lickRec = (t || lk.notes).map(n => ({ ...n }));
   S.editKey = t ? S.key : lk.key;
@@ -2751,6 +2795,7 @@ function saveEditAsNew() {
 }
 function closeEdit() {
   S.editing = null; S.editSel = -1; S.editKey = null; S.lickRec = [];
+  resetLickStep();
   const row = document.getElementById('editorRow');
   if (row) row.style.display = 'none';
   renderLickPanel();
