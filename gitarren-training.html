@@ -487,6 +487,7 @@ details.card > summary:hover { color: var(--text); }
           <button class="blues-btn" onclick="blues12()" title="Klassischer 12-Takt-Blues – Dur: I I I I · IV IV I I · V IV I V / Moll: i i i i · iv iv i i · VI V i V">12-Takt</button>
           <button class="blues-btn" onclick="bluesQuick()" title="12-Takt mit Quick Change: die IV. Stufe schon im 2. Takt">Quick Change</button>
           <button class="blues-btn" onclick="blues8()" title="8-Takt-Blues (z. B. „Key to the Highway“): I V IV IV · I V I V">8-Takt</button>
+          <button class="blues-btn" onclick="bluesTurnaround()" title="Nur Takt 11–12 als 2-Takt-Loop (I → V): perfekt, um die ↩ Turnaround-Licks mit 🔁 Loop im Kreis zu üben">Turnaround-Loop</button>
         </div>
       </div>
       <div class="ptab" id="ptab-stile" style="display:none">
@@ -2002,7 +2003,9 @@ const BLUES_FORMS = {
   quick:    { major: 'I | IV | I | I | IV | IV | I | I | V | IV | I | V',
               minor: 'i | iv | i | i | iv | iv | i | i | VI | V | i | V' },
   eight:    { major: 'I | V | IV | IV | I | V | I | V',
-              minor: 'i | V | iv | iv | i | V | i | V' }
+              minor: 'i | V | iv | iv | i | V | i | V' },
+  turn:     { major: 'I | V',                                // Takt 11–12 isoliert üben
+              minor: 'i | V' }
 };
 const bluesVariant = form => BLUES_FORMS[form][S.scale === 'minor' ? 'minor' : 'major'];
 function bluesPreset(form) {
@@ -2015,6 +2018,7 @@ function bluesPreset(form) {
 function blues12()    { bluesPreset('standard'); }
 function bluesQuick() { bluesPreset('quick'); }
 function blues8()     { bluesPreset('eight'); }
+function bluesTurnaround() { bluesPreset('turn'); }
 
 // ─── Song-Stile: komplette Setups nach berühmten Vorbildern ─────────────────
 // Ein Stil = Form + Tonart + Tempo + Taktart + Groove (alles nicht schützbar);
@@ -2052,10 +2056,19 @@ function applyStyle(id) {
 // Referenz A (key 9). notes: [Saite (0=hohe e … 5=tiefe E), fret, Dauer in Achteln].
 // box = Pentatonik-Box, in der der Lick liegt; cat = Kategorie. Werden in die Tonart
 // transponiert und beim Abspielen dem Groove folgend geswingt.
-// notes-Einträge: [Saite, fret, Dauer, bend?] – bend = Halbtöne, um die der Ton hochgezogen wird
+// notes-Einträge: [Saite, fret, Dauer, bend?, art?] – bend = Halbtöne hochziehen,
+// art = 'v' (Vibrato) / 's' (Staccato). ['r', Dauer] = Pause.
 const _lk = (id, name, scale, box, cat, notes) =>
   ({ id, name, scale, box, cat, key: 9, builtin: true,
-     notes: notes.map(([s, fret, d, bend]) => bend ? { s, fret, d, bend } : { s, fret, d }) });
+     notes: notes.map(t => {
+       if (t[0] === 'r') return { rest: 1, d: t[1] };
+       const [s, fret, d, bend, art] = t;
+       const n = { s, fret, d };
+       if (bend) n.bend = bend;
+       if (art && art.includes('v')) n.vib = 1;
+       if (art && art.includes('s')) n.stacc = 1;
+       return n;
+     }) });
 const BUILTIN_LICKS = [
   // ── Läufe & Sequenzen ──
   _lk('m-b1-seqdn', 'Abwärts-Sequenz (4er)', 'minor', 1, 'Läufe & Sequenzen',
@@ -2103,7 +2116,24 @@ const BUILTIN_LICKS = [
   _lk('t-answer', 'Thrill: Antwort-Phrase', 'minor', 2, '🎩 Thrill-Style (Bends)',
     [[1,10,1.5],[0,8,0.5],[1,8,1],[2,9,1],[4,7,4]]),             // synkopierte Abwärts-Antwort
   _lk('t-repeat', 'Thrill: Repeating Bend', 'minor', 2, '🎩 Thrill-Style (Bends)',
-    [[1,10,1],[1,8,1,2],[1,10,1],[1,8,1,2],[0,8,2],[1,10,2]])    // A, G↗A, A, G↗A, C, A
+    [[1,10,1],[1,8,1,2],[1,10,1],[1,8,1,2],[0,8,2],[1,10,2]]),   // A, G↗A, A, G↗A, C, A
+  // ── ↩ Turnarounds (Takt 11–12: zurück zum Anfang, landen auf der V) ──
+  // Jeweils 2 Takte (16 Achtel) – passend zum „Turnaround-Loop"-Preset.
+  _lk('tn-classic', 'Turnaround: Klassiker abwärts', 'minor', 1, '↩ Turnarounds (Takt 11–12)',
+    [[0,5,1],[1,8,1],[0,5,1],[1,7,1],[0,5,1],[1,6,1],[1,5,2],    // A-Pedal, Linie G→F#→F→E
+     [4,6,1],[4,7,5,0,'v'],['r',2]]),                            // D#-Anlauf → E (V) singt
+  _lk('tn-chromup', 'Turnaround: chromatisch zur V', 'minor', 1, '↩ Turnarounds (Takt 11–12)',
+    [[3,7,2],[2,5,1],[2,6,1],[2,7,1],[2,8,1],[2,9,2],            // A, dann C→C#→D→D# → E
+     [3,6,1],[3,9,1],[2,9,4,0,'v'],['r',2]]),                    // G#/B (E7-Farbe) → E hält
+  _lk('tn-minor', 'Turnaround: Moll ♭6→5', 'minor', 1, '↩ Turnarounds (Takt 11–12)',
+    [[3,7,2],[3,5,2],[4,8,2],[4,7,2],                            // A→G→F(♭6)→E: der Moll-Klassiker
+     [4,7,6,0,'v'],['r',2]]),                                    // V lange halten – Spannung zum i
+  _lk('tn-bb', 'Turnaround: BB-Box', 'minor', 2, '↩ Turnarounds (Takt 11–12)',
+    [[0,8,1],[1,10,1],[1,8,1],[2,9,2],[2,7,1],[3,7,2],           // Abstieg C→A→G→E→D→A
+     [2,9,1],[1,9,1],[2,9,4,0,'v'],['r',2]]),                    // E→G# (Leitton!) → E singt
+  _lk('tn-major', 'Turnaround: Dur-Walkdown', 'major', 1, '↩ Turnarounds (Takt 11–12)',
+    [[0,5,1],[1,5,1],[1,2,1],[2,4,1],[2,2,1],[3,4,1],[3,2,2],    // A-Dur-Abstieg bis E
+     [4,4,1],[4,5,1],[4,6,1],[4,7,4,0,'v'],['r',1]])             // C#→D→D# chromatisch → E (V)
 ];
 function findLick(id) {
   if (id === '_solo' && S.soloDraft) return S.soloDraft;    // aktueller Solo-Vorschlag (Entwurf)
