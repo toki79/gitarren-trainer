@@ -1660,6 +1660,8 @@ function render() {
       if (n.acc) svg.appendChild(el('text', { x:x - 12, y:y - 8, fill:'#22d3ee', 'font-size':n.acc === 1 ? 10 : 9,
         'font-weight':'bold', 'font-style':n.acc === 1 ? 'normal' : 'italic', 'text-anchor':'middle',
         style:'user-select:none;pointer-events:none' }, n.acc === 1 ? '>' : 'p'));                   // Betonung: Akzent / leise
+      if (n.leg) svg.appendChild(el('path', { d:`M ${x - 6} ${y - 11} Q ${x} ${y - 17} ${x + 6} ${y - 11}`,
+        fill:'none', stroke:'#22d3ee', 'stroke-width':1.5, style:'pointer-events:none' }));          // Legato-Bogen (H/P)
     });
   }
 
@@ -2076,7 +2078,8 @@ function applyStyle(id) {
 // box = Pentatonik-Box, in der der Lick liegt; cat = Kategorie. Werden in die Tonart
 // transponiert und beim Abspielen dem Groove folgend geswingt.
 // notes-Einträge: [Saite, fret, Dauer, bend?, art?, slide?] – bend = Halbtöne hochziehen,
-// art = 'v' (Vibrato) / 's' (Staccato), slide = ±Halbtöne rutschen. ['r', Dauer] = Pause.
+// art = 'v' (Vibrato) / 's' (Staccato) / 'h' (Legato: Hammer-on/Pull-off, vom vorigen
+// Ton gebunden, kein Anschlag), slide = ±Halbtöne rutschen. ['r', Dauer] = Pause.
 const _lk = (id, name, scale, box, cat, notes) =>
   ({ id, name, scale, box, cat, key: 9, builtin: true,
      notes: notes.map(t => {
@@ -2087,6 +2090,7 @@ const _lk = (id, name, scale, box, cat, notes) =>
        if (slide) n.slide = slide;
        if (art && art.includes('v')) n.vib = 1;
        if (art && art.includes('s')) n.stacc = 1;
+       if (art && art.includes('h')) n.leg = 1;
        return n;
      }) });
 const BUILTIN_LICKS = [
@@ -2154,20 +2158,21 @@ const BUILTIN_LICKS = [
   _lk('tn-major', 'Turnaround: Dur-Walkdown', 'major', 1, '↩ Turnarounds (Takt 11–12)',
     [[0,5,1],[1,5,1],[1,2,1],[2,4,1],[2,2,1],[3,4,1],[3,2,2],    // A-Dur-Abstieg bis E
      [4,4,1],[4,5,1],[4,6,1],[4,7,4,0,'v'],['r',1]]),            // C#→D→D# chromatisch → E (V)
-  // ── 🌪 SRV-Style (Slides) · Sextolen als 16tel angenähert ──
-  _lk('srv-run', 'SRV-Lick: Lauf mit ♭5-Slides', 'minor', 1, '🌪 SRV-Style (Slides)',
+  // ── 🌪 SRV-Style · Sextolen als 16tel angenähert ──
+  _lk('srv-run', 'SRV-Lick: Lauf mit ♭5-Slides', 'minor', 1, '🌪 SRV-Style (Slides & Legato)',
     [[2,7,1.5,2],                                                // D voll hochziehen (4↗5)
      [1,5,0.5],[0,5,0.5],[1,8,0.5],[1,5,0.5],                    // E A G E – Lauf durch Box 1
      [2,7,0.5,0,'',1],[2,7,0.5],[2,5,0.5],                       // D→♭5-Slide, D, C
      [3,7,1],                                                    // Grundton A verankern
      [1,8,0.5],[2,7,0.5,0,'',1],[2,7,0.5],[2,5,0.5],             // G, ♭5-Slide, D, C
      [2,5,3,0,'v',2],['r',1]]),                                  // C→D-Slide, hält mit Vibrato
-  _lk('srv-slides', 'SRV-Lick: Slide-Frage & Scoop-Antwort', 'minor', 1, '🌪 SRV-Style (Slides)',
-    [[2,5,6,0,'v',2],['r',2],                                    // Takt 1: C⁀D-Slide, lange halten
-     [1,5,1],[2,7,1,0,'',-2],[3,7,1],                            // E, D⁀C abwärts, Grundton A
-     [2,7,1,0,'',-2],[3,7,1],                                    // nochmal D⁀C, A
-     [3,5,0.5,0,'',2],[3,7,1],                                   // Scoop G⁀A ins Landing
-     [3,5,0.5,0,'',2],[3,7,1,0,'v']])                            // Scoop G⁀A, A singt
+  _lk('srv-slides', 'SRV-Lick: Hammer-ons & Pull-offs', 'minor', 1, '🌪 SRV-Style (Slides & Legato)',
+    [[2,5,1],[2,7,6,0,'vh'],['r',1],                             // Takt 1: C⁀D Hammer-on, D singt
+     [1,5,1],                                                    // E
+     [2,7,0.5],[2,5,0.5,0,'h'],[3,7,1],                          // D⁀C Pull-off, Grundton A
+     [2,7,0.5],[2,5,0.5,0,'h'],[3,7,1],                          // nochmal D⁀C Pull-off, A
+     [3,5,0.5],[3,7,0.5,0,'h'],                                  // G⁀A Hammer-on
+     [3,5,0.5],[3,7,1.5,0,'vh']])                                // G⁀A Hammer-on, A singt
 ];
 function findLick(id) {
   if (id === '_solo' && S.soloDraft) return S.soloDraft;    // aktueller Solo-Vorschlag (Entwurf)
@@ -2322,7 +2327,8 @@ function playLickAt(lick, delaySec, quiet) {
     const start = delaySec + eighthTime(off, spb);
     let dur = Math.max((eighthTime(off + d, spb) - eighthTime(off, spb)) * 1.05, 0.18);
     if (src.stacc) dur = Math.min(dur, 0.16);                       // Staccato: kurz
-    const g = 0.95 * (src.acc === 1 ? 1.5 : src.acc === -1 ? 0.45 : 1);   // Betonung: Akzent / Ghost
+    const g = 0.95 * (src.acc === 1 ? 1.5 : src.acc === -1 ? 0.45 : 1)    // Betonung: Akzent / Ghost
+                   * (src.leg ? 0.55 : 1);                                // Legato (H/P): kein Anschlag
     pluck(OPEN_MIDI[n.s] + n.fret, start, dur, g, n.bend || 0, !!src.vib, 'lick', n.slide || 0);
     flashAt(n.s, n.fret, start * 1000, n.bend ? '#f59e0b' : '#22d3ee');
     off += d;
@@ -2353,7 +2359,7 @@ function stepLick(dir) {
     ? (dir > 0 ? 0 : notes.length - 1)
     : (S.lickStep + dir + notes.length) % notes.length;
   const n = notes[S.lickStep];
-  const g = 0.95 * (n.acc === 1 ? 1.5 : n.acc === -1 ? 0.45 : 1);
+  const g = 0.95 * (n.acc === 1 ? 1.5 : n.acc === -1 ? 0.45 : 1) * (n.leg ? 0.55 : 1);
   pluck(OPEN_MIDI[n.s] + n.fret, 0, n.stacc ? 0.16 : 1.1, g, n.bend || 0, !!n.vib, 'lick', n.slide || 0);
   flashAt(n.s, n.fret, 0, '#22c55e');
   const btn = document.getElementById('lickStepBtn');
@@ -2724,7 +2730,7 @@ function renderEditorStaff() {
       if (d >= v) return { kind, dot };
     return { kind: 'sixteenth', dot: 0 };
   };
-  let off = 0;
+  let off = 0, prev = null;                                   // vorige Note (für Legato-Bögen)
   S.lickRec.forEach((n, i) => {
     const x = MLx + off * PXE + 6;
     const sel = i === S.editSel;
@@ -2733,6 +2739,7 @@ function renderEditorStaff() {
     if (n.rest) {                                             // Pause: Block auf der Mittellinie
       svg.appendChild(el('rect', { x: x - 4, y: nTop + 1.5 * nGap, width: 9, height: 5, rx: 1.5, fill: sel ? '#f59e0b' : '#6b7280' }));
       if (g.dot) svg.appendChild(el('circle', { cx: x + 9, cy: nTop + 1.5 * nGap + 2, r: 1.6, fill: sel ? '#f59e0b' : '#6b7280' }));
+      prev = null;                                            // Bogen nie über eine Pause hinweg
     } else {
       const midi = OPEN_MIDI[n.s] + n.fret + 12;              // notierte Oktave
       const name = nn(mod12(midi), S.key);
@@ -2765,6 +2772,16 @@ function renderEditorStaff() {
       svg.appendChild(el('rect', { x: x - 6, y: ty - 5, width: 12, height: 10, fill: bg }));
       svg.appendChild(el('text', { x, y: ty + 3.5, fill: col, 'font-size': 10, 'font-weight': 'bold', 'text-anchor': 'middle',
         'font-family': 'ui-monospace,monospace' }, String(n.fret)));
+      if (n.leg && prev) {                                    // Legato: Bogen vom vorigen Ton (Noten + TAB)
+        const midX = (prev.x + x) / 2;
+        const nyTop = Math.min(prev.y, y) - 6;
+        svg.appendChild(el('path', { d: `M ${prev.x + 3} ${prev.y - 6} Q ${midX} ${nyTop - 8} ${x - 3} ${y - 6}`,
+          fill: 'none', stroke: '#22d3ee', 'stroke-width': 1.2 }));
+        const tyTop = Math.min(prev.ty, ty) - 7;
+        svg.appendChild(el('path', { d: `M ${prev.x + 3} ${prev.ty - 7} Q ${midX} ${tyTop - 7} ${x - 3} ${ty - 7}`,
+          fill: 'none', stroke: '#22d3ee', 'stroke-width': 1.2 }));
+      }
+      prev = { x, y, ty };
       if (n.slide) {                                          // Slide: Schräg-Strich + Ziel-Bund
         const upSl = n.slide > 0;
         svg.appendChild(el('line', { x1: x + 7, y1: ty + (upSl ? 3 : -3), x2: x + 14, y2: ty + (upSl ? -3 : 3), stroke: '#f59e0b', 'stroke-width': 1.5 }));
@@ -2860,6 +2877,7 @@ function renderEditor() {
       <select class="en-dur" onclick="event.stopPropagation()" onchange="setNoteDur(${i},+this.value)">${opts}</select>
       <button class="en-tog ${n.stacc ? 'active' : ''}" onclick="event.stopPropagation();toggleNoteStacc(${i})" title="Staccato – kurz &amp; abgehackt">•</button>
       <button class="en-tog ${n.vib ? 'active' : ''}" onclick="event.stopPropagation();toggleNoteVib(${i})" title="Vibrato">∿</button>
+      <button class="en-tog ${n.leg ? 'active' : ''}" onclick="event.stopPropagation();toggleNoteLeg(${i})" title="Legato: Hammer-on/Pull-off – dieser Ton wird vom vorigen gebunden gespielt (kein Anschlag), mit Bogen in Noten &amp; TAB">⌒</button>
       <span class="en-bend"><small>Bend</small>${bends}</span>
       <span class="en-bend"><small>Slide</small>${slides}</span>
       <span class="en-bend"><small>Betonung</small>${accs}</span>
@@ -2880,6 +2898,7 @@ function selectEditNote(i) { S.editSel = S.editSel === i ? -1 : i; renderEditor(
 function setNoteDur(i, d) { S.lickRec[i].d = d; renderEditor(); render(); }
 function toggleNoteStacc(i) { const n = S.lickRec[i]; if (n.stacc) delete n.stacc; else n.stacc = 1; renderEditor(); render(); }
 function toggleNoteVib(i) { const n = S.lickRec[i]; if (n.vib) delete n.vib; else n.vib = 1; renderEditor(); render(); }
+function toggleNoteLeg(i) { const n = S.lickRec[i]; if (n.leg) delete n.leg; else n.leg = 1; renderEditor(); render(); }
 function setNoteBend(i, v) { const n = S.lickRec[i]; if (v) n.bend = v; else delete n.bend; renderEditor(); render(); }
 function setNoteAcc(i, v) { const n = S.lickRec[i]; if (v) n.acc = v; else delete n.acc; renderEditor(); render(); }
 function setNoteSlide(i, v) { const n = S.lickRec[i]; if (v) n.slide = v; else delete n.slide; renderEditor(); render(); }
@@ -2892,7 +2911,7 @@ function insertRestEdit() {                 // Pause hinter der markierten Zeile
 function playEditNote(i) {
   const n = S.lickRec[i];
   if (n.rest) { S.editSel = i; renderEditor(); render(); return; }
-  const g = 0.95 * (n.acc === 1 ? 1.5 : n.acc === -1 ? 0.45 : 1);
+  const g = 0.95 * (n.acc === 1 ? 1.5 : n.acc === -1 ? 0.45 : 1) * (n.leg ? 0.55 : 1);
   pluck(OPEN_MIDI[n.s] + n.fret, 0, n.stacc ? 0.16 : 1.0, g, n.bend || 0, !!n.vib, 'lick', n.slide || 0);
   flashAt(n.s, n.fret, 0, '#f59e0b');
   S.editSel = i; renderEditor(); render();
