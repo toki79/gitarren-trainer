@@ -2078,8 +2078,8 @@ function applyStyle(id) {
 // box = Pentatonik-Box, in der der Lick liegt; cat = Kategorie. Werden in die Tonart
 // transponiert und beim Abspielen dem Groove folgend geswingt.
 // notes-Einträge: [Saite, fret, Dauer, bend?, art?, slide?] – bend = Halbtöne hochziehen,
-// art = 'v' (Vibrato) / 's' (Staccato) / 'h' (Legato: Hammer-on/Pull-off, vom vorigen
-// Ton gebunden, kein Anschlag), slide = ±Halbtöne rutschen. ['r', Dauer] = Pause.
+// art = 'v' (Vibrato) / 's' (Staccato) / 'h' (Legato: Hammer-on/Pull-off) / 'g' (Ghost,
+// leise – z. B. Rake-x) / 'a' (Akzent), slide = ±Halbtöne rutschen. ['r', Dauer] = Pause.
 const _lk = (id, name, scale, box, cat, notes) =>
   ({ id, name, scale, box, cat, key: 9, builtin: true,
      notes: notes.map(t => {
@@ -2091,6 +2091,8 @@ const _lk = (id, name, scale, box, cat, notes) =>
        if (art && art.includes('v')) n.vib = 1;
        if (art && art.includes('s')) n.stacc = 1;
        if (art && art.includes('h')) n.leg = 1;
+       if (art && art.includes('g')) n.acc = -1;
+       if (art && art.includes('a')) n.acc = 1;
        return n;
      }) });
 const BUILTIN_LICKS = [
@@ -2173,6 +2175,19 @@ const BUILTIN_LICKS = [
      [2,7,0.5],[2,5,0.5,0,'h'],[3,7,1],                          // nochmal D⁀C Pull-off, A
      [2,5,0.5],[2,7,0.5,0,'h'],                                  // C⁀D Hammer-on (x-Kopf: kurz)
      [2,5,0.5],[2,7,1.5,0,'vh']])                                // C⁀D Hammer-on, D singt (♭7 zur V)
+  ,
+  // Lick 22: Rake (x-Töne = gedämpfte Ghost-Schläge) + Bends, alles auf der B-Saite.
+  // Triolen-Feel der Vorlage → mit Shuffle-Groove spielen.
+  _lk('srv-rake', 'SRV-Lick: Rake & Bends auf der B-Saite', 'minor', 2, '🌪 SRV-Style (Slides & Legato)',
+    [[1,10,1],                                                   // A – Auftakt
+     [1,10,0.5,0,'sg'],[1,10,0.5,0,'sg'],                        // x x – Rake: kurze tote Schläge
+     [1,10,1],[1,8,1],                                           // A, G
+     [1,10,4,2],                                                 // A voll hochziehen (full → H), halten
+     [1,9,2,1],                                                  // G♯ nur ½ hoch (→ A) – die ♯-Note
+     [1,8,1],                                                    // G
+     [1,10,0.5,0,'sg'],                                          // x – kurzer Rake
+     [1,10,1.5],                                                 // A
+     [1,10,3,0,'v']])                                            // A, punktiert, singt
 ];
 function findLick(id) {
   if (id === '_solo' && S.soloDraft) return S.soloDraft;    // aktueller Solo-Vorschlag (Entwurf)
@@ -2185,6 +2200,7 @@ function loadLicks() {
   try { S.licks = JSON.parse(localStorage.getItem(LICK_KEY)) || []; }
   catch { S.licks = []; }
   if (!Array.isArray(S.licks)) S.licks = [];
+  S.licks.forEach(l => { if (!l.created) l.created = new Date().toISOString(); });   // Datum immer vorhanden
 }
 function saveLicks() {
   try { localStorage.setItem(LICK_KEY, JSON.stringify(S.licks)); return true; }
@@ -2398,7 +2414,8 @@ function importLicks(file) {
       let added = 0;
       for (const l of valid) {
         if (existing.has(l.id)) continue;      // Duplikate (gleiche id) überspringen
-        S.licks.push({ ...l, key: mod12(l.key || 0), scale: l.scale === 'major' ? 'major' : 'minor' });
+        S.licks.push({ ...l, key: mod12(l.key || 0), scale: l.scale === 'major' ? 'major' : 'minor',
+          created: l.created || new Date().toISOString() });   // Datum immer vorhanden
         added++;
       }
       saveLicks();
@@ -2417,13 +2434,14 @@ function lickChip(l, lib) {
   const match = lickMatches(l, lib);
   const beats = +(l.notes.reduce((a, n) => a + (n.d || 1), 0) / 2).toFixed(1);   // Länge in Vierteln
   const badge = lib ? `Box ${l.box} · ` : '';
+  const when = !lib && l.created ? ' · ' + new Date(l.created).toLocaleDateString('de-DE') : '';
   const title = match ? 'Passt zur aktuellen Auswahl' :
     (l.scale !== S.scale ? 'Anderes Tongeschlecht (' + (l.scale === 'minor' ? 'Moll' : 'Dur') + ')' : 'Andere Box – umschalten oder „alle Boxen“');
   return `<div class="lick-chip ${lib ? 'lib' : ''} ${S.selectedLick === l.id ? 'active' : ''} ${match ? '' : 'dim'}"
                onclick="selectLick('${l.id}')" title="${title}">
     <div>
       <div class="lk-name">${l.name.replace(/</g, '&lt;')}</div>
-      <div class="lk-meta">${badge}${l.scale === 'minor' ? 'Moll' : 'Dur'} · ${beats} Schläge</div>
+      <div class="lk-meta">${badge}${l.scale === 'minor' ? 'Moll' : 'Dur'} · ${beats} Schläge${when}</div>
     </div>
     <button onclick="event.stopPropagation(); playLickById('${l.id}')" title="Abspielen (folgt Groove & Tempo)">▶</button>
     ${lib
@@ -2892,7 +2910,9 @@ function updateEditMeta() {
   if (!m) return;
   const cnt = S.lickRec.filter(n => !n.rest).length;
   const beats = +(S.lickRec.reduce((a, n) => a + (n.d || 1), 0) / 2).toFixed(1);
-  m.textContent = `${cnt} ${cnt === 1 ? 'Ton' : 'Töne'} · ${beats} Schläge`;
+  const src = S.licks.find(l => l.id === S.editing);
+  const when = src && src.created ? ' · angelegt ' + new Date(src.created).toLocaleDateString('de-DE') : '';
+  m.textContent = `${cnt} ${cnt === 1 ? 'Ton' : 'Töne'} · ${beats} Schläge${when}`;
 }
 function selectEditNote(i) { S.editSel = S.editSel === i ? -1 : i; renderEditor(); render(); }
 function setNoteDur(i, d) { S.lickRec[i].d = d; renderEditor(); render(); }
