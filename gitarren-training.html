@@ -239,6 +239,23 @@ button.mini.active { background: var(--accent); border-color: var(--accent); col
 .lk-name { font-weight: 600; font-size: 0.85rem; }
 .lk-meta { font-size: 0.7rem; color: var(--muted); }
 .lick-chip button { padding: 3px 7px; font-size: 0.75rem; min-width: 0; }
+.lick-filter-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 4px 0 8px; }
+#lfName { flex: 1 1 180px; background: var(--panel2); color: var(--text); border: 1px solid var(--border); padding: 7px 10px; border-radius: 7px; font-size: 0.85rem; }
+#lfName:focus { outline: none; border-color: var(--accent); }
+#lfBox, #lfScale { background: var(--panel2); color: var(--text); border: 1px solid var(--border); padding: 6px 8px; border-radius: 7px; font-size: 0.82rem; }
+.lick-table { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
+.lick-table th { text-align: left; font-size: 0.64rem; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); font-weight: 600; padding: 6px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.lick-table th.sortable { cursor: pointer; }
+.lick-table th.sortable:hover { color: var(--text); }
+.lick-table td { padding: 5px 8px; border-bottom: 1px solid rgba(58,65,80,0.45); white-space: nowrap; }
+.lick-table tbody tr { cursor: pointer; }
+.lick-table tbody tr:hover td { background: rgba(255,255,255,0.03); }
+.lick-table tr.active td { background: rgba(34,211,238,0.10); }
+.lick-table tr.dim td { opacity: 0.45; }
+.lt-name { font-weight: 600; }
+.lt-cat { color: var(--muted); font-size: 0.75rem; }
+.lt-actions { text-align: right; white-space: nowrap; }
+.lt-actions button { padding: 2px 7px; font-size: 0.74rem; min-width: 0; margin-left: 2px; }
 .mixer { display: flex; align-items: center; gap: 12px; margin-left: auto; flex-wrap: wrap; }
 .mix-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); font-weight: 600; }
 .mix-field { display: flex; align-items: center; gap: 4px; font-size: 0.9rem; cursor: default; }
@@ -607,8 +624,33 @@ details.card > summary:hover { color: var(--text); }
     </div>
     <span id="soloInfo" class="hint"></span>
   </div>
-  <div id="lickLib" class="lick-list"></div>
-  <div id="lickList" class="lick-list"></div>
+  <div class="lick-filter-row">
+    <input id="lfName" placeholder="🔎 Name filtern (z. B. „SRV“)" oninput="setLickFilter('text', this.value)">
+    <select id="lfBox" onchange="setLickFilter('box', +this.value)" title="Nach Pentatonik-Box filtern – eigene Licks tragen kein Box-Tag und erscheinen nur bei „alle“">
+      <option value="0">Box: alle</option>
+      <option value="1">Box 1</option>
+      <option value="2">Box 2</option>
+      <option value="3">Box 3</option>
+      <option value="4">Box 4</option>
+      <option value="5">Box 5</option>
+    </select>
+    <select id="lfScale" onchange="setLickFilter('scale', this.value)" title="Nach Tongeschlecht filtern">
+      <option value="all">Moll &amp; Dur</option>
+      <option value="minor">Moll</option>
+      <option value="major">Dur</option>
+    </select>
+    <span id="lfCount" class="hint"></span>
+  </div>
+  <div style="overflow-x:auto">
+    <table class="lick-table">
+      <thead><tr>
+        <th>Name</th><th>Box</th><th>Skala</th><th>Schläge</th>
+        <th class="sortable" onclick="cycleLickSort()" title="Klick sortiert nach Anlage-Datum: neueste zuerst → älteste zuerst → Standard-Reihenfolge">Datum <span id="lfSortArrow"></span></th>
+        <th>Kategorie</th><th></th>
+      </tr></thead>
+      <tbody id="lickTbody"></tbody>
+    </table>
+  </div>
   </div>
 </details>
 
@@ -760,7 +802,8 @@ const S = { key: 9, scale: 'minor', pos: 1, triad: 'none', set: 'DGB', label: 'n
             editing: null, editSel: -1, editKey: null, soloDraft: null, lickStep: -1,
             trading: false, motif: false, limit: null, limitNotes: [], limitFrets: [0, 3],
             trainer: null, micGate: 0.004, micBoost: 8, blue: false, blueArrows: false,
-            lickOnlyMatch: true, superId: 'none', pair: false, approach: false,
+            lickFilter: { text: '', box: 0, scale: 'all', sort: '' },
+            superId: 'none', pair: false, approach: false,
             presetTab: 'vorlagen', showLegend: false, fbCompact: false, outDevice: '',
             panels: { path: true, triad: true, prog: true, licks: true, trainer: true, ton: true },
             intervalMode: false, intervalRef: null,
@@ -2430,46 +2473,58 @@ function importLicks(file) {
 function lickMatches(l, lib) {
   return l.scale === S.scale && (!lib || S.pos === 0 || l.box === S.pos);
 }
-function lickChip(l, lib) {
-  const match = lickMatches(l, lib);
-  const beats = +(l.notes.reduce((a, n) => a + (n.d || 1), 0) / 2).toFixed(1);   // Länge in Vierteln
-  const badge = lib ? `Box ${l.box} · ` : '';
-  const when = !lib && l.created ? ' · ' + new Date(l.created).toLocaleDateString('de-DE') : '';
-  const title = match ? 'Passt zur aktuellen Auswahl' :
-    (l.scale !== S.scale ? 'Anderes Tongeschlecht (' + (l.scale === 'minor' ? 'Moll' : 'Dur') + ')' : 'Andere Box – umschalten oder „alle Boxen“');
-  return `<div class="lick-chip ${lib ? 'lib' : ''} ${S.selectedLick === l.id ? 'active' : ''} ${match ? '' : 'dim'}"
-               onclick="selectLick('${l.id}')" title="${title}">
-    <div>
-      <div class="lk-name">${l.name.replace(/</g, '&lt;')}</div>
-      <div class="lk-meta">${badge}${l.scale === 'minor' ? 'Moll' : 'Dur'} · ${beats} Schläge${when}</div>
-    </div>
-    <button onclick="event.stopPropagation(); playLickById('${l.id}')" title="Abspielen (folgt Groove & Tempo)">▶</button>
-    ${lib
-      ? `<button onclick="event.stopPropagation(); copyLibLick('${l.id}')" title="In eigene Sammlung kopieren">＋</button>
-         <button onclick="event.stopPropagation(); editLibLick('${l.id}')" title="Bearbeiten: legt automatisch eine Kopie in deiner Sammlung an und öffnet sie im Editor – das Original bleibt unverändert">✎</button>`
-      : `<button onclick="event.stopPropagation(); beginEdit('${l.id}')" title="Im Lick-Editor bearbeiten – Dauer, Staccato, Vibrato, Slides &amp; Bends pro Ton">✎</button>
-         <button onclick="event.stopPropagation(); deleteLick('${l.id}')" title="Löschen">🗑</button>`}
-  </div>`;
+// Lick-Tabelle: Bibliothek + eigene Sammlung in einer filterbaren Ansicht.
+// Filter (Name/Box/Skala) und Datums-Sortierung leben in S.lickFilter (Session).
+function setLickFilter(k, v) { S.lickFilter[k] = v; renderLickPanel(); }
+function cycleLickSort() {
+  S.lickFilter.sort = S.lickFilter.sort === '' ? 'desc' : S.lickFilter.sort === 'desc' ? 'asc' : '';
+  renderLickPanel();
 }
-function toggleLickFilter() { S.lickOnlyMatch = !S.lickOnlyMatch; renderLickPanel(); }
 function renderLickPanel() {
-  const boxTxt = S.pos === 0 ? 'alle Boxen' : 'Box ' + S.pos;
-  let html = `<div class="lib-label">Bibliothek · gängige Licks
-    <button class="mini ${S.lickOnlyMatch ? 'active' : ''}" onclick="toggleLickFilter()"
-      title="Nur Licks zeigen, die zur gewählten Pentatonik und Box passen">${S.lickOnlyMatch ? '🔎 nur ' + boxTxt + ' / ' + (S.scale === 'minor' ? 'Moll' : 'Dur') : 'alle anzeigen'}</button></div>`;
-  const cats = [...new Set(BUILTIN_LICKS.map(l => l.cat))];
-  let shownAny = false;
-  for (const cat of cats) {
-    const lst = BUILTIN_LICKS.filter(l => l.cat === cat && (!S.lickOnlyMatch || lickMatches(l, true)));
-    if (!lst.length) continue;
-    shownAny = true;
-    html += `<div class="lib-cat">${cat}</div>` + lst.map(l => lickChip(l, true)).join('');
-  }
-  if (!shownAny) html += `<span class="prog-empty">Keine Bibliotheks-Licks für ${boxTxt} · ${S.scale === 'minor' ? 'Moll' : 'Dur'}. Schalte die Box um oder klicke „alle anzeigen“.</span>`;
-  document.getElementById('lickLib').innerHTML = html;
-  document.getElementById('lickList').innerHTML = '<div class="lib-label">Eigene Sammlung</div>' + (S.licks.length
-    ? S.licks.map(l => lickChip(l, false)).join('')
-    : '<span class="prog-empty">Noch keine eigenen Licks – „● Aufnehmen“ und am Griffbrett einspielen, oder ein Bibliotheks-Lick mit ＋ kopieren.</span>');
+  const tb = document.getElementById('lickTbody');
+  if (!tb) return;
+  const f = S.lickFilter;
+  const rows = [
+    ...BUILTIN_LICKS.map(l => ({ l, lib: true })),
+    ...S.licks.map(l => ({ l, lib: false }))
+  ].filter(({ l, lib }) => {
+    if (f.text && !l.name.toLowerCase().includes(f.text.toLowerCase())) return false;
+    if (f.box && (!lib || l.box !== f.box)) return false;   // eigene Licks tragen kein Box-Tag
+    if (f.scale !== 'all' && l.scale !== f.scale) return false;
+    return true;
+  });
+  if (f.sort) rows.sort((a, b) => {
+    const ta = a.l.created ? Date.parse(a.l.created) : 0;
+    const tbv = b.l.created ? Date.parse(b.l.created) : 0;
+    return f.sort === 'desc' ? tbv - ta : ta - tbv;
+  });
+  const arrow = document.getElementById('lfSortArrow');
+  if (arrow) arrow.textContent = f.sort === 'desc' ? '▼' : f.sort === 'asc' ? '▲' : '';
+  const cnt = document.getElementById('lfCount');
+  if (cnt) cnt.textContent = `${rows.length} Licks`;
+  tb.innerHTML = rows.length ? rows.map(({ l, lib }) => {
+    const beats = +(l.notes.reduce((a, n) => a + (n.d || 1), 0) / 2).toFixed(1);
+    const match = lickMatches(l, lib);
+    const when = l.created ? new Date(l.created).toLocaleDateString('de-DE') : '–';
+    const name = l.name.replace(/</g, '&lt;');
+    const act = lib
+      ? `<button onclick="event.stopPropagation();playLickById('${l.id}')" title="Abspielen (folgt Groove &amp; Tempo)">▶</button>
+         <button onclick="event.stopPropagation();copyLibLick('${l.id}')" title="In eigene Sammlung kopieren">＋</button>
+         <button onclick="event.stopPropagation();editLibLick('${l.id}')" title="Bearbeiten: legt eine Kopie in der Sammlung an und öffnet sie im Editor">✎</button>`
+      : `<button onclick="event.stopPropagation();playLickById('${l.id}')" title="Abspielen (folgt Groove &amp; Tempo)">▶</button>
+         <button onclick="event.stopPropagation();beginEdit('${l.id}')" title="Im Lick-Editor bearbeiten">✎</button>
+         <button onclick="event.stopPropagation();deleteLick('${l.id}')" title="Löschen">🗑</button>`;
+    return `<tr class="${S.selectedLick === l.id ? 'active' : ''} ${match ? '' : 'dim'}" onclick="selectLick('${l.id}')"
+                title="${match ? 'Klick: auswählen (Anzeige am Griffbrett)' : 'Passt nicht zur aktuellen Tonart-/Box-Auswahl – Klick wählt trotzdem aus'}">
+      <td class="lt-name">${name}</td>
+      <td>${lib ? l.box : '–'}</td>
+      <td>${l.scale === 'minor' ? 'Moll' : 'Dur'}</td>
+      <td>${beats}</td>
+      <td>${when}</td>
+      <td class="lt-cat">${lib ? l.cat.replace(/</g, '&lt;') : 'Eigene'}</td>
+      <td class="lt-actions">${act}</td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="7" class="prog-empty" style="padding:12px 8px">Keine Licks für diesen Filter – Suchtext leeren oder Box/Skala auf „alle" stellen.</td></tr>';
 }
 function copyLibLick(id) {
   const src = BUILTIN_LICKS.find(l => l.id === id);
@@ -3726,7 +3781,7 @@ function reparseProg() {
 const SETTINGS_KEY = 'gitarrenTraining.settings';
 const PERSIST = ['key','scale','pos','triad','set','label','blue','blueArrows','pair','approach',
   'superId','bpm','beatsPerMeasure','tripletFeel','measuresPerChord','countIn','click','drums',
-  'bass','groove','vol','boxMode','lickOnlyMatch','micBoost','lickLoop','sound','selectedLick',
+  'bass','groove','vol','boxMode','micBoost','lickLoop','sound','selectedLick',
   'presetTab','showLegend','cards','fbCompact','intervalMode','intervalRef',
   'lickShow','pathId','pathStep','lastBackupAt','drive','panels','outDevice'];
 function saveSettings() {
