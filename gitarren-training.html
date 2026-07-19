@@ -598,6 +598,16 @@ details.card > summary:hover { color: var(--text); }
     <div class="edit-head">
       <span class="rec-label">✎ Lick-Editor</span>
       <input id="editName" placeholder="Name des Licks">
+      <label class="metro-field" title="Pentatonik-Box des Licks – wird beim Öffnen automatisch erkannt und kann hier übersteuert werden (– = keine eindeutige Box)">Box
+        <select id="editBox" onchange="S.editBox = +this.value">
+          <option value="0">–</option>
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="3">3</option>
+          <option value="4">4</option>
+          <option value="5">5</option>
+        </select>
+      </label>
       <span id="editMeta">0 Töne</span>
       <span class="tb-sep"></span>
       <button onclick="insertRestEdit()" title="Pause hinter der markierten Zeile einfügen (Dauer in der Zeile einstellbar)">⏸ Pause</button>
@@ -626,7 +636,7 @@ details.card > summary:hover { color: var(--text); }
   </div>
   <div class="lick-filter-row">
     <input id="lfName" placeholder="🔎 Name filtern (z. B. „SRV“)" oninput="setLickFilter('text', this.value)">
-    <select id="lfBox" onchange="setLickFilter('box', +this.value)" title="Nach Pentatonik-Box filtern – eigene Licks tragen kein Box-Tag und erscheinen nur bei „alle“">
+    <select id="lfBox" onchange="setLickFilter('box', +this.value)" title="Nach Pentatonik-Box filtern – die Box wird bei eigenen Licks automatisch erkannt und ist im Editor änderbar; Licks ohne eindeutige Box (–) erscheinen nur bei „alle“">
       <option value="0">Box: alle</option>
       <option value="1">Box 1</option>
       <option value="2">Box 2</option>
@@ -799,7 +809,7 @@ const S = { key: 9, scale: 'minor', pos: 1, triad: 'none', set: 'DGB', label: 'n
             drive: 'clean',
             licks: [], recording: false, lickRec: [], selectedLick: null, lickLoop: false,
             recDur: 1, recStacc: false, recVib: false, lickShow: true,
-            editing: null, editSel: -1, editKey: null, soloDraft: null, lickStep: -1,
+            editing: null, editSel: -1, editKey: null, editBox: 0, soloDraft: null, lickStep: -1,
             trading: false, motif: false, limit: null, limitNotes: [], limitFrets: [0, 3],
             trainer: null, micGate: 0.004, micBoost: 8, blue: false, blueArrows: false,
             lickFilter: { text: '', box: 0, scale: 'all', sort: '' },
@@ -2243,7 +2253,10 @@ function loadLicks() {
   try { S.licks = JSON.parse(localStorage.getItem(LICK_KEY)) || []; }
   catch { S.licks = []; }
   if (!Array.isArray(S.licks)) S.licks = [];
-  S.licks.forEach(l => { if (!l.created) l.created = new Date().toISOString(); });   // Datum immer vorhanden
+  S.licks.forEach(l => {
+    if (!l.created) l.created = new Date().toISOString();      // Datum immer vorhanden
+    if (!l.box) { const b = detectBox(l); if (b) l.box = b; }  // Box für Alt-Licks nachbestimmen
+  });
 }
 function saveLicks() {
   try { localStorage.setItem(LICK_KEY, JSON.stringify(S.licks)); return true; }
@@ -2323,6 +2336,7 @@ function saveLick() {
   S.licks.push({
     id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
     name, key: S.key, scale: S.scale,
+    box: detectBox({ key: S.key, scale: S.scale, notes: S.lickRec }) || undefined,   // Box automatisch
     notes: S.lickRec.map(n => ({ ...n })),      // explizite Notenwerte + Artikulation
     created: new Date().toISOString()
   });
@@ -2457,8 +2471,10 @@ function importLicks(file) {
       let added = 0;
       for (const l of valid) {
         if (existing.has(l.id)) continue;      // Duplikate (gleiche id) überspringen
-        S.licks.push({ ...l, key: mod12(l.key || 0), scale: l.scale === 'major' ? 'major' : 'minor',
-          created: l.created || new Date().toISOString() });   // Datum immer vorhanden
+        const imp = { ...l, key: mod12(l.key || 0), scale: l.scale === 'major' ? 'major' : 'minor',
+          created: l.created || new Date().toISOString() };    // Datum immer vorhanden
+        if (!imp.box) imp.box = detectBox(imp) || undefined;   // Box automatisch bestimmen
+        S.licks.push(imp);
         added++;
       }
       saveLicks();
@@ -2469,9 +2485,24 @@ function importLicks(file) {
   rd.readAsText(file);
 }
 
-// Passt der Lick zur aktuellen Auswahl? (Tongeschlecht immer, Box nur bei Bibliotheks-Licks)
+// Passendste Pentatonik-Box eines Licks bestimmen: Bund-Fenster jeder Box in der
+// Tonart des Licks (±1 Bund Toleranz für Blue Notes/Chromatik) gegen die Lick-Töne.
+// 0 = unklar (Lick läuft über mehrere Lagen).
+function detectBox(lick) {
+  const frets = lick.notes.filter(n => !n.rest).map(n => n.fret);
+  if (!frets.length) return 0;
+  let best = 0, bestHits = 0;
+  for (let pos = 1; pos <= 5; pos++) {
+    const bf = boxNotes(lick.key, lick.scale, pos).map(n => n.fret);
+    const lo = Math.min(...bf) - 1, hi = Math.max(...bf) + 1;
+    const hits = frets.filter(f => f >= lo && f <= hi).length;
+    if (hits > bestHits) { bestHits = hits; best = pos; }
+  }
+  return bestHits >= frets.length * 0.7 ? best : 0;
+}
+// Passt der Lick zur aktuellen Auswahl? (Tongeschlecht immer; Box, sofern hinterlegt)
 function lickMatches(l, lib) {
-  return l.scale === S.scale && (!lib || S.pos === 0 || l.box === S.pos);
+  return l.scale === S.scale && (S.pos === 0 || !l.box || l.box === S.pos);
 }
 // Lick-Tabelle: Bibliothek + eigene Sammlung in einer filterbaren Ansicht.
 // Filter (Name/Box/Skala) und Datums-Sortierung leben in S.lickFilter (Session).
@@ -2489,7 +2520,7 @@ function renderLickPanel() {
     ...S.licks.map(l => ({ l, lib: false }))
   ].filter(({ l, lib }) => {
     if (f.text && !l.name.toLowerCase().includes(f.text.toLowerCase())) return false;
-    if (f.box && (!lib || l.box !== f.box)) return false;   // eigene Licks tragen kein Box-Tag
+    if (f.box && l.box !== f.box) return false;   // Licks ohne Box-Tag nur bei „alle"
     if (f.scale !== 'all' && l.scale !== f.scale) return false;
     return true;
   });
@@ -2517,7 +2548,7 @@ function renderLickPanel() {
     return `<tr class="${S.selectedLick === l.id ? 'active' : ''} ${match ? '' : 'dim'}" onclick="selectLick('${l.id}')"
                 title="${match ? 'Klick: auswählen (Anzeige am Griffbrett)' : 'Passt nicht zur aktuellen Tonart-/Box-Auswahl – Klick wählt trotzdem aus'}">
       <td class="lt-name">${name}</td>
-      <td>${lib ? l.box : '–'}</td>
+      <td>${l.box || '–'}</td>
       <td>${l.scale === 'minor' ? 'Moll' : 'Dur'}</td>
       <td>${beats}</td>
       <td>${when}</td>
@@ -2530,7 +2561,7 @@ function copyLibLick(id) {
   const src = BUILTIN_LICKS.find(l => l.id === id);
   if (!src) return null;
   const nl = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-    name: src.name, key: src.key, scale: src.scale,
+    name: src.name, key: src.key, scale: src.scale, box: src.box,
     notes: src.notes.map(n => ({ ...n })), created: new Date().toISOString() };
   S.licks.push(nl);
   if (!saveLicks()) { S.licks.pop(); return null; }
@@ -2666,6 +2697,7 @@ function saveSoloDraft() {
     id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
     name: `Solo-Vorschlag ${nn(S.key, S.key)}${S.scale === 'minor' ? 'm' : ''} · ${new Date().toLocaleDateString('de-DE')}`,
     key: S.soloDraft.key, scale: S.soloDraft.scale,
+    box: S.pos || detectBox(S.soloDraft) || undefined,   // Generator läuft in der gewählten Box
     notes: S.soloDraft.notes.map(n => ({ ...n })),
     created: new Date().toISOString()
   };
@@ -2759,6 +2791,8 @@ function beginEdit(id) {
   const t = transposeLick(lk);             // Arbeitskopie – erst beim Speichern übernommen
   S.lickRec = (t || lk.notes).map(n => ({ ...n }));
   S.editKey = t ? S.key : lk.key;
+  S.editBox = lk.box || detectBox(lk) || 0;               // hinterlegte Box, sonst Auto-Vorschlag
+  document.getElementById('editBox').value = S.editBox;
   document.getElementById('editName').value = lk.name;
   document.getElementById('editorRow').style.display = 'block';
   document.getElementById('recRow').style.display = 'none';
@@ -3015,6 +3049,7 @@ function saveEdit() {
   lk.name = (document.getElementById('editName').value || '').trim() || lk.name;
   lk.notes = S.lickRec.map(n => ({ ...n }));
   lk.key = S.editKey ?? S.key;               // Tonart des Buffers; scale (Dur/Moll-Kennung) bleibt
+  if (S.editBox) lk.box = S.editBox; else delete lk.box;
   lk.edited = new Date().toISOString();
   if (saveLicks()) { S.selectedLick = lk.id; closeEdit(); }
 }
@@ -3025,13 +3060,14 @@ function saveEditAsNew() {
   const nl = {
     id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
     name: base + ' (Kopie)', key: S.editKey ?? S.key, scale: src ? src.scale : S.scale,
+    box: S.editBox || undefined,
     notes: S.lickRec.map(n => ({ ...n })), created: new Date().toISOString()
   };
   S.licks.push(nl);
   if (saveLicks()) { S.selectedLick = nl.id; closeEdit(); }
 }
 function closeEdit() {
-  S.editing = null; S.editSel = -1; S.editKey = null; S.lickRec = [];
+  S.editing = null; S.editSel = -1; S.editKey = null; S.editBox = 0; S.lickRec = [];
   resetLickStep();
   const row = document.getElementById('editorRow');
   if (row) row.style.display = 'none';
