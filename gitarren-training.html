@@ -2262,23 +2262,22 @@ const BUILTIN_LICKS = [
      [2,7,1.5,2,'v'],                                             // G7 nochmal voll hochziehen (D↗E)
      [2,5,4,0,'vh'],                                              // G5 Pull-off, hält lange, singt (C)
      ['r',3]]),                                                   // Luft zum Taktende
-  // Lick 50: dreimal die gedämpfte "9th"-Hammer-Figur (x→Hammer C→D auf der
-  // G-Saite), dann eine Pull-off-Kaskade, dann der charakteristische Full-Bend
-  // A↗H (Grundton auf die 9) auf der D-Saite – daher der Name. Alles Box 1.
+  // Lick 50: dreimal die gedämpfte "9th"-Hammer-Figur als 16tel-Triolen-Paare
+  // ("3" der Vorlage), die Pull-off-Kaskade als echte Sextole ("6"), der
+  // Full-Bend A↗H (Grundton auf die 9 – daher der Name) und die Schluss-
+  // Triole ("3"). Alles Box 1, Rhythmus jetzt exakt wie notiert.
   _lk('srv-9th', 'SRV P1 9th Hammer', 'minor', 1, '🌪 SRV-Style (Slides & Legato)',
-    [[2,5,0.5,0,'sg'],[2,7,0.5,0,'h'],                            // x→D Hammer (C→D) #1
-     [2,5,0.5,0,'sg'],[2,7,0.5,0,'h'],                            // x→D Hammer #2
-     [2,5,0.5,0,'sg'],[2,7,0.5,0,'h'],                            // x→D Hammer #3
-     [2,5,0.5],                                                   // C – Verbindungston
-     [0,8,0.5],[0,5,0.5,0,'h'],                                   // e8, e5 Pull-off (C, A)
-     [1,8,0.5],[1,5,0.5,0,'h'],                                   // B8, B5 Pull-off (G, E)
-     [2,7,0.5],[2,5,0.5,0,'h'],                                   // G7, G5 Pull-off (D, C)
+    [[2,5,1/3,0,'sg'],[2,7,1/3,0,'h'],                            // x→D Hammer – Triolen-Paar 1
+     [2,5,1/3,0,'sg'],[2,7,1/3,0,'h'],                            // Paar 2
+     [2,5,1/3,0,'sg'],[2,7,1/3,0,'h'],                            // Paar 3 („3“ = 1 Schlag)
+     [0,8,1/3],[0,5,1/3,0,'h'],                                   // Sextole: C, A (e-Saite)
+     [1,8,1/3],[1,5,1/3,0,'h'],                                   //          G, E (B-Saite)
+     [2,7,1/3],[2,5,1/3,0,'h'],                                   //          D, C („6“ = 1 Schlag)
      [3,7,0.5,0,'sg'],                                            // x – Rake vor dem Bend
-     [3,7,1.5,2,'v'],                                             // D7 voll hochziehen A↗H – die „9th“
-     [3,5,0.5,0,'h'],                                             // D5 Pull-off (G)
-     [3,7,0.5],[3,5,0.5,0,'h'],                                   // D7, D5 Pull-off (A, G)
-     [2,5,3,0,'v'],                                                // C – hält, singt
-     ['r',3]])                                                    // Luft zum Taktende
+     [3,7,3.5,2,'v'],                                             // A voll hochziehen (→ H, die „9th“)
+     [3,7,2/3],[3,5,2/3,0,'h'],[3,7,2/3],                         // Achtel-Triole A, G, A („3“)
+     [2,5,4,0,'v'],                                               // C – hält, singt
+     ['r',2]])                                                    // Luft zum Taktende
 ];
 function findLick(id) {
   if (id === '_solo' && S.soloDraft) return S.soloDraft;    // aktueller Solo-Vorschlag (Entwurf)
