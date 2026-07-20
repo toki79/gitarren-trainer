@@ -624,7 +624,7 @@ details.card > summary:hover { color: var(--text); }
     <div class="hint" style="margin-bottom:8px"><b>Direkt in der TAB editieren:</b> Klick setzt den Cursor (orange Spalte), dann
       <b>0–9</b>&nbsp;Bund (zweistellig schnell tippen) · <b>←→</b>&nbsp;Position · <b>↑↓</b>&nbsp;Saite (Bund bleibt, Ton ändert sich) · <b>Shift+↑↓</b>&nbsp;Saite (gleiche Tonhöhe) ·
       <b>+/−</b>&nbsp;Dauer · <b>t</b>&nbsp;Triole · <b>b</b>&nbsp;Bend · <b>s</b>&nbsp;Slide · <b>h</b>&nbsp;Hammer/Pull ·
-      <b>v</b>&nbsp;Vibrato · <b>.</b>&nbsp;Staccato · <b>g</b>&nbsp;Betonung · <b>p</b>&nbsp;Pause · <b>Entf</b>&nbsp;löschen ·
+      <b>v</b>&nbsp;Vibrato · <b>x</b>&nbsp;tote Note · <b>.</b>&nbsp;Staccato · <b>g</b>&nbsp;Betonung · <b>p</b>&nbsp;Pause · <b>Entf</b>&nbsp;löschen ·
       <b>Leertaste</b>&nbsp;anhören. Griffbrett-Klick fügt hinter dem Cursor ein. Lautstärke &amp; Zerre: Panel „🎚&nbsp;Ton".</div>
     <div id="editStaff" class="edit-staff" style="display:none"></div>
     <div id="editNotes" class="edit-notes"></div>
@@ -975,6 +975,24 @@ function pluck(midi, when = 0, dur = 1.1, gainMul = 1, bendSemi = 0, vib = false
     o.connect(g); g.connect(lp);
     o.start(t0); o.stop(t0 + dur + 0.05);
   });
+}
+// Tote Note (Rake/Mute): kurzer, gedämpfter, quasi-tonloser „chk"-Klick.
+// Gefiltertes Rauschen um die Saiten-Tonhöhe – höhere Saiten klicken heller.
+function pluckDead(midi, when = 0, gainMul = 1, track = 'lick') {
+  const ac = audio();
+  const t0 = ac.currentTime + when;
+  const buf = ac.createBuffer(1, Math.ceil(ac.sampleRate * 0.09), ac.sampleRate);
+  const ch = buf.getChannelData(0);
+  for (let i = 0; i < ch.length; i++) ch[i] = (Math.random() * 2 - 1);
+  const src = ac.createBufferSource(); src.buffer = buf;
+  const bp = ac.createBiquadFilter(); bp.type = 'bandpass';
+  bp.frequency.value = Math.min(3200, midiToFreq(midi) * 1.5); bp.Q.value = 1.2;
+  const out = ac.createGain();
+  out.gain.setValueAtTime(0.0001, t0);
+  out.gain.exponentialRampToValueAtTime(0.32 * gainMul, t0 + 0.004);
+  out.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.07);
+  src.connect(bp); bp.connect(out); out.connect(trackGain[track] || trackGain.guitar);
+  src.start(t0); src.stop(t0 + 0.09);
 }
 // Visuelles Aufleuchten eines Tons (synchron zum Klang): expandierender Ring
 function flashAt(s, fret, delayMs, color) {
@@ -1702,20 +1720,21 @@ function render() {
         svg.appendChild(el('line', { x1, y1:y, x2, y2:y, stroke:'#f59e0b', 'stroke-width':2 }));
         svg.appendChild(el('polygon', { points:`${x2 + sdir * 5},${y} ${x2},${y - 3} ${x2},${y + 3}`, fill:'#f59e0b' }));
       }
-      const bendCol = (n.bend || n.slide) ? '#f59e0b' : '#22d3ee';
+      const bendCol = n.mute ? '#64748b' : (n.bend || n.slide) ? '#f59e0b' : '#22d3ee';
       const c = el('circle', { cx:x, cy:y, r:8.5, fill:bendCol, stroke:'#083344', 'stroke-width':1.5 });
       c.style.cursor = 'pointer';
       c.addEventListener('click', () => {
         // Auch im Editor fügt ein Griffbrett-Klick ein (Zeilen wählt man in der Liste) –
         // Lick-Kreise übermalen die Box-Töne, sonst wäre Einfügen dort unmöglich
         if (capturing()) recordNote(n.s, n.fret);
+        else if (n.mute) pluckDead(OPEN_MIDI[n.s] + n.fret, 0, 0.9, 'lick');
         else pluck(OPEN_MIDI[n.s] + n.fret, 0, 1.1, 0.95, n.bend || 0, false, 'lick', n.slide || 0);
       });
       svg.appendChild(c);
       svg.appendChild(el('text', {
-        x, y, fill:'#083344', 'font-size':8.5, 'font-weight':'bold',
+        x, y, fill:'#083344', 'font-size': n.mute ? 10 : 8.5, 'font-weight':'bold',
         'text-anchor':'middle', 'dominant-baseline':'middle', style:'user-select:none;pointer-events:none'
-      }, String(k + 1)));
+      }, n.mute ? '✕' : String(k + 1)));                                                               // tote Note: ✕ statt Nummer
       if (n.stacc) svg.appendChild(el('circle', { cx:x, cy:y - 13, r:2, fill:'#22d3ee' }));          // Staccato-Punkt
       if (n.vib) svg.appendChild(el('text', { x:x + 12, y:y - 8, fill:'#22d3ee', 'font-size':10, 'font-weight':'bold',
         'text-anchor':'middle', style:'user-select:none;pointer-events:none' }, '∿'));               // Vibrato-Wellen
@@ -2155,6 +2174,7 @@ const _lk = (id, name, scale, box, cat, notes) =>
        if (art && art.includes('h')) n.leg = 1;
        if (art && art.includes('g')) n.acc = -1;
        if (art && art.includes('a')) n.acc = 1;
+       if (art && art.includes('x')) n.mute = 1;        // tote Note (Rake)
        return n;
      }) });
 const BUILTIN_LICKS = [
@@ -2242,19 +2262,19 @@ const BUILTIN_LICKS = [
   // Triolen-Feel der Vorlage → mit Shuffle-Groove spielen.
   _lk('srv-rake', 'SRV-Lick: Rake & Bends auf der B-Saite', 'minor', 2, '🌪 SRV-Style (Slides & Legato)',
     [[1,10,1],                                                   // A – Auftakt
-     [1,10,0.5,0,'sg'],[1,10,0.5,0,'sg'],                        // x x – Rake: kurze tote Schläge
+     [1,10,0.5,0,'x'],[1,10,0.5,0,'x'],                        // x x – Rake: kurze tote Schläge
      [1,10,1],[1,8,1],                                           // A, G
      [1,10,4,2],                                                 // A voll hochziehen (full → H), halten
      [1,9,2,1],                                                  // G♯ nur ½ hoch (→ A) – die ♯-Note
      [1,8,1],                                                    // G
-     [1,10,0.5,0,'sg'],                                          // x – kurzer Rake
+     [1,10,0.5,0,'x'],                                          // x – kurzer Rake
      [1,10,1.5],                                                 // A
      [1,10,3,0,'v']]),                                           // A, punktiert, singt
   // Lick 29: x-Rake in einen Full-Bend, dann zwei Pull-off-Kaskaden über die
   // Saiten (b7→R, dann 4→5 zweimal) – alles in Box 1. Triolen/Sextolen der
   // Vorlage als 16tel angenähert (siehe Hinweis unten in der Antwort).
   _lk('srv-lick29', 'SRV-Lick 29: Full-Bend-Kaskade', 'minor', 1, '🌪 SRV-Style (Slides & Legato)',
-    [[1,8,0.5,0,'sg'],                                            // x – Rake auf der B-Saite
+    [[1,8,0.5,0,'x'],                                            // x – Rake auf der B-Saite
      [1,8,1.5,2,'v'],                                             // B8 voll hochziehen (G↗A), hält
      [1,5,0.5,0,'h'],                                             // B5 Pull-off (E)
      [0,8,0.5],[0,5,0.5,0,'h'],                                   // e8, e5 Pull-off (C, A)
@@ -2270,13 +2290,13 @@ const BUILTIN_LICKS = [
   // Full-Bend A↗H (Grundton auf die 9 – daher der Name) und die Schluss-
   // Triole ("3"). Alles Box 1, Rhythmus jetzt exakt wie notiert.
   _lk('srv-9th', 'SRV P1 9th Hammer', 'minor', 1, '🌪 SRV-Style (Slides & Legato)',
-    [[2,5,1/3,0,'sg'],[2,7,1/3,0,'h'],                            // x→D Hammer – Triolen-Paar 1
-     [2,5,1/3,0,'sg'],[2,7,1/3,0,'h'],                            // Paar 2
-     [2,5,1/3,0,'sg'],[2,7,1/3,0,'h'],                            // Paar 3 („3“ = 1 Schlag)
+    [[2,5,1/3,0,'x'],[2,7,1/3,0,'h'],                            // x→D Hammer – Triolen-Paar 1
+     [2,5,1/3,0,'x'],[2,7,1/3,0,'h'],                            // Paar 2
+     [2,5,1/3,0,'x'],[2,7,1/3,0,'h'],                            // Paar 3 („3“ = 1 Schlag)
      [1,8,1/3],[1,5,1/3,0,'h'],                                   // Sextole: G, E (B-Saite)
      [2,7,1/3],[2,5,1/3,0,'h'],                                   //          D, C (G-Saite)
      [3,7,1/3],[3,5,1/3,0,'h'],                                   //          A, G (D-Saite, „6“)
-     [3,7,0.5,0,'sg'],                                            // x – Rake vor dem Bend
+     [3,7,0.5,0,'x'],                                            // x – Rake vor dem Bend
      [3,7,3.5,2,'v'],                                             // A voll hochziehen (→ H, die „9th“)
      [3,7,2/3],[3,5,2/3,0,'h'],[3,7,2/3],                         // Achtel-Triole A, G, A („3“)
      [2,5,4,0,'v'],                                               // C – hält, singt
@@ -2445,6 +2465,11 @@ function playLickAt(lick, delaySec, quiet) {
     const src = lick.notes[i], d = src.d || 1;
     if (src.rest) { off += d; return; }                             // Pause: nur Zeit weiterrücken
     const start = delaySec + eighthTime(off, spb);
+    if (src.mute) {                                                  // tote Note (Rake): kurzer Klick
+      pluckDead(OPEN_MIDI[n.s] + n.fret, start, 0.9, 'lick');
+      flashAt(n.s, n.fret, start * 1000, '#94a3b8');
+      off += d; return;
+    }
     let dur = Math.max((eighthTime(off + d, spb) - eighthTime(off, spb)) * 1.05, 0.18);
     if (src.stacc) dur = Math.min(dur, 0.16);                       // Staccato: kurz
     const g = 0.95 * (src.acc === 1 ? 1.5 : src.acc === -1 ? 0.45 : 1)    // Betonung: Akzent / Ghost
@@ -2479,8 +2504,11 @@ function stepLick(dir) {
     ? (dir > 0 ? 0 : notes.length - 1)
     : (S.lickStep + dir + notes.length) % notes.length;
   const n = notes[S.lickStep];
-  const g = 0.95 * (n.acc === 1 ? 1.5 : n.acc === -1 ? 0.45 : 1) * (n.leg ? 0.55 : 1);
-  pluck(OPEN_MIDI[n.s] + n.fret, 0, n.stacc ? 0.16 : 1.1, g, n.bend || 0, !!n.vib, 'lick', n.slide || 0);
+  if (n.mute) pluckDead(OPEN_MIDI[n.s] + n.fret, 0, 0.9, 'lick');
+  else {
+    const g = 0.95 * (n.acc === 1 ? 1.5 : n.acc === -1 ? 0.45 : 1) * (n.leg ? 0.55 : 1);
+    pluck(OPEN_MIDI[n.s] + n.fret, 0, n.stacc ? 0.16 : 1.1, g, n.bend || 0, !!n.vib, 'lick', n.slide || 0);
+  }
   flashAt(n.s, n.fret, 0, '#22c55e');
   const btn = document.getElementById('lickStepBtn');
   if (btn) btn.textContent = `▶| ${S.lickStep + 1}/${notes.length}`;
@@ -2581,6 +2609,8 @@ function mxlMeasureToRec(noteEls, divisions) {
       return;
     }
     const note = { s: top.s, fret: top.fret, d };
+    // tote Note (Rake/Mute): x-Notenkopf oder GP-Dämpfung
+    if (el.querySelector('notehead')?.textContent.trim() === 'x' || el.querySelector('unpitched')) { note.mute = 1; rec.push(note); lastVoiced = null; return; }
     const bendAlt = el.querySelector('technical > bend > bend-alter');
     const release = el.querySelector('technical > bend > release');
     if (bendAlt && !release) { const ba = +bendAlt.textContent; note.bend = ba >= 1.5 ? 2 : (ba > 0 ? 1 : undefined); }
@@ -3060,8 +3090,11 @@ function renderEditorStaff() {
       for (let s2 = 0; s2 >= step; s2 -= 2)                   // Hilfslinien unten
         svg.appendChild(el('line', { x1: x - 8, y1: nBot - (s2 - 2) * (nGap / 2), x2: x + 8, y2: nBot - (s2 - 2) * (nGap / 2), stroke: '#3a4150', 'stroke-width': 1 }));
       const hollow = g.kind === 'whole' || g.kind === 'half';
-      svg.appendChild(el('ellipse', { cx: x, cy: y, rx: 4.6, ry: 3.4, fill: hollow ? 'none' : col, stroke: col,
-        'stroke-width': hollow ? 1.6 : 1, transform: `rotate(-15 ${x} ${y})` }));
+      if (n.mute)                                              // tote Note: ✕-Notenkopf
+        svg.appendChild(el('text', { x, y: y + 3.5, fill: col, 'font-size': 11, 'font-weight': 'bold', 'text-anchor': 'middle' }, '✕'));
+      else
+        svg.appendChild(el('ellipse', { cx: x, cy: y, rx: 4.6, ry: 3.4, fill: hollow ? 'none' : col, stroke: col,
+          'stroke-width': hollow ? 1.6 : 1, transform: `rotate(-15 ${x} ${y})` }));
       if (g.dot) svg.appendChild(el('circle', { cx: x + 8, cy: y - 2, r: 1.6, fill: col }));
       if (accid) svg.appendChild(el('text', { x: x - 10, y: y + 3.5, fill: col, 'font-size': 10, 'text-anchor': 'middle' }, accid));
       const gr = beamed.get(it);
@@ -3084,7 +3117,7 @@ function renderEditorStaff() {
       // ── TAB-Zeile ──
       svg.appendChild(el('rect', { x: x - 6, y: ty - 5, width: 12, height: 10, fill: bg }));
       svg.appendChild(el('text', { x, y: ty + 3.5, fill: col, 'font-size': 10, 'font-weight': 'bold', 'text-anchor': 'middle',
-        'font-family': 'ui-monospace,monospace' }, String(n.fret)));
+        'font-family': 'ui-monospace,monospace' }, n.mute ? '✕' : String(n.fret)));   // tote Note: ✕ in der TAB
       if (n.leg && prev) {                                    // Legato: Bogen vom vorigen Ton (Noten + TAB)
         const midX = (prev.x + x) / 2;
         const nyTop = Math.min(prev.y, y) - 6;
@@ -3210,6 +3243,7 @@ function renderEditor() {
       <button class="en-tog ${n.stacc ? 'active' : ''}" onclick="event.stopPropagation();toggleNoteStacc(${i})" title="Staccato – kurz &amp; abgehackt">•</button>
       <button class="en-tog ${n.vib ? 'active' : ''}" onclick="event.stopPropagation();toggleNoteVib(${i})" title="Vibrato">∿</button>
       <button class="en-tog ${n.leg ? 'active' : ''}" onclick="event.stopPropagation();toggleNoteLeg(${i})" title="Legato: Hammer-on/Pull-off – dieser Ton wird vom vorigen gebunden gespielt (kein Anschlag), mit Bogen in Noten &amp; TAB">⌒</button>
+      <button class="en-tog ${n.mute ? 'active' : ''}" onclick="event.stopPropagation();toggleNoteMute(${i})" title="Tote Note (Rake/Mute): kurzer, gedämpfter „chk“-Klick statt Tonhöhe – ✕ in Noten &amp; TAB">✕</button>
       <span class="en-bend"><small>Bend</small>${bends}</span>
       <span class="en-bend"><small>Slide</small>${slides}</span>
       <span class="en-bend"><small>Betonung</small>${accs}</span>
@@ -3233,6 +3267,7 @@ function setNoteDur(i, d) { S.lickRec[i].d = d; renderEditor(); render(); }
 function toggleNoteStacc(i) { const n = S.lickRec[i]; if (n.stacc) delete n.stacc; else n.stacc = 1; renderEditor(); render(); }
 function toggleNoteVib(i) { const n = S.lickRec[i]; if (n.vib) delete n.vib; else n.vib = 1; renderEditor(); render(); }
 function toggleNoteLeg(i) { const n = S.lickRec[i]; if (n.leg) delete n.leg; else n.leg = 1; renderEditor(); render(); }
+function toggleNoteMute(i) { const n = S.lickRec[i]; if (n.mute) delete n.mute; else n.mute = 1; renderEditor(); render(); }
 function setNoteBend(i, v) { const n = S.lickRec[i]; if (v) n.bend = v; else delete n.bend; renderEditor(); render(); }
 function setNoteAcc(i, v) { const n = S.lickRec[i]; if (v) n.acc = v; else delete n.acc; renderEditor(); render(); }
 function setNoteSlide(i, v) { const n = S.lickRec[i]; if (v) n.slide = v; else delete n.slide; renderEditor(); render(); }
@@ -3314,6 +3349,7 @@ function editorKeydown(e) {
     apply();
   } else if (k === 'h') { if (!n || n.rest) return; toggleNoteLeg(i); }
   else if (k === 'v') { if (!n || n.rest) return; toggleNoteVib(i); }
+  else if (k === 'x') { if (!n || n.rest) return; toggleNoteMute(i); }
   else if (k === '.') { if (!n || n.rest) return; toggleNoteStacc(i); }
   else if (k === 'g') {                                        // Betonung – / > / p
     if (!n || n.rest) return;
@@ -3330,8 +3366,11 @@ document.addEventListener('keydown', editorKeydown);
 function playEditNote(i) {
   const n = S.lickRec[i];
   if (n.rest) { S.editSel = i; renderEditor(); render(); return; }
-  const g = 0.95 * (n.acc === 1 ? 1.5 : n.acc === -1 ? 0.45 : 1) * (n.leg ? 0.55 : 1);
-  pluck(OPEN_MIDI[n.s] + n.fret, 0, n.stacc ? 0.16 : 1.0, g, n.bend || 0, !!n.vib, 'lick', n.slide || 0);
+  if (n.mute) pluckDead(OPEN_MIDI[n.s] + n.fret, 0, 0.9, 'lick');
+  else {
+    const g = 0.95 * (n.acc === 1 ? 1.5 : n.acc === -1 ? 0.45 : 1) * (n.leg ? 0.55 : 1);
+    pluck(OPEN_MIDI[n.s] + n.fret, 0, n.stacc ? 0.16 : 1.0, g, n.bend || 0, !!n.vib, 'lick', n.slide || 0);
+  }
   flashAt(n.s, n.fret, 0, '#f59e0b');
   S.editSel = i; renderEditor(); render();
 }
