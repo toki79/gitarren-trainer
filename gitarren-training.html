@@ -619,7 +619,7 @@ details.card > summary:hover { color: var(--text); }
       <button onclick="closeEdit()" title="Editor schließen, Änderungen verwerfen">✖ Schließen</button>
     </div>
     <div class="hint" style="margin-bottom:8px"><b>Direkt in der TAB editieren:</b> Klick setzt den Cursor (orange Spalte), dann
-      <b>0–9</b>&nbsp;Bund (zweistellig schnell tippen) · <b>←→</b>&nbsp;Position · <b>↑↓</b>&nbsp;Saite (Tonhöhe bleibt) ·
+      <b>0–9</b>&nbsp;Bund (zweistellig schnell tippen) · <b>←→</b>&nbsp;Position · <b>↑↓</b>&nbsp;Saite (Bund bleibt, Ton ändert sich) · <b>Shift+↑↓</b>&nbsp;Saite (gleiche Tonhöhe) ·
       <b>+/−</b>&nbsp;Dauer · <b>t</b>&nbsp;Triole · <b>b</b>&nbsp;Bend · <b>s</b>&nbsp;Slide · <b>h</b>&nbsp;Hammer/Pull ·
       <b>v</b>&nbsp;Vibrato · <b>.</b>&nbsp;Staccato · <b>g</b>&nbsp;Betonung · <b>p</b>&nbsp;Pause · <b>Entf</b>&nbsp;löschen ·
       <b>Leertaste</b>&nbsp;anhören. Griffbrett-Klick fügt hinter dem Cursor ein. Lautstärke &amp; Zerre: Panel „🎚&nbsp;Ton".</div>
@@ -3146,13 +3146,20 @@ function editorKeydown(e) {
     if (S.lickRec.length) { S.editSel = i < 0 ? 0 : Math.min(S.lickRec.length - 1, i + 1); apply(); }
   } else if (k === 'ArrowLeft') {
     if (S.lickRec.length) { S.editSel = i < 0 ? S.lickRec.length - 1 : Math.max(0, i - 1); apply(); }
-  } else if (k === 'ArrowUp' || k === 'ArrowDown') {           // Saite wechseln, Tonhöhe halten
+  } else if (k === 'ArrowUp' || k === 'ArrowDown') {
+    // Saite wechseln: Bund bleibt (Ton ändert sich) · mit Shift: Tonhöhe bleibt (Bund umgerechnet)
     if (!n || n.rest) return;
     const ns = n.s + (k === 'ArrowUp' ? -1 : 1);
     if (ns < 0 || ns > 5) { e.preventDefault(); return; }
-    const nf = OPEN_MIDI[n.s] + n.fret - OPEN_MIDI[ns];
-    if (nf < 0 || nf > FRETS) { e.preventDefault(); return; }
-    n.s = ns; n.fret = nf; apply();
+    if (e.shiftKey) {
+      const nf = OPEN_MIDI[n.s] + n.fret - OPEN_MIDI[ns];
+      if (nf < 0 || nf > FRETS) { e.preventDefault(); return; }
+      n.s = ns; n.fret = nf;
+    } else {
+      n.s = ns;
+    }
+    pluck(OPEN_MIDI[n.s] + n.fret, 0, 0.5, 0.8, 0, false, 'lick');   // neuen Ton hören
+    apply();
   } else if (/^[0-9]$/.test(k)) {                              // Bund setzen (mit Zweistellig-Puffer)
     if (!n || n.rest) return;
     const now = Date.now();
