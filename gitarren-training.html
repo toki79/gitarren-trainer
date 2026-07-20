@@ -2240,7 +2240,22 @@ const BUILTIN_LICKS = [
      [1,8,1],                                                    // G
      [1,10,0.5,0,'sg'],                                          // x – kurzer Rake
      [1,10,1.5],                                                 // A
-     [1,10,3,0,'v']])                                            // A, punktiert, singt
+     [1,10,3,0,'v']]),                                           // A, punktiert, singt
+  // Lick 29: x-Rake in einen Full-Bend, dann zwei Pull-off-Kaskaden über die
+  // Saiten (b7→R, dann 4→5 zweimal) – alles in Box 1. Triolen/Sextolen der
+  // Vorlage als 16tel angenähert (siehe Hinweis unten in der Antwort).
+  _lk('srv-lick29', 'SRV-Lick 29: Full-Bend-Kaskade', 'minor', 1, '🌪 SRV-Style (Slides & Legato)',
+    [[1,8,0.5,0,'sg'],                                            // x – Rake auf der B-Saite
+     [1,8,1.5,2,'v'],                                             // B8 voll hochziehen (G↗A), hält
+     [1,5,0.5,0,'h'],                                             // B5 Pull-off (E)
+     [0,8,0.5],[0,5,0.5,0,'h'],                                   // e8, e5 Pull-off (C, A)
+     [1,8,0.5],[1,5,0.5,0,'h'],                                   // B8, B5 Pull-off (G, E)
+     [2,7,1.5,2,'v'],                                             // G7 voll hochziehen (D↗E), hält
+     [2,5,0.5,0,'h'],                                             // G5 Pull-off (C)
+     [3,7,0.5],[3,5,0.5,0,'h'],                                   // D7, D5 Pull-off (A, G)
+     [2,7,1.5,2,'v'],                                             // G7 nochmal voll hochziehen (D↗E)
+     [2,5,4,0,'vh'],                                              // G5 Pull-off, hält lange, singt (C)
+     ['r',3]])                                                    // Luft zum Taktende
 ];
 function findLick(id) {
   if (id === '_solo' && S.soloDraft) return S.soloDraft;    // aktueller Solo-Vorschlag (Entwurf)
