@@ -565,6 +565,9 @@ details.card > summary:hover { color: var(--text); }
       <button onclick="document.getElementById('lickFile').click()" title="Sammlung aus JSON-Datei laden (wird zur bestehenden hinzugefügt)">⬆ Import</button>
       <input type="file" id="lickFile" accept=".json,application/json" style="display:none"
              onchange="importLicks(this.files[0]); this.value=''">
+      <button onclick="document.getElementById('mxlFile').click()" title="MusicXML aus Guitar Pro importieren (.xml/.musicxml) – jeder Takt/jede Übung wird ein Lick mit Saiten, Bünden, Bends, Slides, Vibrato und Triolen">⬆ MusicXML</button>
+      <input type="file" id="mxlFile" accept=".xml,.musicxml,application/xml,text/xml" style="display:none"
+             onchange="importMusicXML(this.files[0]); this.value=''">
     </div>
   </div>
   <div id="recRow" style="display:none">
@@ -2529,6 +2532,118 @@ function importLicks(file) {
   rd.readAsText(file);
 }
 
+// ─── MusicXML-Import (Guitar Pro / MuseScore …) ──────────────────────────────
+// Liest den TAB-Notensystem-Zweig (plain <string>/<fret>). Jeder Takt zwischen
+// Wiederholungs-Zeichen wird ein Lick. Akkorde → höchster Ton (monophones
+// Modell), Ties werden verschmolzen, Triolen aufs Achtel/Triolen-Raster
+// abgebildet. Erfasst: Bund/Saite, Dauer, Bend (½/full), Slide, Vibrato, Pause.
+function chordRootPc(txt) {
+  const m = /^\s*([A-G])([#b]?)/.exec(txt || '');
+  if (!m) return 9;                                        // Fallback A
+  const base = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 }[m[1]];
+  return mod12(base + (m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0));
+}
+function mxlNoteVibrato(n) {                               // GP legt Vibrato als <?GP ...?> ab
+  for (const c of n.childNodes)
+    if (c.nodeType === 7 && /vibrato/i.test(c.data || '')) return true;
+  return false;
+}
+// Noten eines Takts (TAB-Zweig) → Lick-Notenarray. divisions = Einheiten pro Viertel.
+function mxlMeasureToRec(noteEls, divisions) {
+  const cols = [];                                         // Spalten (Akkord = gleiche Spalte)
+  noteEls.forEach(n => {
+    if (n.querySelector('chord')) { if (cols.length) cols[cols.length - 1].push(n); }
+    else cols.push([n]);
+  });
+  const rec = [];
+  let lastVoiced = null;                                   // für Ties und Slide-Ziel
+  cols.forEach((col, ci) => {
+    const dur = +(col[0].querySelector('duration')?.textContent || 0);
+    const d = dur / divisions * 2;                          // Viertel = 2 Achtel-Einheiten (roh: exakte 2/3 für Triolen)
+    if (d <= 0) return;
+    if (col[0].querySelector('rest')) { rec.push({ rest: 1, d }); lastVoiced = null; return; }
+    // höchsten (Melodie-)Ton der Spalte wählen
+    let top = null, topMidi = -1;
+    for (const nn2 of col) {
+      const s = +(nn2.querySelector('technical > string')?.textContent);
+      const fr = +(nn2.querySelector('technical > fret')?.textContent);
+      if (!Number.isInteger(s) || !Number.isInteger(fr) || s < 1 || s > 6) continue;
+      const midi = OPEN_MIDI[s - 1] + fr;
+      if (midi > topMidi) { topMidi = midi; top = { s: s - 1, fret: fr, el: nn2 }; }
+    }
+    if (!top) return;
+    const el = top.el;
+    // Tie-Stop: an vorige gleiche Note anhängen (Dauer addieren) statt neuer Ton
+    if ((el.querySelector('tie[type="stop"]') || el.querySelector('tied[type="stop"]')) &&
+        lastVoiced && lastVoiced.s === top.s && lastVoiced.fret === top.fret) {
+      lastVoiced.d = lastVoiced.d + d;                     // roh addieren (Triolen-Exaktheit erhalten)
+      if (mxlNoteVibrato(el)) lastVoiced.vib = 1;
+      return;
+    }
+    const note = { s: top.s, fret: top.fret, d };
+    const bendAlt = el.querySelector('technical > bend > bend-alter');
+    const release = el.querySelector('technical > bend > release');
+    if (bendAlt && !release) { const ba = +bendAlt.textContent; note.bend = ba >= 1.5 ? 2 : (ba > 0 ? 1 : undefined); }
+    if (mxlNoteVibrato(el)) note.vib = 1;
+    // Slide: Ziel = nächste Spalte auf gleicher Saite
+    if (el.querySelector('slide[type="start"]')) {
+      const next = cols[ci + 1];
+      if (next) for (const m2 of next) {
+        const s2 = +(m2.querySelector('technical > string')?.textContent);
+        if (s2 - 1 === top.s) { const f2 = +(m2.querySelector('technical > fret')?.textContent);
+          if (Number.isInteger(f2) && f2 !== top.fret) note.slide = f2 - top.fret; break; }
+      }
+    }
+    rec.push(note);
+    lastVoiced = note;
+  });
+  return rec;
+}
+function importMusicXML(file) {
+  if (!file) return;
+  const rd = new FileReader();
+  rd.onload = () => {
+    try {
+      const doc = new DOMParser().parseFromString(rd.result, 'application/xml');
+      if (doc.querySelector('parsererror')) throw new Error('Datei ist kein gültiges XML');
+      const part = doc.querySelector('part');
+      if (!part) throw new Error('Keine Noten-Spur gefunden');
+      const title = (doc.querySelector('work-title, movement-title')?.textContent ||
+        file.name.replace(/\.(xml|musicxml)$/i, '')).trim();
+      const created = new Date().toISOString();
+      let divisions = 4, curKey = 9, made = 0, skipped = 0;
+      const fresh = [];
+      part.querySelectorAll('measure').forEach((m, mi) => {
+        const dv = m.querySelector('attributes > divisions');
+        if (dv) divisions = +dv.textContent;
+        const chordTxt = (m.querySelector('direction words')?.textContent || '').trim();
+        if (chordTxt) curKey = chordRootPc(chordTxt);
+        // TAB-Zweig bevorzugen (plain <string>); sonst alle Noten
+        const all = [...m.querySelectorAll('note')];
+        let notes = all.filter(n => n.querySelector('staff')?.textContent === '2');
+        if (!notes.length) notes = all.filter(n => n.querySelector('technical > string'));
+        if (!notes.length) notes = all;
+        const rec = mxlMeasureToRec(notes, divisions);
+        if (!rec.some(n => !n.rest)) { skipped++; return; }
+        // Schluss-Pausen bleiben erhalten → Lick füllt den vollen Takt (für 🔁 Loop-Ausrichtung)
+        const nl = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6) + mi,
+          name: `${title} #${mi + 1}${chordTxt ? ' · ' + chordTxt : ''}`,
+          key: curKey, scale: 'minor', notes: rec, created };
+        nl.box = detectBox(nl) || undefined;
+        fresh.push(nl);
+        made++;
+      });
+      if (!made) throw new Error('Keine spielbaren Licks gefunden');
+      S.licks.push(...fresh);
+      if (saveLicks()) {
+        renderLickPanel();
+        alert(`${made} Lick(s) aus „${title}“ importiert${skipped ? ` (${skipped} leere Takte übersprungen)` : ''}.\nName und Datum sind gesetzt; Akkorde/Slides in Doppelgriffen wurden auf die Melodiestimme reduziert.`);
+      }
+    } catch (e) { alert('MusicXML-Import fehlgeschlagen: ' + e.message); }
+  };
+  rd.readAsText(file);
+}
+
 // Passendste Pentatonik-Box eines Licks bestimmen: Bund-Fenster jeder Box in der
 // Tonart des Licks (±1 Bund Toleranz für Blue Notes/Chromatik) gegen die Lick-Töne.
 // 0 = unklar (Lick läuft über mehrere Lagen).
@@ -3865,7 +3980,7 @@ function metroScheduler() {
         const lk = findLick(S.selectedLick);
         if (lk) {
           const total = playLickAt(lk, t - ac.currentTime, true);   // Länge in Achteln
-          const meas = Math.max(1, Math.ceil(total / (S.beatsPerMeasure * 2)));
+          const meas = Math.max(1, Math.ceil(total / (S.beatsPerMeasure * 2) - 1e-4));   // Epsilon gegen Float-Drift
           metro.lickNextBeat = m + meas * S.beatsPerMeasure;
         }
       }
