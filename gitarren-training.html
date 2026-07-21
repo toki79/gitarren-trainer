@@ -612,7 +612,7 @@ details.card > summary:hover { color: var(--text); }
     <div class="hint" style="margin-bottom:8px"><b>Direkt in der TAB editieren:</b> Klick setzt den Cursor (orange Spalte), dann
       <b>0–9</b>&nbsp;Bund (zweistellig schnell tippen) · <b>←→</b>&nbsp;Position · <b>Alt+←→</b>&nbsp;Ton verschieben · <b>↑↓</b>&nbsp;Saite (Bund bleibt, Ton ändert sich) · <b>Shift+↑↓</b>&nbsp;Saite (gleiche Tonhöhe) ·
       <b>+/−</b>&nbsp;Dauer · <b>t</b>&nbsp;Triole · <b>b</b>&nbsp;Bend · <b>s</b>&nbsp;Slide · <b>h</b>&nbsp;Hammer/Pull ·
-      <b>v</b>&nbsp;Vibrato · <b>x</b>&nbsp;tote Note · <b>.</b>&nbsp;Staccato · <b>g</b>&nbsp;Betonung · <b>p</b>&nbsp;Pause · <b>Entf</b>&nbsp;löschen ·
+      <b>v</b>&nbsp;Vibrato · <b>x</b>&nbsp;tote Note · <b>n</b>&nbsp;Vorschlag · <b>.</b>&nbsp;Staccato · <b>g</b>&nbsp;Betonung · <b>p</b>&nbsp;Pause · <b>Entf</b>&nbsp;löschen ·
       <b>Leertaste</b>&nbsp;anhören. Griffbrett-Klick fügt hinter dem Cursor ein. Lautstärke &amp; Zerre: Panel „🎚&nbsp;Ton".</div>
     <div id="editStaff" class="edit-staff" style="display:none"></div>
     <div id="editSel" class="edit-sel"></div>
@@ -1709,19 +1709,19 @@ function render() {
         svg.appendChild(el('line', { x1, y1:y, x2, y2:y, stroke:'#f59e0b', 'stroke-width':2 }));
         svg.appendChild(el('polygon', { points:`${x2 + sdir * 5},${y} ${x2},${y - 3} ${x2},${y + 3}`, fill:'#f59e0b' }));
       }
-      const bendCol = n.mute ? '#64748b' : (n.bend || n.slide) ? '#f59e0b' : '#22d3ee';
-      const c = el('circle', { cx:x, cy:y, r:8.5, fill:bendCol, stroke:'#083344', 'stroke-width':1.5 });
+      const bendCol = n.mute ? '#64748b' : n.grace ? '#a78bfa' : (n.bend || n.slide) ? '#f59e0b' : '#22d3ee';
+      const c = el('circle', { cx:x, cy:y, r: n.grace ? 6 : 8.5, fill:bendCol, stroke:'#083344', 'stroke-width':1.5 });
       c.style.cursor = 'pointer';
       c.addEventListener('click', () => {
         // Auch im Editor fügt ein Griffbrett-Klick ein (Zeilen wählt man in der Liste) –
         // Lick-Kreise übermalen die Box-Töne, sonst wäre Einfügen dort unmöglich
         if (capturing()) recordNote(n.s, n.fret);
         else if (n.mute) pluckDead(OPEN_MIDI[n.s] + n.fret, 0, 0.9, 'lick');
-        else pluck(OPEN_MIDI[n.s] + n.fret, 0, 1.1, 0.95, n.bend || 0, false, 'lick', n.slide || 0);
+        else pluck(OPEN_MIDI[n.s] + n.fret, 0, n.grace ? 0.13 : 1.1, 0.95, n.bend || 0, false, 'lick', n.slide || 0);
       });
       svg.appendChild(c);
       svg.appendChild(el('text', {
-        x, y, fill:'#083344', 'font-size': n.mute ? 10 : 8.5, 'font-weight':'bold',
+        x, y, fill:'#083344', 'font-size': n.mute ? 10 : n.grace ? 7 : 8.5, 'font-weight':'bold',
         'text-anchor':'middle', 'dominant-baseline':'middle', style:'user-select:none;pointer-events:none'
       }, n.mute ? '✕' : String(k + 1)));                                                               // tote Note: ✕ statt Nummer
       if (n.stacc) svg.appendChild(el('circle', { cx:x, cy:y - 13, r:2, fill:'#22d3ee' }));          // Staccato-Punkt
@@ -2164,6 +2164,7 @@ const _lk = (id, name, scale, box, cat, notes) =>
        if (art && art.includes('g')) n.acc = -1;
        if (art && art.includes('a')) n.acc = 1;
        if (art && art.includes('x')) n.mute = 1;        // tote Note (Rake)
+       if (art && art.includes('n')) n.grace = 1;       // Vorschlagsnote (zählt nicht)
        return n;
      }) });
 const BUILTIN_LICKS = [
@@ -2340,6 +2341,9 @@ function toggleRecording() {
 // Float-Drift beim Aufsummieren wird an den Takt-/Längen-Grenzen weggerundet (round6).
 const T4 = 4 / 3, T8 = 2 / 3, T16 = 1 / 3;
 const round6 = x => Math.round(x * 1e6) / 1e6;
+// Länge eines Licks in Achteln (Vorschläge tragen ihren notierten Kurzwert bei –
+// Guitar Pro kürzt dafür die Nachbarnote, so bleibt das Taktraster exakt)
+const lickLen = notes => round6(notes.reduce((a, n) => a + (n.d || 1), 0));
 const isTriplet = d => Math.abs(d * 3 - Math.round(d * 3)) < 1e-4 && Math.abs(d * 2 - Math.round(d * 2)) > 1e-4;
 const DUR_LABEL = { 8: 'Ganze', 4: 'Halbe', 2: 'Viertel', 1: 'Achtel', 0.5: '16tel',
   [T4]: 'Viertel-Triole', [T8]: 'Achtel-Triole', [T16]: '16tel-Triole' };
@@ -2454,6 +2458,13 @@ function playLickAt(lick, delaySec, quiet) {
     const src = lick.notes[i], d = src.d || 1;
     if (src.rest) { off += d; return; }                             // Pause: nur Zeit weiterrücken
     const start = delaySec + eighthTime(off, spb);
+    if (src.grace) {                                                 // Vorschlag: kurz angerissen
+      if (src.mute) pluckDead(OPEN_MIDI[n.s] + n.fret, start, 0.85, 'lick');
+      else pluck(OPEN_MIDI[n.s] + n.fret, start, 0.13, 0.8, n.bend || 0, false, 'lick', n.slide || 0);
+      flashAt(n.s, n.fret, start * 1000, '#a78bfa');
+      off += d;
+      return;
+    }
     if (src.mute) {                                                  // tote Note (Rake): kurzer Klick
       pluckDead(OPEN_MIDI[n.s] + n.fret, start, 0.9, 'lick');
       flashAt(n.s, n.fret, start * 1000, '#94a3b8');
@@ -2467,7 +2478,7 @@ function playLickAt(lick, delaySec, quiet) {
     flashAt(n.s, n.fret, start * 1000, n.bend ? '#f59e0b' : '#22d3ee');
     off += d;
   });
-  return round6(off);                            // Gesamtlänge in Achteln (Float-Drift der Triolen weggerundet)
+  return round6(off);                            // klingende Länge in Achteln (Vorschläge zählen nicht)
 }
 // Zeit bis zur nächsten Takt-Eins des laufenden Metronoms (sonst 0 = sofort).
 // metro.nextNote ist der nächste noch nicht geplante Beat des Lookahead-Schedulers.
@@ -2495,8 +2506,8 @@ function stepLick(dir) {
   const n = notes[S.lickStep];
   if (n.mute) pluckDead(OPEN_MIDI[n.s] + n.fret, 0, 0.9, 'lick');
   else {
-    const g = 0.95 * (n.acc === 1 ? 1.5 : n.acc === -1 ? 0.45 : 1) * (n.leg ? 0.55 : 1);
-    pluck(OPEN_MIDI[n.s] + n.fret, 0, n.stacc ? 0.16 : 1.1, g, n.bend || 0, !!n.vib, 'lick', n.slide || 0);
+    const g = 0.95 * (n.acc === 1 ? 1.5 : n.acc === -1 ? 0.45 : 1) * (n.leg ? 0.55 : 1) * (n.grace ? 0.85 : 1);
+    pluck(OPEN_MIDI[n.s] + n.fret, 0, n.grace ? 0.13 : (n.stacc ? 0.16 : 1.1), g, n.bend || 0, !!n.vib, 'lick', n.slide || 0);
   }
   flashAt(n.s, n.fret, 0, '#22c55e');
   const btn = document.getElementById('lickStepBtn');
@@ -2555,6 +2566,18 @@ function importLicks(file) {
 // mehrtaktigen Lick. Akkorde → höchster Ton (monophones Modell), Ties werden
 // verschmolzen, Triolen exakt. Erfasst: Bund/Saite, Dauer, Bend (½/full),
 // Slide, Vibrato, tote Noten und Pausen.
+// MusicXML-Notenwerte → Dauer in Achtel-Einheiten. Vorschlagsnoten haben keine
+// <duration>; Guitar Pro rechnet ihre Zeit aber aus den Nachbarnoten heraus, also
+// bekommen sie hier ihren notierten Wert (inkl. Tuplet-Faktor) zurück – nur so
+// summieren sich die Takte wieder exakt auf.
+const MXL_TYPE_D = { whole: 8, half: 4, quarter: 2, eighth: 1, '16th': 0.5, '32nd': 0.25, '64th': 0.125 };
+function mxlGraceD(el) {
+  let d = MXL_TYPE_D[el.querySelector('type')?.textContent] ?? 0.25;
+  const act = +(el.querySelector('time-modification > actual-notes')?.textContent || 0);
+  const nrm = +(el.querySelector('time-modification > normal-notes')?.textContent || 0);
+  if (act > 0 && nrm > 0) d = d * nrm / act;
+  return d;
+}
 function chordRootPc(txt) {
   const m = /^\s*([A-G])([#b]?)/.exec(txt || '');
   if (!m) return 9;                                        // Fallback A
@@ -2566,8 +2589,9 @@ function mxlNoteVibrato(n) {                               // GP legt Vibrato al
     if (c.nodeType === 7 && /vibrato/i.test(c.data || '')) return true;
   return false;
 }
-// Noten eines Takts (TAB-Zweig) → Lick-Notenarray. divisions = Einheiten pro Viertel.
-function mxlMeasureToRec(noteEls, divisions) {
+// Noten eines Takts (TAB-Zweig) → Lick-Notenarray. divisions = Einheiten pro Viertel,
+// barLen = Soll-Länge des Takts in Achteln (aus der Taktart) für die Vorschlags-Korrektur.
+function mxlMeasureToRec(noteEls, divisions, barLen) {
   const cols = [];                                         // Spalten (Akkord = gleiche Spalte)
   noteEls.forEach(n => {
     if (n.querySelector('chord')) { if (cols.length) cols[cols.length - 1].push(n); }
@@ -2576,9 +2600,12 @@ function mxlMeasureToRec(noteEls, divisions) {
   const rec = [];
   let lastVoiced = null;                                   // für Ties und Slide-Ziel
   cols.forEach((col, ci) => {
+    // Vorschlagsnote: hat keine <duration> – Notenwert kommt aus <type>, zählt nicht zur Zeit
+    const isGrace = !!col[0].querySelector('grace');
     const dur = +(col[0].querySelector('duration')?.textContent || 0);
-    const d = dur / divisions * 2;                          // Viertel = 2 Achtel-Einheiten (roh: exakte 2/3 für Triolen)
-    if (d <= 0) return;
+    let d = dur / divisions * 2;                            // Viertel = 2 Achtel-Einheiten (roh: exakte 2/3 für Triolen)
+    if (isGrace) d = mxlGraceD(col[0]);
+    else if (d <= 0) return;
     if (col[0].querySelector('rest')) { rec.push({ rest: 1, d }); lastVoiced = null; return; }
     // höchsten (Melodie-)Ton der Spalte wählen
     let top = null, topMidi = -1;
@@ -2599,6 +2626,7 @@ function mxlMeasureToRec(noteEls, divisions) {
       return;
     }
     const note = { s: top.s, fret: top.fret, d };
+    if (isGrace) note.grace = 1;
     // tote Note (Rake/Mute): x-Notenkopf oder GP-Dämpfung
     if (el.querySelector('notehead')?.textContent.trim() === 'x' || el.querySelector('unpitched')) { note.mute = 1; rec.push(note); lastVoiced = null; return; }
     const bendAlt = el.querySelector('technical > bend > bend-alter');
@@ -2615,8 +2643,25 @@ function mxlMeasureToRec(noteEls, divisions) {
       }
     }
     rec.push(note);
-    lastVoiced = note;
+    if (!isGrace) lastVoiced = note;                       // Vorschläge sind kein Tie-Ziel
   });
+  // Vorschlags-Korrektur: Guitar Pro rechnet ihre Zeit mal aus den Nachbarnoten
+  // heraus, mal nicht. Passt der Takt mit Vorschlägen → so lassen; sonst die
+  // Vorschlagsdauer vom Folgeton abziehen (klassische Acciaccatura), damit die
+  // Taktlänge in jedem Fall erhalten bleibt.
+  const graceTotal = rec.reduce((a, n) => a + (n.grace ? n.d : 0), 0);
+  if (graceTotal > 0 && !(barLen > 0 && Math.abs(lickLen(rec) - barLen) < 1e-6)) {
+    rec.forEach((n, i) => {
+      if (!n.grace) return;
+      let j = i + 1; while (j < rec.length && rec[j].grace) j++;
+      let tgt = rec[j];
+      if (!tgt) { let p = i - 1; while (p >= 0 && rec[p].grace) p--; tgt = rec[p]; }
+      if (!tgt) return;
+      const take = Math.min(n.d, tgt.d / 2);   // höchstens die halbe Ziel-Dauer nehmen
+      n.d = round6(take);
+      tgt.d = round6(tgt.d - take);
+    });
+  }
   return rec;
 }
 function importMusicXML(file) {
@@ -2631,7 +2676,7 @@ function importMusicXML(file) {
       const title = (doc.querySelector('work-title, movement-title')?.textContent ||
         file.name.replace(/\.(xml|musicxml)$/i, '')).trim();
       const created = new Date().toISOString();
-      let divisions = 4, skipped = 0;
+      let divisions = 4, barLen = 8, skipped = 0;   // barLen in Achteln (4/4 = 8)
       const fresh = [];
       // Takte zu Licks bündeln: eine Wiederholungs-Sektion (|: … :|) = ein Lick,
       // sonst laufen alle Takte zu EINEM mehrtaktigen Lick zusammen.
@@ -2646,6 +2691,8 @@ function importMusicXML(file) {
       measures.forEach(m => {
         const dv = m.querySelector('attributes > divisions');
         if (dv) divisions = +dv.textContent;
+        const bt = m.querySelector('attributes > time > beats'), btt = m.querySelector('attributes > time > beat-type');
+        if (bt && btt) barLen = +bt.textContent * 8 / +btt.textContent;
         // Beginn einer neuen Wiederholungs-Sektion schließt die vorige ab
         if (m.querySelector('barline[location="left"] repeat[direction="forward"]')) flush();
         const chordTxt = (m.querySelector('direction words')?.textContent || '').trim();
@@ -2655,7 +2702,7 @@ function importMusicXML(file) {
         let notes = all.filter(n => n.querySelector('staff')?.textContent === '2');
         if (!notes.length) notes = all.filter(n => n.querySelector('technical > string'));
         if (!notes.length) notes = all;
-        buf.push(...mxlMeasureToRec(notes, divisions));   // Schluss-Pausen bleiben (Takt-Ausrichtung)
+        buf.push(...mxlMeasureToRec(notes, divisions, barLen));   // Schluss-Pausen bleiben (Takt-Ausrichtung)
         bars++;
         if (m.querySelector('barline[location="right"] repeat[direction="backward"]')) flush();
       });
@@ -2746,7 +2793,7 @@ function renderLickPanel() {
   const cnt = document.getElementById('lfCount');
   if (cnt) cnt.textContent = `${rows.length} Licks`;
   tb.innerHTML = rows.length ? rows.map(({ l, lib }) => {
-    const beats = +(l.notes.reduce((a, n) => a + (n.d || 1), 0) / 2).toFixed(1);
+    const beats = +(lickLen(l.notes) / 2).toFixed(1);
     const match = lickMatches(l, lib);
     const when = l.created ? new Date(l.created).toLocaleDateString('de-DE') : '–';
     const name = l.name.replace(/</g, '&lt;');
@@ -2988,7 +3035,7 @@ function stopAllJam() {
 // Notenwerte in Achteln → Dropdown-Beschriftung
 const EDIT_DUR_OPTS = [[8, '1/1 · ganze'], [6, '1/2 · punktiert'], [4, '1/2 · halbe'], [3, '1/4 · punktiert'],
   [2, '1/4 · viertel'], [1.5, '1/8 · punktiert'], [T4, '1/4 · Triole'], [1, '1/8 · achtel'],
-  [T8, '1/8 · Triole'], [0.5, '1/16 · sechzehntel'], [T16, '1/16 · Triole']];
+  [T8, '1/8 · Triole'], [0.5, '1/16 · sechzehntel'], [T16, '1/16 · Triole'], [0.25, '1/32']];
 // Lick in den Editor laden – transponiert in die aktuell gewählte Tonart,
 // die Tonart der App bleibt unangetastet. S.editKey merkt sich, in welcher
 // Tonart der Arbeits-Buffer ausgedrückt ist (Fallback: Original-Tonart,
@@ -3026,7 +3073,7 @@ function renderEditorStaff() {
   if (!S.lickRec.length) { box.innerHTML = ''; box.style.display = 'none'; return; }
   box.style.display = 'block';
   const PXE = 26, MLx = 46, E = S.beatsPerMeasure * 2;
-  const total = round6(S.lickRec.reduce((a, n) => a + (n.d || 1), 0));
+  const total = lickLen(S.lickRec);                           // Vorschläge zählen nicht mit
   const W2 = MLx + total * PXE + 24;
   const nTop = 36, nGap = 8, nBot = nTop + 4 * nGap;          // Notensystem (5 Linien), Platz für Takt-Labels
   const tTop = nBot + 32, tGap = 7, tBot = tTop + 5 * tGap;   // TAB (6 Linien)
@@ -3080,7 +3127,7 @@ function renderEditorStaff() {
   // ── Pass 1: Layout aller Noten berechnen ──
   let off = 0;
   const items = S.lickRec.map((n, i) => {
-    const it = { n, i, x: MLx + off * PXE + 6, off, g: durGlyph(n.d || 1), rest: !!n.rest };
+    const it = { n, i, x: MLx + off * PXE + 6, off, g: durGlyph(n.d || 1), rest: !!n.rest, grace: !!n.grace };
     if (!n.rest) {
       const midi = OPEN_MIDI[n.s] + n.fret + 12;              // notierte Oktave
       const name = nn(mod12(midi), S.key);
@@ -3093,8 +3140,8 @@ function renderEditorStaff() {
     return it;
   });
 
-  // ── Balkengruppen: aufeinanderfolgende 8tel/16tel im selben Schlag ──
-  const beamable = it => !it.rest && (it.g.kind === 'eighth' || it.g.kind === 'sixteenth');
+  // ── Balkengruppen: aufeinanderfolgende 8tel/16tel im selben Schlag (ohne Vorschläge) ──
+  const beamable = it => !it.rest && !it.grace && (it.g.kind === 'eighth' || it.g.kind === 'sixteenth');
   const groups = [];
   let cur = null;
   items.forEach(it => {
@@ -3113,7 +3160,8 @@ function renderEditorStaff() {
   // Cursor-Spalte (aktuelle Position der TAB-Direkteingabe)
   if (S.editSel >= 0 && S.editSel < items.length) {
     const ci = items[S.editSel];
-    svg.appendChild(el('rect', { x: ci.x - 9, y: 4, width: Math.max(18, (ci.n.d || 1) * PXE), height: H2 - 8,
+    const cw = Math.max(ci.n.grace ? 11 : 18, (ci.n.d || 1) * PXE);
+    svg.appendChild(el('rect', { x: ci.x - cw / 2 - 1, y: 4, width: cw, height: H2 - 8,
       fill: 'rgba(245,158,11,0.12)', rx: 3 }));
   }
 
@@ -3134,10 +3182,11 @@ function renderEditorStaff() {
       for (let s2 = 0; s2 >= step; s2 -= 2)                   // Hilfslinien unten
         svg.appendChild(el('line', { x1: x - 8, y1: nBot - (s2 - 2) * (nGap / 2), x2: x + 8, y2: nBot - (s2 - 2) * (nGap / 2), stroke: '#3a4150', 'stroke-width': 1 }));
       const hollow = g.kind === 'whole' || g.kind === 'half';
+      const sc = n.grace ? 0.68 : 1;                           // Vorschlag: kleiner Notenkopf
       if (n.mute)                                              // tote Note: ✕-Notenkopf
-        svg.appendChild(el('text', { x, y: y + 3.5, fill: col, 'font-size': 11, 'font-weight': 'bold', 'text-anchor': 'middle' }, '✕'));
+        svg.appendChild(el('text', { x, y: y + 3.5 * sc, fill: col, 'font-size': 11 * sc, 'font-weight': 'bold', 'text-anchor': 'middle' }, '✕'));
       else
-        svg.appendChild(el('ellipse', { cx: x, cy: y, rx: 4.6, ry: 3.4, fill: hollow ? 'none' : col, stroke: col,
+        svg.appendChild(el('ellipse', { cx: x, cy: y, rx: 4.6 * sc, ry: 3.4 * sc, fill: hollow ? 'none' : col, stroke: col,
           'stroke-width': hollow ? 1.6 : 1, transform: `rotate(-15 ${x} ${y})` }));
       if (g.dot) svg.appendChild(el('circle', { cx: x + 8, cy: y - 2, r: 1.6, fill: col }));
       if (accid) svg.appendChild(el('text', { x: x - 10, y: y + 3.5, fill: col, 'font-size': 10, 'text-anchor': 'middle' }, accid));
@@ -3147,20 +3196,23 @@ function renderEditorStaff() {
         svg.appendChild(el('line', { x1: sx, y1: y + (gr.up ? -1 : 1), x2: sx, y2: gr.beamY, stroke: col, 'stroke-width': 1.4 }));
       } else if (g.kind !== 'whole') {                        // einzelner Hals + Fähnchen
         const up = step < 6;
-        const sx = up ? x + 4.2 : x - 4.2, sy2 = y + (up ? -24 : 24);
-        svg.appendChild(el('line', { x1: sx, y1: y + (up ? -1 : 1), x2: sx, y2: sy2, stroke: col, 'stroke-width': 1.4 }));
-        const flags = g.kind === 'eighth' ? 1 : g.kind === 'sixteenth' ? 2 : 0;
+        const sx = up ? x + 4.2 * sc : x - 4.2 * sc, sy2 = y + (up ? -24 : 24) * sc;
+        svg.appendChild(el('line', { x1: sx, y1: y + (up ? -1 : 1), x2: sx, y2: sy2, stroke: col, 'stroke-width': 1.4 * sc }));
+        const flags = n.grace ? 1 : (g.kind === 'eighth' ? 1 : g.kind === 'sixteenth' ? 2 : 0);
         for (let f2 = 0; f2 < flags; f2++)
-          svg.appendChild(el('path', { d: `M ${sx} ${sy2 + (up ? f2 * 5 : -f2 * 5)} q 8 ${up ? 4 : -4} 4 ${up ? 12 : -12}`,
-            fill: 'none', stroke: col, 'stroke-width': 1.4 }));
+          svg.appendChild(el('path', { d: `M ${sx} ${sy2 + (up ? f2 * 5 : -f2 * 5)} q ${8 * sc} ${up ? 4 : -4} ${4 * sc} ${(up ? 12 : -12) * sc}`,
+            fill: 'none', stroke: col, 'stroke-width': 1.4 * sc }));
+        if (n.grace)                                          // Vorschlags-Schrägstrich am Hals
+          svg.appendChild(el('line', { x1: sx - 5, y1: sy2 + (up ? 9 : -9), x2: sx + 5, y2: sy2 + (up ? 1 : -1),
+            stroke: col, 'stroke-width': 1.2 }));
         if (g.trip) svg.appendChild(el('text', { x: sx + (up ? 3 : -3), y: sy2 + (up ? -3 : 10),
           fill: '#8b93a7', 'font-size': 8.5, 'font-style': 'italic', 'font-weight': 'bold', 'text-anchor': 'middle' }, '3'));
       }
       const marks = [n.vib ? '∿' : '', n.stacc ? '•' : '', n.acc === 1 ? '>' : '', n.acc === -1 ? 'p' : ''].filter(Boolean).join('');
       if (marks) svg.appendChild(el('text', { x, y: nTop - 10, fill: '#22d3ee', 'font-size': 9, 'font-weight': 'bold', 'text-anchor': 'middle' }, marks));
       // ── TAB-Zeile ──
-      svg.appendChild(el('rect', { x: x - 6, y: ty - 5, width: 12, height: 10, fill: bg }));
-      svg.appendChild(el('text', { x, y: ty + 3.5, fill: col, 'font-size': 10, 'font-weight': 'bold', 'text-anchor': 'middle',
+      svg.appendChild(el('rect', { x: x - 6 * sc, y: ty - 5 * sc, width: 12 * sc, height: 10 * sc, fill: bg }));
+      svg.appendChild(el('text', { x, y: ty + 3.5 * sc, fill: col, 'font-size': 10 * sc, 'font-weight': 'bold', 'text-anchor': 'middle',
         'font-family': 'ui-monospace,monospace' }, n.mute ? '✕' : String(n.fret)));   // tote Note: ✕ in der TAB
       if (n.leg && prev) {                                    // Legato: Bogen vom vorigen Ton (Noten + TAB)
         const midX = (prev.x + x) / 2;
@@ -3184,7 +3236,8 @@ function renderEditorStaff() {
         svg.appendChild(el('text', { x: x + 16, y: ty - 14, fill: '#f59e0b', 'font-size': 8, 'text-anchor': 'middle' }, n.bend === 2 ? 'full' : '½'));
       }
     }
-    const hit = el('rect', { x: x - 9, y: 0, width: Math.max(18, (n.d || 1) * PXE), height: H2, fill: 'transparent' });
+    const hitW = Math.max(n.grace ? 11 : 18, (n.d || 1) * PXE);   // Vorschläge: schmalere Klickfläche
+    const hit = el('rect', { x: x - hitW / 2 - 1, y: 0, width: hitW, height: H2, fill: 'transparent' });
     hit.style.cursor = 'pointer';
     hit.addEventListener('click', () => selectEditNote(i));
     svg.appendChild(hit);
@@ -3242,7 +3295,8 @@ function renderEditor() {
     el2.innerHTML = `<b>⏸ Pause</b> · ${DUR_TXT(n.d || 1)} <span class="hint">· +/− Dauer · Entf löschen</span>`;
     return;
   }
-  const marks = [n.bend ? (n.bend === 2 ? 'Bend full' : 'Bend ½') : '',
+  const marks = [n.grace ? 'Vorschlag' : '',
+    n.bend ? (n.bend === 2 ? 'Bend full' : 'Bend ½') : '',
     n.slide ? 'Slide ' + (n.slide > 0 ? '+' : '−') + (Math.abs(n.slide) === 2 ? '1' : '½') : '',
     n.leg ? 'Legato ⌒' : '', n.vib ? 'Vibrato ∿' : '', n.stacc ? 'Staccato •' : '',
     n.mute ? 'tote Note ✕' : '', n.acc === 1 ? 'Akzent >' : '', n.acc === -1 ? 'leise p' : '']
@@ -3255,7 +3309,7 @@ function updateEditMeta() {
   const m = document.getElementById('editMeta');
   if (!m) return;
   const cnt = S.lickRec.filter(n => !n.rest).length;
-  const beats = +(S.lickRec.reduce((a, n) => a + (n.d || 1), 0) / 2).toFixed(1);
+  const beats = +(lickLen(S.lickRec) / 2).toFixed(1);
   const src = S.licks.find(l => l.id === S.editing);
   const when = src && src.created ? ' · angelegt ' + new Date(src.created).toLocaleDateString('de-DE') : '';
   m.textContent = `${cnt} ${cnt === 1 ? 'Ton' : 'Töne'} · ${beats} Schläge${when}`;
@@ -3266,6 +3320,7 @@ function toggleNoteStacc(i) { const n = S.lickRec[i]; if (n.stacc) delete n.stac
 function toggleNoteVib(i) { const n = S.lickRec[i]; if (n.vib) delete n.vib; else n.vib = 1; renderEditor(); render(); }
 function toggleNoteLeg(i) { const n = S.lickRec[i]; if (n.leg) delete n.leg; else n.leg = 1; renderEditor(); render(); }
 function toggleNoteMute(i) { const n = S.lickRec[i]; if (n.mute) delete n.mute; else n.mute = 1; renderEditor(); render(); }
+function toggleNoteGrace(i) { const n = S.lickRec[i]; if (n.grace) delete n.grace; else n.grace = 1; renderEditor(); render(); }
 function setNoteBend(i, v) { const n = S.lickRec[i]; if (v) n.bend = v; else delete n.bend; renderEditor(); render(); }
 function setNoteAcc(i, v) { const n = S.lickRec[i]; if (v) n.acc = v; else delete n.acc; renderEditor(); render(); }
 function setNoteSlide(i, v) { const n = S.lickRec[i]; if (v) n.slide = v; else delete n.slide; renderEditor(); render(); }
@@ -3349,6 +3404,7 @@ function editorKeydown(e) {
   } else if (k === 'h') { if (!n || n.rest) return; toggleNoteLeg(i); }
   else if (k === 'v') { if (!n || n.rest) return; toggleNoteVib(i); }
   else if (k === 'x') { if (!n || n.rest) return; toggleNoteMute(i); }
+  else if (k === 'n') { if (!n || n.rest) return; toggleNoteGrace(i); }   // Vorschlagsnote
   else if (k === '.') { if (!n || n.rest) return; toggleNoteStacc(i); }
   else if (k === 'g') {                                        // Betonung – / > / p
     if (!n || n.rest) return;
@@ -3365,8 +3421,8 @@ function playEditNote(i) {
   if (n.rest) { S.editSel = i; renderEditor(); render(); return; }
   if (n.mute) pluckDead(OPEN_MIDI[n.s] + n.fret, 0, 0.9, 'lick');
   else {
-    const g = 0.95 * (n.acc === 1 ? 1.5 : n.acc === -1 ? 0.45 : 1) * (n.leg ? 0.55 : 1);
-    pluck(OPEN_MIDI[n.s] + n.fret, 0, n.stacc ? 0.16 : 1.0, g, n.bend || 0, !!n.vib, 'lick', n.slide || 0);
+    const g = 0.95 * (n.acc === 1 ? 1.5 : n.acc === -1 ? 0.45 : 1) * (n.leg ? 0.55 : 1) * (n.grace ? 0.85 : 1);
+    pluck(OPEN_MIDI[n.s] + n.fret, 0, n.grace ? 0.13 : (n.stacc ? 0.16 : 1.0), g, n.bend || 0, !!n.vib, 'lick', n.slide || 0);
   }
   flashAt(n.s, n.fret, 0, '#f59e0b');
   S.editSel = i; renderEditor(); render();
