@@ -182,27 +182,10 @@ select {
 #editName { flex: 1 1 160px; background: var(--panel2); color: var(--text); border: 1px solid var(--border); padding: 7px 10px; border-radius: 7px; font-size: 0.85rem; }
 #editName:focus { outline: none; border-color: #f59e0b; }
 #editMeta { font-size: 0.72rem; color: var(--muted); }
-.edit-notes { display: flex; flex-direction: column; gap: 6px; }
-.edit-note { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; background: var(--panel2); border: 1.5px solid var(--border); border-radius: 8px; padding: 5px 8px; cursor: pointer; }
-.edit-note.sel { border-color: #f59e0b; background: rgba(245,158,11,0.1); }
-.en-num { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: #22d3ee; color: #083344; font-size: 0.75rem; font-weight: 700; flex-shrink: 0; }
-.en-num.rest { background: var(--panel); color: var(--muted); border: 1px solid var(--border); }
-.edit-bar { display: flex; align-items: center; gap: 8px; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 1px; color: var(--scale-col); font-weight: 600; margin-top: 6px; }
-.edit-bar::after { content: ''; flex: 1; height: 1px; background: var(--border); }
-.edit-staff { overflow-x: auto; margin-bottom: 10px; border: 1px solid var(--border); border-radius: 8px; }
+.edit-staff { overflow-x: auto; margin-bottom: 8px; border: 1px solid var(--border); border-radius: 8px; }
 .edit-staff svg { display: block; }
-.en-name { font-weight: 600; font-size: 0.9rem; display: flex; flex-direction: column; line-height: 1.1; min-width: 62px; }
-.en-name small { font-weight: 400; font-size: 0.66rem; color: var(--muted); }
-.en-dur { background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 4px 6px; font-size: 0.8rem; font-family: ui-monospace, monospace; }
-.en-tog { min-width: 30px; padding: 4px 6px; font-size: 0.9rem; }
-.en-tog.active { background: var(--accent); border-color: var(--accent); color: #fff; }
-.en-bend { display: inline-flex; align-items: center; gap: 3px; }
-.en-bend small { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); margin-right: 2px; }
-.en-mini { min-width: 26px; padding: 3px 5px; font-size: 0.78rem; }
-.en-mini.active { background: #f59e0b; border-color: #f59e0b; color: #111; }
-.en-actions { display: inline-flex; gap: 3px; margin-left: auto; }
-.en-actions button { min-width: 28px; padding: 4px 5px; font-size: 0.78rem; }
-.en-actions button:disabled { opacity: 0.3; cursor: default; }
+.edit-sel { font-size: 0.84rem; padding: 6px 10px; background: var(--panel2); border: 1px solid var(--border); border-radius: 8px; min-height: 18px; }
+.edit-sel .es-art { color: #22d3ee; }
 .path-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
 #pathSong, #soloDensity { background: var(--panel2); color: var(--text); border: 1px solid var(--border); border-radius: 7px; padding: 6px 10px; font-size: 0.9rem; }
 .path-progress { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); font-weight: 600; margin-left: auto; }
@@ -254,6 +237,11 @@ button.mini.active { background: var(--accent); border-color: var(--accent); col
 .lick-table tr.dim td { opacity: 0.45; }
 .lt-name { font-weight: 600; }
 .lt-cat { color: var(--muted); font-size: 0.75rem; }
+.lt-stars { white-space: nowrap; letter-spacing: 1px; }
+.lt-stars.lib { color: var(--muted); opacity: 0.5; }
+.lt-stars .star { cursor: pointer; color: #3a4150; font-size: 0.95rem; }
+.lt-stars .star:hover { color: #fbbf24; }
+.lt-stars .star.on { color: #f59e0b; }
 .lt-actions { text-align: right; white-space: nowrap; }
 .lt-actions button { padding: 2px 7px; font-size: 0.74rem; min-width: 0; margin-left: 2px; }
 .mixer { display: flex; align-items: center; gap: 12px; margin-left: auto; flex-wrap: wrap; }
@@ -622,12 +610,12 @@ details.card > summary:hover { color: var(--text); }
       <button onclick="closeEdit()" title="Editor schließen, Änderungen verwerfen">✖ Schließen</button>
     </div>
     <div class="hint" style="margin-bottom:8px"><b>Direkt in der TAB editieren:</b> Klick setzt den Cursor (orange Spalte), dann
-      <b>0–9</b>&nbsp;Bund (zweistellig schnell tippen) · <b>←→</b>&nbsp;Position · <b>↑↓</b>&nbsp;Saite (Bund bleibt, Ton ändert sich) · <b>Shift+↑↓</b>&nbsp;Saite (gleiche Tonhöhe) ·
+      <b>0–9</b>&nbsp;Bund (zweistellig schnell tippen) · <b>←→</b>&nbsp;Position · <b>Alt+←→</b>&nbsp;Ton verschieben · <b>↑↓</b>&nbsp;Saite (Bund bleibt, Ton ändert sich) · <b>Shift+↑↓</b>&nbsp;Saite (gleiche Tonhöhe) ·
       <b>+/−</b>&nbsp;Dauer · <b>t</b>&nbsp;Triole · <b>b</b>&nbsp;Bend · <b>s</b>&nbsp;Slide · <b>h</b>&nbsp;Hammer/Pull ·
       <b>v</b>&nbsp;Vibrato · <b>x</b>&nbsp;tote Note · <b>.</b>&nbsp;Staccato · <b>g</b>&nbsp;Betonung · <b>p</b>&nbsp;Pause · <b>Entf</b>&nbsp;löschen ·
       <b>Leertaste</b>&nbsp;anhören. Griffbrett-Klick fügt hinter dem Cursor ein. Lautstärke &amp; Zerre: Panel „🎚&nbsp;Ton".</div>
     <div id="editStaff" class="edit-staff" style="display:none"></div>
-    <div id="editNotes" class="edit-notes"></div>
+    <div id="editSel" class="edit-sel"></div>
   </div>
   <div class="lick-head" style="border-top:1px solid var(--border);padding-top:8px">
     <label>Solo-Generator</label>
@@ -664,7 +652,8 @@ details.card > summary:hover { color: var(--text); }
     <table class="lick-table">
       <thead><tr>
         <th>Name</th><th>Box</th><th>Skala</th><th>Schläge</th>
-        <th class="sortable" onclick="cycleLickSort()" title="Klick sortiert nach Anlage-Datum: neueste zuerst → älteste zuerst → Standard-Reihenfolge">Datum <span id="lfSortArrow"></span></th>
+        <th class="sortable" onclick="cycleLickSort('rating')" title="Klick sortiert nach Bewertung: beste zuerst → schlechteste zuerst → Standard-Reihenfolge">Bewertung <span id="lfSort_rating"></span></th>
+        <th class="sortable" onclick="cycleLickSort('date')" title="Klick sortiert nach Anlage-Datum: neueste zuerst → älteste zuerst → Standard-Reihenfolge">Datum <span id="lfSort_date"></span></th>
         <th>Kategorie</th><th></th>
       </tr></thead>
       <tbody id="lickTbody"></tbody>
@@ -821,7 +810,7 @@ const S = { key: 9, scale: 'minor', pos: 1, triad: 'none', set: 'DGB', label: 'n
             editing: null, editSel: -1, editKey: null, editBox: 0, soloDraft: null, lickStep: -1,
             trading: false, motif: false, limit: null, limitNotes: [], limitFrets: [0, 3],
             trainer: null, micGate: 0.004, micBoost: 8, blue: false, blueArrows: false,
-            lickFilter: { text: '', box: 0, scale: 'all', sort: '' },
+            lickFilter: { text: '', box: 0, scale: 'all', sort: '', sortKey: '' },
             superId: 'none', pair: false, approach: false,
             presetTab: 'vorlagen', showLegend: false, fbCompact: false, outDevice: '',
             panels: { path: true, triad: true, prog: true, licks: true, trainer: true, ton: true },
@@ -2561,10 +2550,11 @@ function importLicks(file) {
 }
 
 // ─── MusicXML-Import (Guitar Pro / MuseScore …) ──────────────────────────────
-// Liest den TAB-Notensystem-Zweig (plain <string>/<fret>). Jeder Takt zwischen
-// Wiederholungs-Zeichen wird ein Lick. Akkorde → höchster Ton (monophones
-// Modell), Ties werden verschmolzen, Triolen aufs Achtel/Triolen-Raster
-// abgebildet. Erfasst: Bund/Saite, Dauer, Bend (½/full), Slide, Vibrato, Pause.
+// Liest den TAB-Notensystem-Zweig (plain <string>/<fret>). Eine Wiederholungs-
+// Sektion (|: … :|) wird ein Lick; ohne Wiederholungen ergeben alle Takte EINEN
+// mehrtaktigen Lick. Akkorde → höchster Ton (monophones Modell), Ties werden
+// verschmolzen, Triolen exakt. Erfasst: Bund/Saite, Dauer, Bend (½/full),
+// Slide, Vibrato, tote Noten und Pausen.
 function chordRootPc(txt) {
   const m = /^\s*([A-G])([#b]?)/.exec(txt || '');
   if (!m) return 9;                                        // Fallback A
@@ -2641,33 +2631,48 @@ function importMusicXML(file) {
       const title = (doc.querySelector('work-title, movement-title')?.textContent ||
         file.name.replace(/\.(xml|musicxml)$/i, '')).trim();
       const created = new Date().toISOString();
-      let divisions = 4, curKey = 9, made = 0, skipped = 0;
+      let divisions = 4, skipped = 0;
       const fresh = [];
-      part.querySelectorAll('measure').forEach((m, mi) => {
+      // Takte zu Licks bündeln: eine Wiederholungs-Sektion (|: … :|) = ein Lick,
+      // sonst laufen alle Takte zu EINEM mehrtaktigen Lick zusammen.
+      let buf = [], bufKey = 9, bufChord = '', bars = 0;
+      const flush = () => {
+        if (!buf.some(n => !n.rest)) { if (buf.length) skipped++; buf = []; bars = 0; return; }
+        fresh.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6) + fresh.length,
+          _chord: bufChord, _bars: bars, key: bufKey, scale: 'minor', notes: buf, created });
+        buf = []; bars = 0; bufChord = '';
+      };
+      const measures = [...part.querySelectorAll('measure')];
+      measures.forEach(m => {
         const dv = m.querySelector('attributes > divisions');
         if (dv) divisions = +dv.textContent;
+        // Beginn einer neuen Wiederholungs-Sektion schließt die vorige ab
+        if (m.querySelector('barline[location="left"] repeat[direction="forward"]')) flush();
         const chordTxt = (m.querySelector('direction words')?.textContent || '').trim();
-        if (chordTxt) curKey = chordRootPc(chordTxt);
+        if (chordTxt) { if (!buf.length) { bufKey = chordRootPc(chordTxt); bufChord = chordTxt; } }
         // TAB-Zweig bevorzugen (plain <string>); sonst alle Noten
         const all = [...m.querySelectorAll('note')];
         let notes = all.filter(n => n.querySelector('staff')?.textContent === '2');
         if (!notes.length) notes = all.filter(n => n.querySelector('technical > string'));
         if (!notes.length) notes = all;
-        const rec = mxlMeasureToRec(notes, divisions);
-        if (!rec.some(n => !n.rest)) { skipped++; return; }
-        // Schluss-Pausen bleiben erhalten → Lick füllt den vollen Takt (für 🔁 Loop-Ausrichtung)
-        const nl = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6) + mi,
-          name: `${title} #${mi + 1}${chordTxt ? ' · ' + chordTxt : ''}`,
-          key: curKey, scale: 'minor', notes: rec, created };
-        nl.box = detectBox(nl) || undefined;
-        fresh.push(nl);
-        made++;
+        buf.push(...mxlMeasureToRec(notes, divisions));   // Schluss-Pausen bleiben (Takt-Ausrichtung)
+        bars++;
+        if (m.querySelector('barline[location="right"] repeat[direction="backward"]')) flush();
       });
-      if (!made) throw new Error('Keine spielbaren Licks gefunden');
+      flush();
+      if (!fresh.length) throw new Error('Keine spielbaren Licks gefunden');
+      const many = fresh.length > 1;
+      fresh.forEach((nl, i) => {
+        nl.name = `${title}${many ? ' #' + (i + 1) : ''}${nl._chord ? ' · ' + nl._chord : ''}`;
+        const barTxt = nl._bars > 1 ? ` (${nl._bars} Takte)` : '';
+        delete nl._chord; delete nl._bars;
+        nl.box = detectBox(nl) || undefined;
+        nl.name += barTxt;
+      });
       S.licks.push(...fresh);
       if (saveLicks()) {
         renderLickPanel();
-        alert(`${made} Lick(s) aus „${title}“ importiert${skipped ? ` (${skipped} leere Takte übersprungen)` : ''}.\nName und Datum sind gesetzt; Akkorde/Slides in Doppelgriffen wurden auf die Melodiestimme reduziert.`);
+        alert(`${fresh.length} Lick(s) aus „${title}“ importiert${skipped ? ` (${skipped} leere Abschnitte übersprungen)` : ''}.\nName und Datum sind gesetzt; Akkorde/Slides in Doppelgriffen wurden auf die Melodiestimme reduziert.`);
       }
     } catch (e) { alert('MusicXML-Import fehlgeschlagen: ' + e.message); }
   };
@@ -2696,9 +2701,26 @@ function lickMatches(l, lib) {
 // Lick-Tabelle: Bibliothek + eigene Sammlung in einer filterbaren Ansicht.
 // Filter (Name/Box/Skala) und Datums-Sortierung leben in S.lickFilter (Session).
 function setLickFilter(k, v) { S.lickFilter[k] = v; renderLickPanel(); }
-function cycleLickSort() {
-  S.lickFilter.sort = S.lickFilter.sort === '' ? 'desc' : S.lickFilter.sort === 'desc' ? 'asc' : '';
+// Spalte sortieren: absteigend → aufsteigend → Standard-Reihenfolge
+function cycleLickSort(key) {
+  const f = S.lickFilter;
+  if (f.sortKey !== key) { f.sortKey = key; f.sort = 'desc'; }
+  else f.sort = f.sort === 'desc' ? 'asc' : (f.sortKey = '', '');
   renderLickPanel();
+}
+// Bewertung setzen (Klick auf denselben Stern löscht sie wieder)
+function setLickRating(id, v) {
+  const l = S.licks.find(x => x.id === id);
+  if (!l) return;
+  l.rating = (l.rating === v) ? 0 : v;
+  if (saveLicks()) renderLickPanel();
+}
+function starsHtml(l, lib) {
+  if (lib) return '<span class="lt-stars lib">–</span>';   // Bibliothek: erst kopieren
+  const r = l.rating || 0;
+  return '<span class="lt-stars">' + [1, 2, 3, 4, 5].map(i =>
+    `<span class="star ${i <= r ? 'on' : ''}" onclick="event.stopPropagation();setLickRating('${l.id}',${i})"
+           title="${i} von 5 Sternen${i === r ? ' – nochmal klicken löscht' : ''}">★</span>`).join('') + '</span>';
 }
 function renderLickPanel() {
   const tb = document.getElementById('lickTbody');
@@ -2713,13 +2735,14 @@ function renderLickPanel() {
     if (f.scale !== 'all' && l.scale !== f.scale) return false;
     return true;
   });
-  if (f.sort) rows.sort((a, b) => {
-    const ta = a.l.created ? Date.parse(a.l.created) : 0;
-    const tbv = b.l.created ? Date.parse(b.l.created) : 0;
-    return f.sort === 'desc' ? tbv - ta : ta - tbv;
+  if (f.sort && f.sortKey) {
+    const val = l => f.sortKey === 'rating' ? (l.rating || 0) : (l.created ? Date.parse(l.created) : 0);
+    rows.sort((a, b) => f.sort === 'desc' ? val(b.l) - val(a.l) : val(a.l) - val(b.l));
+  }
+  ['date', 'rating'].forEach(k => {
+    const ar = document.getElementById('lfSort_' + k);
+    if (ar) ar.textContent = (f.sortKey === k && f.sort) ? (f.sort === 'desc' ? '▼' : '▲') : '';
   });
-  const arrow = document.getElementById('lfSortArrow');
-  if (arrow) arrow.textContent = f.sort === 'desc' ? '▼' : f.sort === 'asc' ? '▲' : '';
   const cnt = document.getElementById('lfCount');
   if (cnt) cnt.textContent = `${rows.length} Licks`;
   tb.innerHTML = rows.length ? rows.map(({ l, lib }) => {
@@ -2740,11 +2763,12 @@ function renderLickPanel() {
       <td>${l.box || '–'}</td>
       <td>${l.scale === 'minor' ? 'Moll' : 'Dur'}</td>
       <td>${beats}</td>
+      <td>${starsHtml(l, lib)}</td>
       <td>${when}</td>
       <td class="lt-cat">${lib ? l.cat.replace(/</g, '&lt;') : 'Eigene'}</td>
       <td class="lt-actions">${act}</td>
     </tr>`;
-  }).join('') : '<tr><td colspan="7" class="prog-empty" style="padding:12px 8px">Keine Licks für diesen Filter – Suchtext leeren oder Box/Skala auf „alle" stellen.</td></tr>';
+  }).join('') : '<tr><td colspan="8" class="prog-empty" style="padding:12px 8px">Keine Licks für diesen Filter – Suchtext leeren oder Box/Skala auf „alle" stellen.</td></tr>';
 }
 function copyLibLick(id) {
   const src = BUILTIN_LICKS.find(l => l.id === id);
@@ -3004,7 +3028,7 @@ function renderEditorStaff() {
   const PXE = 26, MLx = 46, E = S.beatsPerMeasure * 2;
   const total = round6(S.lickRec.reduce((a, n) => a + (n.d || 1), 0));
   const W2 = MLx + total * PXE + 24;
-  const nTop = 24, nGap = 8, nBot = nTop + 4 * nGap;          // Notensystem (5 Linien)
+  const nTop = 36, nGap = 8, nBot = nTop + 4 * nGap;          // Notensystem (5 Linien), Platz für Takt-Labels
   const tTop = nBot + 32, tGap = 7, tBot = tTop + 5 * tGap;   // TAB (6 Linien)
   const H2 = tBot + 16, bg = '#0d1117';
   const svg = el('svg', { viewBox: `0 0 ${W2} ${H2}`, width: W2, height: H2 });
@@ -3021,6 +3045,26 @@ function renderEditorStaff() {
     svg.appendChild(el('line', { x1: x, y1: nTop, x2: x, y2: nBot, stroke: '#4a5264', 'stroke-width': w }));
     svg.appendChild(el('line', { x1: x, y1: tTop, x2: x, y2: tBot, stroke: '#4a5264', 'stroke-width': w }));
   }
+  // Takt-Nummer + Akkord der geladenen Progression über jedem Takt
+  const sched = S.prog.length ? buildBeatSchedule() : null;
+  const barCount = Math.max(1, Math.ceil(total / E - 1e-6));
+  if (sched || barCount > 1)
+    for (let b = 0; b < barCount; b++) {
+      const names = [];
+      if (sched) {
+        const act = chordAtLickEighth(sched, b * E);
+        if (act) names.push(act.name);
+        const base = (b * S.beatsPerMeasure) % sched.total;
+        Object.keys(sched.starts).map(Number).sort((x, y) => x - y).forEach(k => {
+          if (k > base && k < base + S.beatsPerMeasure) {      // Akkordwechsel mitten im Takt
+            const nm2 = S.prog[sched.starts[k]].name;
+            if (names[names.length - 1] !== nm2) names.push(nm2);
+          }
+        });
+      }
+      svg.appendChild(el('text', { x: MLx + b * E * PXE - 2, y: 14, fill: 'var(--scale-col)',
+        'font-size': 9, 'font-weight': 'bold' }, `${b + 1}${names.length ? ' · ' + names.join('→') : ''}`));
+    }
   const durGlyph = d => {
     if (isTriplet(d)) {                                       // Triolen-Werte (4/3, 2/3, 1/3)
       if (d > 1) return { kind: 'quarter', dot: 0, trip: 1 };
@@ -3179,79 +3223,33 @@ function chordAtLickEighth(sched, off) {
   for (const k in sched.starts) { const kk = +k; if (kk <= beat && kk > best) best = kk; }
   return best >= 0 ? S.prog[sched.starts[best]] : null;
 }
+// Editor rendert nur noch Noten/TAB + eine Statuszeile zum Cursor-Ton;
+// bearbeitet wird direkt in der TAB (Klick + Tastatur), nicht mehr in Formularzeilen.
+const DUR_TXT = d => (EDIT_DUR_OPTS.find(o => Math.abs(o[0] - d) < 1e-6) || [0, d + ' Achtel'])[1];
 function renderEditor() {
-  const box = document.getElementById('editNotes');
-  if (!box) return;
-  if (!S.lickRec.length) {
-    box.innerHTML = '<span class="prog-empty">Noch keine Töne – klicke Töne am Griffbrett an, um sie hinzuzufügen.</span>';
-    renderEditorStaff();
-    updateEditMeta();
-    return;
-  }
-  // Takt-Trennzeilen mit Akkord der geladenen Progression (z. B. „Takt 5 · Dm")
-  const sched = S.prog.length ? buildBeatSchedule() : null;
-  const E = S.beatsPerMeasure * 2;                   // Achtel pro Takt
-  const lickLen = S.lickRec.reduce((a, n) => a + (n.d || 1), 0);
-  const showBars = !!sched || lickLen > E;
-  const barLabel = b => {
-    const names = [];
-    if (sched) {
-      const act = chordAtLickEighth(sched, b * E);
-      if (act) names.push(act.name);
-      const base = (b * S.beatsPerMeasure) % sched.total;
-      Object.keys(sched.starts).map(Number).sort((x, y) => x - y).forEach(k => {
-        if (k > base && k < base + S.beatsPerMeasure) {         // Akkordwechsel mitten im Takt
-          const nm = S.prog[sched.starts[k]].name;
-          if (names[names.length - 1] !== nm) names.push(nm);
-        }
-      });
-    }
-    return `Takt ${b + 1}${names.length ? ' · ' + names.join(' → ') : ''}`;
-  };
-  let num = 0, off = 0, curBar = -1;                 // fortlaufende Nummer nur für klingende Töne
-  box.innerHTML = S.lickRec.map((n, i) => {
-    let barDiv = '';
-    const b = Math.floor(off / E + 1e-9);
-    if (showBars && b !== curBar) { barDiv = `<div class="edit-bar">${barLabel(b)}</div>`; curBar = b; }
-    off += n.d || 1;
-    const opts = EDIT_DUR_OPTS.map(([v, l]) => `<option value="${v}" ${(n.d || 1) === v ? 'selected' : ''}>${l}</option>`).join('');
-    const actions = `<span class="en-actions">
-        ${n.rest ? '' : `<button onclick="event.stopPropagation();playEditNote(${i})" title="Ton anspielen">▶</button>`}
-        <button onclick="event.stopPropagation();moveEditNote(${i},-1)" title="nach vorne" ${i === 0 ? 'disabled' : ''}>↑</button>
-        <button onclick="event.stopPropagation();moveEditNote(${i},1)" title="nach hinten" ${i === S.lickRec.length - 1 ? 'disabled' : ''}>↓</button>
-        <button onclick="event.stopPropagation();deleteEditNote(${i})" title="Löschen">✖</button>
-      </span>`;
-    if (n.rest)
-      return `${barDiv}<div class="edit-note ${S.editSel === i ? 'sel' : ''}" onclick="selectEditNote(${i})">
-        <span class="en-num rest">⏸</span>
-        <span class="en-name">Pause<small>kein Ton</small></span>
-        <select class="en-dur" onclick="event.stopPropagation()" onchange="setNoteDur(${i},+this.value)">${opts}</select>
-        ${actions}
-      </div>`;
-    num++;
-    const nm = nn(mod12(OPEN_MIDI[n.s] + n.fret), S.key);
-    const bends = [[0, '–'], [1, '½'], [2, '1']].map(([v, l]) =>
-      `<button class="en-mini ${(n.bend || 0) === v ? 'active' : ''}" onclick="event.stopPropagation();setNoteBend(${i},${v})" title="${v ? 'Bend um ' + l + ' Ton' : 'kein Bend'}">${l}</button>`).join('');
-    const accs = [[-1, 'p', 'Leise (Ghost Note)'], [0, '–', 'Normal'], [1, '&gt;', 'Betont (Akzent)']].map(([v, l, t]) =>
-      `<button class="en-mini ${(n.acc || 0) === v ? 'active' : ''}" onclick="event.stopPropagation();setNoteAcc(${i},${v})" title="${t}">${l}</button>`).join('');
-    const slides = [[-2, '-1'], [-1, '-½'], [0, '–'], [1, '+½'], [2, '+1']].map(([v, l]) =>
-      `<button class="en-mini ${(n.slide || 0) === v ? 'active' : ''}" onclick="event.stopPropagation();setNoteSlide(${i},${v})" title="${v ? 'Slide um ' + l.replace('-', '−').replace('+', '') + ' Ton ' + (v > 0 ? 'hoch' : 'runter') : 'kein Slide'}">${l}</button>`).join('');
-    return `${barDiv}<div class="edit-note ${S.editSel === i ? 'sel' : ''}" onclick="selectEditNote(${i})">
-      <span class="en-num">${num}</span>
-      <span class="en-name">${nm}<small>${STR_LABELS[n.s]}-Saite · ${n.fret}. Bund</small></span>
-      <select class="en-dur" onclick="event.stopPropagation()" onchange="setNoteDur(${i},+this.value)">${opts}</select>
-      <button class="en-tog ${n.stacc ? 'active' : ''}" onclick="event.stopPropagation();toggleNoteStacc(${i})" title="Staccato – kurz &amp; abgehackt">•</button>
-      <button class="en-tog ${n.vib ? 'active' : ''}" onclick="event.stopPropagation();toggleNoteVib(${i})" title="Vibrato">∿</button>
-      <button class="en-tog ${n.leg ? 'active' : ''}" onclick="event.stopPropagation();toggleNoteLeg(${i})" title="Legato: Hammer-on/Pull-off – dieser Ton wird vom vorigen gebunden gespielt (kein Anschlag), mit Bogen in Noten &amp; TAB">⌒</button>
-      <button class="en-tog ${n.mute ? 'active' : ''}" onclick="event.stopPropagation();toggleNoteMute(${i})" title="Tote Note (Rake/Mute): kurzer, gedämpfter „chk“-Klick statt Tonhöhe – ✕ in Noten &amp; TAB">✕</button>
-      <span class="en-bend"><small>Bend</small>${bends}</span>
-      <span class="en-bend"><small>Slide</small>${slides}</span>
-      <span class="en-bend"><small>Betonung</small>${accs}</span>
-      ${actions}
-    </div>`;
-  }).join('');
   renderEditorStaff();
   updateEditMeta();
+  const el2 = document.getElementById('editSel');
+  if (!el2) return;
+  if (!S.lickRec.length) {
+    el2.innerHTML = '<span class="prog-empty">Noch keine Töne – klicke Töne am Griffbrett an, um sie hinzuzufügen.</span>';
+    return;
+  }
+  const i = S.editSel, n = i >= 0 ? S.lickRec[i] : null;
+  if (!n) { el2.innerHTML = '<span class="hint">Kein Ton gewählt – klicke in Noten/TAB oder drücke ←/→.</span>'; return; }
+  const num = S.lickRec.slice(0, i + 1).filter(x => !x.rest).length;
+  if (n.rest) {
+    el2.innerHTML = `<b>⏸ Pause</b> · ${DUR_TXT(n.d || 1)} <span class="hint">· +/− Dauer · Entf löschen</span>`;
+    return;
+  }
+  const marks = [n.bend ? (n.bend === 2 ? 'Bend full' : 'Bend ½') : '',
+    n.slide ? 'Slide ' + (n.slide > 0 ? '+' : '−') + (Math.abs(n.slide) === 2 ? '1' : '½') : '',
+    n.leg ? 'Legato ⌒' : '', n.vib ? 'Vibrato ∿' : '', n.stacc ? 'Staccato •' : '',
+    n.mute ? 'tote Note ✕' : '', n.acc === 1 ? 'Akzent >' : '', n.acc === -1 ? 'leise p' : '']
+    .filter(Boolean).join(' · ');
+  el2.innerHTML = `<b>Ton ${num}</b> · ${nn(mod12(OPEN_MIDI[n.s] + n.fret), S.key)} `
+    + `· ${STR_LABELS[n.s]}-Saite, ${n.fret}. Bund · ${DUR_TXT(n.d || 1)}`
+    + (marks ? ` · <span class="es-art">${marks}</span>` : '');
 }
 function updateEditMeta() {
   const m = document.getElementById('editMeta');
@@ -3279,18 +3277,23 @@ function insertRestEdit() {                 // Pause hinter der markierten Zeile
 }
 
 // ─── TAB-Direkteingabe: Tastatur-Editing im Lick-Editor (Guitar-Pro-Gefühl) ──
-// ←→ Cursor · ↑↓ Saite (Tonhöhe bleibt) · 0–9 Bund (zweistellig: schnell
-// nacheinander tippen) · +/− Dauer · t Triole · b/s/h/v/./g Artikulation ·
-// p Pause einfügen · Entf löschen · Leertaste anhören
+// ←→ Cursor · Alt+←→ Ton verschieben · ↑↓ Saite (Bund bleibt) · Shift+↑↓ Saite
+// (Tonhöhe bleibt) · 0–9 Bund (zweistellig) · +/− Dauer · t Triole ·
+// b/s/h/v/x/./g Artikulation · p Pause · Entf löschen · Leertaste anhören
 const editDigit = { v: 0, t: 0, i: -1 };    // Puffer für zweistellige Bund-Eingabe
 function editorKeydown(e) {
   if (!S.editing) return;
   const tag = (document.activeElement && document.activeElement.tagName) || '';
   if (['INPUT', 'SELECT', 'TEXTAREA'].includes(tag)) return;   // Formularfelder nicht kapern
-  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.metaKey || e.ctrlKey) return;
   const i = S.editSel, n = i >= 0 ? S.lickRec[i] : null;
   const k = e.key;
   const apply = () => { renderEditor(); render(); };
+  if (e.altKey) {                                              // Alt+←/→: Ton in der Folge verschieben
+    if (k === 'ArrowLeft' && i > 0) { moveEditNote(i, -1); e.preventDefault(); }
+    else if (k === 'ArrowRight' && i >= 0 && i < S.lickRec.length - 1) { moveEditNote(i, 1); e.preventDefault(); }
+    return;
+  }
   if (k === 'ArrowRight') {
     if (S.lickRec.length) { S.editSel = i < 0 ? 0 : Math.min(S.lickRec.length - 1, i + 1); apply(); }
   } else if (k === 'ArrowLeft') {
@@ -3339,23 +3342,17 @@ function editorKeydown(e) {
     return;
   } else if (k === 'b') {                                      // Bend – / ½ / full
     if (!n || n.rest) return;
-    const c = [0, 1, 2], nx = c[(c.indexOf(n.bend || 0) + 1) % c.length];
-    if (nx) n.bend = nx; else delete n.bend;
-    apply();
+    const c = [0, 1, 2]; setNoteBend(i, c[(c.indexOf(n.bend || 0) + 1) % c.length]);
   } else if (k === 's') {                                      // Slide – / +½ / +1 / −½ / −1
     if (!n || n.rest) return;
-    const c = [0, 1, 2, -1, -2], nx = c[(c.indexOf(n.slide || 0) + 1) % c.length];
-    if (nx) n.slide = nx; else delete n.slide;
-    apply();
+    const c = [0, 1, 2, -1, -2]; setNoteSlide(i, c[(c.indexOf(n.slide || 0) + 1) % c.length]);
   } else if (k === 'h') { if (!n || n.rest) return; toggleNoteLeg(i); }
   else if (k === 'v') { if (!n || n.rest) return; toggleNoteVib(i); }
   else if (k === 'x') { if (!n || n.rest) return; toggleNoteMute(i); }
   else if (k === '.') { if (!n || n.rest) return; toggleNoteStacc(i); }
   else if (k === 'g') {                                        // Betonung – / > / p
     if (!n || n.rest) return;
-    const c = [0, 1, -1], nx = c[(c.indexOf(n.acc || 0) + 1) % c.length];
-    if (nx) n.acc = nx; else delete n.acc;
-    apply();
+    const c = [0, 1, -1]; setNoteAcc(i, c[(c.indexOf(n.acc || 0) + 1) % c.length]);
   } else if (k === 'p') insertRestEdit();
   else if (k === 'Backspace' || k === 'Delete') { if (i >= 0) deleteEditNote(i); }
   else if (k === ' ') { if (n && !n.rest) playEditNote(i); }
