@@ -182,6 +182,22 @@ select {
   border: 1.5px solid rgba(245,158,11,0.55); border-radius: 12px; padding: 14px 16px; box-shadow: 0 18px 60px rgba(0,0,0,0.6); }
 .fb-staff { overflow-x: auto; margin-top: 6px; border: 1px solid var(--border); border-radius: 8px; background: #0d1117; }
 .fb-staff svg { display: block; }
+/* Spielmodus: alles ausblenden außer Kopfleiste, Griffbrett, Akkorde, Noten */
+body.play-mode h1, body.play-mode .fb-toolbar, body.play-mode #panelMenu,
+body.play-mode details.card, body.play-mode .info { display: none !important; }
+body.play-mode #stickyTop { position: static; }
+body.play-mode { padding-top: 6px; }
+#playBar { display: none; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+body.play-mode #playBar { display: flex; }
+#playBar .pb-info { font-size: 0.82rem; color: var(--muted); margin-left: auto; }
+#btn-playmode.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+/* Lick-Parcours */
+.parc-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 6px 0 8px; }
+#parcBtn.active { background: #22c55e; border-color: #22c55e; color: #04231a; }
+.lt-pick { width: 26px; text-align: center; }
+.lt-pick input { cursor: pointer; }
+#parcInfo { font-size: 0.82rem; }
+#parcInfo b { color: #22c55e; }
 .edit-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
 .edit-head .rec-label { color: #f59e0b; }
 #editName { flex: 1 1 160px; background: var(--panel2); color: var(--text); border: 1px solid var(--border); padding: 7px 10px; border-radius: 7px; font-size: 0.85rem; }
@@ -328,6 +344,7 @@ details.card > summary:hover { color: var(--text); }
       <input type="number" id="bpm" min="40" max="240" value="90" onchange="setBpm(this.value)">
     </label>
     <div id="beatDots" class="beat-dots" title="Zählzeiten"></div>
+    <button id="btn-playmode" onclick="togglePlayMode()" title="Spielmodus: blendet alles außer Kopfleiste, Griffbrett, Akkorden und Noten aus – Lick und Griffbrett zusammen im Blick">🎯 Spielmodus</button>
     <button id="backupBtn" onclick="toggleBackupDrawer()" title="Alles sichern/laden – für Gerätewechsel oder falls der Browser-Cache gelöscht wird">💾 Sicherung</button>
   </div>
   <div id="backupDrawer" class="metro-row" style="display:none">
@@ -372,6 +389,18 @@ details.card > summary:hover { color: var(--text); }
     <svg id="fb" viewBox="0 0 920 235"></svg>
     <div id="fbProg" style="display:none" title="Laufende Progression – Klick springt zum Akkord"></div>
     <div id="fbStaff" class="fb-staff" style="display:none" title="Noten &amp; TAB des gewählten Licks – Größe über 🔍−/+ in der Werkzeugleiste"></div>
+    <div id="playBar">
+      <button onclick="playSelectedLick()" title="Ausgewählten Lick abspielen">▶ Lick</button>
+      <button onclick="stepLick(-1)" title="Einen Ton zurück">|◀</button>
+      <button id="playBarStep" onclick="stepLick(1)" title="Ton für Ton durchgehen">▶| Schritt</button>
+      <span class="tb-sep"></span>
+      <button onclick="setStaffZoom(-1)" title="Noten kleiner">🔍−</button>
+      <button onclick="setStaffZoom(1)" title="Noten größer">🔍+</button>
+      <button id="playBarLoop" onclick="toggleLickLoop()" title="Lick taktsynchron wiederholen">🔁 Loop</button>
+      <span class="tb-sep"></span>
+      <button id="playBarParc" onclick="toggleParcours()" title="Lick-Parcours: die gewählten Licks laufen der Reihe nach über den Backing-Track">🎯 Parcours</button>
+      <span id="playBarInfo" class="pb-info"></span>
+    </div>
     <div id="superInfo" class="hint" style="margin-top:6px"></div>
     <div id="fbLegend" class="fb-legend" style="display:none">
       <span class="leg"><span class="ldot" style="background:var(--root-col)"></span>Grundton</span>
@@ -612,6 +641,14 @@ details.card > summary:hover { color: var(--text); }
     </div>
     <span id="soloInfo" class="hint"></span>
   </div>
+  <div class="parc-row" style="border-top:1px solid var(--border);padding-top:8px">
+    <span class="rec-label">🎯 Lick-Parcours</span>
+    <button id="parcBtn" onclick="toggleParcours()" title="Startet das Backing und legt die angehakten Licks der Reihe nach darüber – jeder Lick bekommt so viele Takte, wie er lang ist. Du spielst sie mit.">▶ Parcours</button>
+    <button id="parcPlayBtn" onclick="toggleParcPlay()" title="Licks zusätzlich vorspielen lassen (zum Lernen) – aus: nur anzeigen, du spielst">🔊 vorspielen</button>
+    <button id="parcFollowBtn" onclick="toggleParcFollow()" title="Licks auf den gerade klingenden Akkord transponieren (I–IV–V folgen) – aus: alles bleibt in der Tonart, wie im klassischen Blues">🎼 Akkord folgen</button>
+    <button onclick="clearLickSet()" title="Auswahl leeren">✖ Auswahl leeren</button>
+    <span id="parcInfo" class="hint"></span>
+  </div>
   <div class="lick-filter-row">
     <input id="lfName" placeholder="🔎 Name filtern (z. B. „SRV“)" oninput="setLickFilter('text', this.value)">
     <select id="lfBox" onchange="setLickFilter('box', +this.value)" title="Nach Pentatonik-Box filtern – die Box wird bei eigenen Licks automatisch erkannt und ist im Editor änderbar; Licks ohne eindeutige Box (–) erscheinen nur bei „alle“">
@@ -632,6 +669,7 @@ details.card > summary:hover { color: var(--text); }
   <div style="overflow-x:auto">
     <table class="lick-table">
       <thead><tr>
+        <th class="lt-pick" title="Für den Lick-Parcours auswählen">🎯</th>
         <th>Name</th><th>Box</th><th>Skala</th><th>Schläge</th>
         <th class="sortable" onclick="cycleLickSort('rating')" title="Klick sortiert nach Bewertung: beste zuerst → schlechteste zuerst → Standard-Reihenfolge">Bewertung <span id="lfSort_rating"></span></th>
         <th class="sortable" onclick="cycleLickSort('date')" title="Klick sortiert nach Anlage-Datum: neueste zuerst → älteste zuerst → Standard-Reihenfolge">Datum <span id="lfSort_date"></span></th>
@@ -825,7 +863,8 @@ const S = { key: 9, scale: 'minor', pos: 1, triad: 'none', set: 'DGB', label: 'n
             drive: 'clean',
             licks: [], recording: false, lickRec: [], selectedLick: null, lickLoop: false,
             recDur: 1, recStacc: false, recVib: false, lickShow: true,
-            staffShow: true, staffZoom: 1.4,
+            staffShow: true, staffZoom: 1.4, playMode: false,
+            lickSet: [], parcours: false, parcPlay: false, parcFollow: false,
             editing: null, editSel: -1, editKey: null, editBox: 0, soloDraft: null, lickStep: -1,
             trading: false, motif: false, limit: null, limitNotes: [], limitFrets: [0, 3],
             trainer: null, micGate: 0.004, micBoost: 8, blue: false, blueArrows: false,
@@ -837,7 +876,8 @@ const S = { key: 9, scale: 'minor', pos: 1, triad: 'none', set: 'DGB', label: 'n
             pathId: 'thrill', pathStep: 0, lastBackupAt: null,
             cards: { path: true, triad: true, prog: true, licks: false, trainer: false, ton: false } };
 let metroTimer = null;
-const metro = { nextNote: 0, beat: 0, countInBeats: 0, sched: null, lickNextBeat: 0, tradeSeg: -1 };
+const metro = { nextNote: 0, beat: 0, countInBeats: 0, sched: null, lickNextBeat: 0, tradeSeg: -1,
+                parcIdx: 0, parcNextBeat: 0 };
 
 // ─── Audio (Web Audio API) ────────────────────────────────────────────────────
 let actx = null, masterGain = null, driveNodes = null;
@@ -1683,11 +1723,7 @@ function render() {
   if (capturing() && S.lickRec.length) lickNotes = S.lickRec;
   else if (!capturing() && S.selectedLick && S.lickShow) {   // 🎵-Lick-Schalter blendet die Overlay aus
     const lk = findLick(S.selectedLick);
-    if (lk) {
-      // Motiv-Reise: Motiv zusätzlich zum aktuellen Akkord der Progression verschieben
-      const ch = (S.motif && S.prog.length && S.progIdx >= 0) ? S.prog[S.progIdx] : null;
-      lickNotes = transposeLick(ch ? { ...lk, key: mod12(lk.key - mod12(ch.rootPc - S.key)) } : lk);
-    }
+    if (lk) lickNotes = displayNotes(lk);
   }
   if (lickNotes) {
     // Pausen klingen nicht und werden nicht gezeichnet; Linien nur zwischen direkt
@@ -1970,6 +2006,19 @@ function toggleLickShow() {
   S.lickShow = !S.lickShow;
   document.getElementById('btn-lickshow').classList.toggle('active', S.lickShow);
   render();
+}
+// Spielmodus: nur Kopfleiste, Griffbrett, Akkorde und Noten – alles andere weg,
+// damit Lick und Griffbrett zusammen auf den Schirm passen.
+function togglePlayMode() {
+  S.playMode = !S.playMode;
+  applyPlayMode();
+  saveSettings();
+}
+function applyPlayMode() {
+  document.body.classList.toggle('play-mode', S.playMode);
+  document.getElementById('btn-playmode').classList.toggle('active', S.playMode);
+  if (S.playMode) window.scrollTo(0, 0);
+  renderFbStaff();
 }
 function toggleStaffShow() {
   S.staffShow = !S.staffShow;
@@ -2346,6 +2395,14 @@ function saveLicks() {
 }
 
 // Lick in die aktuelle Tonart transponieren (kleinstmögliche Verschiebung, in Bund 0–15 gehalten)
+// Noten eines Licks so, wie sie angezeigt werden sollen: normal in die Tonart
+// transponiert – bei „Motiv-Reise“ bzw. Parcours-„Akkord folgen“ zusätzlich auf
+// den gerade klingenden Akkord. Griffbrett und Notenansicht nutzen beides gleich.
+function displayNotes(lk) {
+  const follow = (S.motif || (S.parcours && S.parcFollow)) && S.prog.length && S.progIdx >= 0;
+  const ch = follow ? S.prog[S.progIdx] : null;
+  return transposeLick(ch ? { ...lk, key: mod12(lk.key - mod12(ch.rootPc - S.key)) } : lk);
+}
 function transposeLick(lick) {
   let d = ((S.key - lick.key) % 12 + 12) % 12;
   if (d > 6) d -= 12;
@@ -2838,6 +2895,8 @@ function renderLickPanel() {
          <button onclick="event.stopPropagation();deleteLick('${l.id}')" title="Löschen">🗑</button>`;
     return `<tr class="${S.selectedLick === l.id ? 'active' : ''} ${match ? '' : 'dim'}" onclick="selectLick('${l.id}')"
                 title="${match ? 'Klick: auswählen (Anzeige am Griffbrett)' : 'Passt nicht zur aktuellen Tonart-/Box-Auswahl – Klick wählt trotzdem aus'}">
+      <td class="lt-pick"><input type="checkbox" ${S.lickSet.includes(l.id) ? 'checked' : ''}
+          onclick="event.stopPropagation();toggleLickInSet('${l.id}')" title="Für den Parcours auswählen"></td>
       <td class="lt-name">${name}</td>
       <td>${l.box || '–'}</td>
       <td>${l.scale === 'minor' ? 'Moll' : 'Dur'}</td>
@@ -2847,7 +2906,8 @@ function renderLickPanel() {
       <td class="lt-cat">${lib ? l.cat.replace(/</g, '&lt;') : 'Eigene'}</td>
       <td class="lt-actions">${act}</td>
     </tr>`;
-  }).join('') : '<tr><td colspan="8" class="prog-empty" style="padding:12px 8px">Keine Licks für diesen Filter – Suchtext leeren oder Box/Skala auf „alle" stellen.</td></tr>';
+  }).join('') : '<tr><td colspan="9" class="prog-empty" style="padding:12px 8px">Keine Licks für diesen Filter – Suchtext leeren oder Box/Skala auf „alle" stellen.</td></tr>';
+  updateParcInfo();
 }
 function copyLibLick(id) {
   const src = BUILTIN_LICKS.find(l => l.id === id);
@@ -3060,7 +3120,81 @@ function stopAllJam() {
   stopTrainer();
   if (S.trading) toggleTrading();
   if (S.motif) toggleMotif();
+  if (S.parcours) toggleParcours();
   if (S.limit) setLimit('off');
+}
+
+// ─── Lick-Parcours: ausgewählte Licks der Reihe nach über das Backing ────────
+// Jeder Lick bekommt so viele Takte, wie er lang ist; auf der Eins wird der
+// nächste eingeblendet (und auf Wunsch vorgespielt). Der Spieler spielt mit.
+function toggleLickInSet(id) {
+  const i = S.lickSet.indexOf(id);
+  if (i >= 0) S.lickSet.splice(i, 1); else S.lickSet.push(id);
+  updateParcInfo();
+  saveSettings();
+}
+function clearLickSet() { S.lickSet = []; renderLickPanel(); saveSettings(); }
+function toggleParcPlay() {
+  S.parcPlay = !S.parcPlay;
+  document.getElementById('parcPlayBtn').classList.toggle('active', S.parcPlay);
+  saveSettings();
+}
+function toggleParcFollow() {
+  S.parcFollow = !S.parcFollow;
+  document.getElementById('parcFollowBtn').classList.toggle('active', S.parcFollow);
+  render(); saveSettings();
+}
+// Lick-Länge in ganzen Takten (mind. 1)
+function lickBars(lk) {
+  return Math.max(1, Math.ceil(lickLen(lk.notes) / (S.beatsPerMeasure * 2) - 1e-4));
+}
+function updateParcInfo(txt) {
+  const n = S.lickSet.length;
+  const el2 = document.getElementById('parcInfo');
+  if (el2) el2.innerHTML = txt || (n
+    ? `${n} Lick${n === 1 ? '' : 's'} ausgewählt · Reihenfolge wie in der Tabelle`
+    : 'Licks in der Tabelle mit 🎯 anhaken, dann ▶ Parcours');
+  const pb = document.getElementById('playBarInfo');
+  if (pb) pb.innerHTML = txt || (S.parcours ? `${n} Licks im Parcours` : '');
+}
+function toggleParcours() {
+  if (!S.parcours) {
+    if (!S.lickSet.length) { alert('Erst Licks in der Tabelle mit 🎯 anhaken.'); return; }
+    if (!S.prog.length) { alert('Der Parcours braucht ein Backing – lade eine Progression oder ein Blues-Preset.'); return; }
+    if (S.lickLoop) toggleLickLoop();          // Loop würde dazwischenfunken
+    if (S.trading) toggleTrading();
+  }
+  S.parcours = !S.parcours;
+  ['parcBtn', 'playBarParc'].forEach(id => {
+    const b = document.getElementById(id);
+    if (b) b.classList.toggle('active', S.parcours);
+  });
+  metro.parcIdx = 0; metro.parcNextBeat = 0;
+  if (S.parcours) {
+    updateParcInfo('Parcours läuft – der erste Lick kommt auf der nächsten Eins.');
+    if (!S.metroOn) startMetro();
+  } else { updateParcInfo(); resetLickStep(); }
+}
+// Nächsten Lick des Parcours einblenden; liefert seine Länge in Takten
+function parcoursAdvance(whenSec) {
+  const id = S.lickSet[metro.parcIdx % S.lickSet.length];
+  const lk = findLick(id);
+  if (!lk) { metro.parcIdx++; return 1; }
+  const bars = lickBars(lk);
+  if (S.parcPlay) playLickAt(lk, whenSec, true);
+  const nextId = S.lickSet[(metro.parcIdx + 1) % S.lickSet.length];
+  const nextLk = findLick(nextId);
+  metro.parcIdx++;
+  setTimeout(() => {
+    if (!S.parcours) return;
+    S.selectedLick = id;
+    if (!S.lickShow) toggleLickShow();
+    resetLickStep();
+    updateParcInfo(`<b>Jetzt:</b> ${lk.name.replace(/</g, '&lt;')} (${bars} Takt${bars === 1 ? '' : 'e'})`
+      + (nextLk ? ` · <b>Gleich:</b> ${nextLk.name.replace(/</g, '&lt;')}` : ''));
+    renderLickPanel(); render();
+  }, Math.max(0, whenSec * 1000));
+  return bars;
 }
 
 // ─── Lick-Editor: bestehende Licks nachträglich bearbeiten ───────────────────
@@ -3313,7 +3447,7 @@ function renderFbStaff() {
   if (capturing() && S.lickRec.length) notes = S.lickRec;
   else if (S.selectedLick && S.lickShow) {
     const lk = findLick(S.selectedLick);
-    if (lk) notes = transposeLick(lk);
+    if (lk) notes = displayNotes(lk);
   }
   if (!S.staffShow || !notes || !notes.length) { box.innerHTML = ''; box.style.display = 'none'; return; }
   box.style.display = 'block';
@@ -4138,6 +4272,11 @@ function metroScheduler() {
           metro.lickNextBeat = m + meas * S.beatsPerMeasure;
         }
       }
+      // Lick-Parcours: auf der Eins den nächsten Lick einblenden, sobald der vorige durch ist
+      if (S.parcours && S.lickSet.length && beatInMeasure === 0 && m >= metro.parcNextBeat) {
+        const bars = parcoursAdvance(t - ac.currentTime);
+        metro.parcNextBeat = m + bars * S.beatsPerMeasure;
+      }
       // Trading Fours: alle 4 Takte wechseln sich App (generiertes Segment) und Spieler ab
       if (S.trading && S.prog.length && beatInMeasure === 0 && m % (4 * S.beatsPerMeasure) === 0) {
         const seg = Math.floor(m / (4 * S.beatsPerMeasure));
@@ -4185,6 +4324,7 @@ function startMetro() {
   metro.sched = S.prog.length ? buildBeatSchedule() : null;
   metro.lickNextBeat = 0;                                                     // Lick-Loop neu starten
   metro.tradeSeg = -1;                                                        // Trading Fours neu starten
+  metro.parcIdx = 0; metro.parcNextBeat = 0;                                  // Lick-Parcours neu starten
   metro.nextNote = audio().currentTime + 0.12;
   if (S.prog.length) { S.progIdx = 0; renderChips(); render(); }
   const b = document.getElementById('metroBtn');
@@ -4284,7 +4424,7 @@ const PERSIST = ['key','scale','pos','triad','set','label','blue','blueArrows','
   'bass','groove','vol','boxMode','micBoost','lickLoop','sound','selectedLick',
   'presetTab','showLegend','cards','fbCompact','intervalMode','intervalRef',
   'lickShow','pathId','pathStep','lastBackupAt','drive','panels','outDevice',
-  'staffShow','staffZoom'];
+  'staffShow','staffZoom','playMode','lickSet','parcPlay','parcFollow'];
 function saveSettings() {
   try {
     const o = {};
@@ -4378,6 +4518,10 @@ function applySettingsUI() {
   document.getElementById('btn-approach').classList.toggle('active', S.approach);
   document.getElementById('btn-lickshow').classList.toggle('active', S.lickShow);
   document.getElementById('btn-staffshow').classList.toggle('active', S.staffShow);
+  if (!Array.isArray(S.lickSet)) S.lickSet = [];
+  document.getElementById('parcPlayBtn').classList.toggle('active', S.parcPlay);
+  document.getElementById('parcFollowBtn').classList.toggle('active', S.parcFollow);
+  applyPlayMode();
   document.getElementById('superSel').value = S.superId;
   document.getElementById('bpm').value = S.bpm;
   document.getElementById('timeSig').value = S.tripletFeel ? '12-8' : String(S.beatsPerMeasure);
