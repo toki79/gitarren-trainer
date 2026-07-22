@@ -180,8 +180,12 @@ select {
   border: 1.5px solid rgba(245,158,11,0.55); border-radius: 12px 12px 0 0; padding: 12px 14px;
   box-shadow: 0 -12px 40px rgba(0,0,0,0.55); }
 body.editing { padding-bottom: 66vh; }        /* Platz, damit nichts dauerhaft verdeckt bleibt */
-#editClose { position: absolute; top: 8px; right: 10px; z-index: 2; min-width: 34px; padding: 5px 10px;
-  font-size: 1rem; line-height: 1; border-radius: 8px; }
+/* Kopfzeile bleibt beim Scrollen in der Leiste stehen – sonst wandert der
+   Schließen-Knopf aus dem Sichtbereich und der Editor wirkt ausweglos. */
+#editorRow .eh-main { position: sticky; top: 0; z-index: 3; background: var(--panel);
+  margin: -12px -14px 8px; padding: 12px 14px 8px; border-radius: 11px 11px 0 0;
+  border-bottom: 1px solid var(--border); }
+#editClose { margin-left: auto; padding: 5px 10px; line-height: 1; border-radius: 8px; }
 #editClose:hover { background: #dc2626; border-color: #dc2626; color: #fff; }
 .fb-staff { overflow-x: auto; margin-top: 6px; border: 1px solid var(--border); border-radius: 8px; background: #0d1117; }
 .fb-staff svg { display: block; }
@@ -761,9 +765,15 @@ details.card > summary:hover { color: var(--text); }
      unabhängig davon funktioniert, ob die Licks-Karte auf- oder zugeklappt ist -->
 <div id="editorRow" style="display:none">
  <div class="edit-modal">
-  <button id="editClose" onclick="closeEdit()" title="Editor schließen (Esc) – ungespeicherte Änderungen werden verworfen">✕</button>
-  <div class="edit-head">
+  <!-- schmale Dauerleiste: bleibt beim Scrollen stehen, damit Speichern und
+       Schließen immer erreichbar sind (der Rest darf wegscrollen) -->
+  <div class="edit-head eh-main">
     <span class="rec-label">✎ Lick-Editor</span>
+    <span id="editMeta">0 Töne</span>
+    <button onclick="saveEdit()" title="Änderungen speichern (überschreibt den Lick)">💾 Speichern</button>
+    <button id="editClose" onclick="closeEdit()" title="Editor schließen (Esc) – ungespeicherte Änderungen werden verworfen">✕ Schließen</button>
+  </div>
+  <div class="edit-head">
     <input id="editName" placeholder="Name des Licks">
     <label class="metro-field" title="Pentatonik-Box des Licks – wird beim Öffnen automatisch erkannt und kann hier übersteuert werden (– = keine eindeutige Box)">Box
       <select id="editBox" onchange="S.editBox = +this.value">
@@ -775,14 +785,12 @@ details.card > summary:hover { color: var(--text); }
         <option value="5">5</option>
       </select>
     </label>
-    <span id="editMeta">0 Töne</span>
     <span class="tb-sep"></span>
     <button onclick="setStaffZoom(-1)" title="Noten kleiner">🔍−</button>
     <button onclick="setStaffZoom(1)" title="Noten größer">🔍+</button>
     <button id="btn-staffview" onclick="toggleStaffView()" title="Noten + TAB – klicke für „nur TAB“ (spart Höhe)">♪ TAB</button>
     <button onclick="insertRestEdit()" title="Pause hinter dem Cursor einfügen">⏸ Pause</button>
     <button onclick="playEditBuffer()" title="Aktuellen Stand abspielen (folgt Groove &amp; Tempo)">▶ Anhören</button>
-    <button onclick="saveEdit()" title="Änderungen speichern (überschreibt den Lick)">💾 Speichern</button>
     <button onclick="saveEditAsNew()" title="Als neuen Lick in die Sammlung speichern (Original bleibt)">⧉ Als Kopie</button>
     <button id="editHelpBtn" onclick="toggleEditHelp()" title="Tastatur-Kurzbefehle ein-/ausblenden">？ Tasten</button>
   </div>
@@ -2470,9 +2478,11 @@ function selectLick(id) {
   // Klick auf ein Bibliotheks-Lick schließt den Editor und wählt normal aus.
   // (Sonst zeigte das Brett weiter den Editor-Buffer – „Ansicht wechselt nicht".)
   if (S.editing) {
-    if (id === S.editing) return;                        // Chip des gerade bearbeiteten Licks: nichts tun
-    if (S.licks.some(l => l.id === id)) { beginEdit(id); return; }
-    closeEdit();
+    // Klick auf das gerade bearbeitete Lick beendet das Bearbeiten und zeigt es
+    // normal an – derselbe Klick, der hineinführt, führt auch wieder heraus.
+    if (id === S.editing) { closeEdit(); S.selectedLick = null; }   // unten wird es normal ausgewählt
+    else if (S.licks.some(l => l.id === id)) { beginEdit(id); return; }
+    else closeEdit();
   }
   resetLickStep();
   S.selectedLick = S.selectedLick === id ? null : id;
