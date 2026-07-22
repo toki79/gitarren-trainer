@@ -172,10 +172,14 @@ select {
 #micLevel { display: block; height: 100%; width: 0%; background: #6b7280; transition: width 0.06s; }
 .rec-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .rec-label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); font-weight: 600; }
-/* Lick-Editor als Vollbild-Dialog */
-#editorRow { position: fixed; inset: 0; z-index: 100; background: rgba(3,6,12,0.82); padding: 18px; overflow: auto; }
+/* Lick-Editor als angedockte Leiste unten – das Griffbrett darüber bleibt
+   sichtbar UND anklickbar (Töne werden ja per Griffbrett eingegeben). */
+#editorRow { position: fixed; left: 0; right: 0; bottom: 0; z-index: 100;
+  max-height: 54vh; overflow: auto; padding: 0 10px 10px; }
 #editorRow .edit-modal { position: relative; max-width: 1500px; margin: 0 auto; background: var(--panel);
-  border: 1.5px solid rgba(245,158,11,0.55); border-radius: 12px; padding: 14px 16px; box-shadow: 0 18px 60px rgba(0,0,0,0.6); }
+  border: 1.5px solid rgba(245,158,11,0.55); border-radius: 12px 12px 0 0; padding: 12px 14px;
+  box-shadow: 0 -12px 40px rgba(0,0,0,0.55); }
+body.editing { padding-bottom: 66vh; }        /* Platz, damit nichts dauerhaft verdeckt bleibt */
 #editClose { position: absolute; top: 8px; right: 10px; z-index: 2; min-width: 34px; padding: 5px 10px;
   font-size: 1rem; line-height: 1; border-radius: 8px; }
 #editClose:hover { background: #dc2626; border-color: #dc2626; color: #fff; }
@@ -199,8 +203,11 @@ body.play-mode #playBar { display: flex; }
 #parcInfo b { color: #22c55e; }
 .edit-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
 .edit-head .rec-label { color: #f59e0b; }
-#editName { flex: 1 1 160px; background: var(--panel2); color: var(--text); border: 1px solid var(--border); padding: 7px 10px; border-radius: 7px; font-size: 0.85rem; }
-#editName:focus { outline: none; border-color: #f59e0b; }
+#editName, #editComment { flex: 1 1 160px; background: var(--panel2); color: var(--text); border: 1px solid var(--border); padding: 7px 10px; border-radius: 7px; font-size: 0.85rem; }
+#editName:focus, #editComment:focus { outline: none; border-color: #f59e0b; }
+#fbComment { font-size: 0.84rem; color: var(--text); margin-top: 5px; padding: 5px 9px;
+  background: rgba(34,211,238,0.08); border-left: 3px solid var(--scale-col); border-radius: 6px; }
+.lt-note { color: var(--scale-col); cursor: help; }
 #editMeta { font-size: 0.72rem; color: var(--muted); }
 .edit-staff { overflow-x: auto; margin-bottom: 8px; border: 1px solid var(--border); border-radius: 8px; }
 .edit-staff svg { display: block; }
@@ -394,6 +401,7 @@ details.card > summary:hover { color: var(--text); }
     <svg id="fb" viewBox="0 0 920 235"></svg>
     <div id="fbProg" style="display:none" title="Laufende Progression – Klick springt zum Akkord"></div>
     <div id="fbStaff" class="fb-staff" style="display:none" title="Noten &amp; TAB des gewählten Licks – Größe über 🔍−/+ in der Werkzeugleiste"></div>
+    <div id="fbComment" style="display:none"></div>
     <div id="playBar">
       <button onclick="playSelectedLick()" title="Ausgewählten Lick abspielen">▶ Lick</button>
       <button onclick="stepLick(-1)" title="Einen Ton zurück">|◀</button>
@@ -775,9 +783,13 @@ details.card > summary:hover { color: var(--text); }
     <button onclick="playEditBuffer()" title="Aktuellen Stand abspielen (folgt Groove &amp; Tempo)">▶ Anhören</button>
     <button onclick="saveEdit()" title="Änderungen speichern (überschreibt den Lick)">💾 Speichern</button>
     <button onclick="saveEditAsNew()" title="Als neuen Lick in die Sammlung speichern (Original bleibt)">⧉ Als Kopie</button>
-    <button onclick="closeEdit()" title="Editor schließen, Änderungen verwerfen">✖ Schließen</button>
+    <button id="editHelpBtn" onclick="toggleEditHelp()" title="Tastatur-Kurzbefehle ein-/ausblenden">？ Tasten</button>
   </div>
-  <div class="hint" style="margin-bottom:8px"><b>Direkt in der TAB editieren:</b> Klick setzt den Cursor (orange Spalte), dann
+  <div class="edit-head" style="margin-bottom:8px">
+    <span class="rec-label">💬 Notiz</span>
+    <input id="editComment" placeholder="Freitext zum Lick – z. B. „Bend mit Ring- und Mittelfinger stützen“, „Quelle: Lesson 12“">
+  </div>
+  <div id="editHelp" class="hint" style="margin-bottom:8px;display:none"><b>Direkt in der TAB editieren:</b> Klick setzt den Cursor (orange Spalte), dann
     <b>0–9</b>&nbsp;Bund (zweistellig schnell tippen) · <b>←→</b>&nbsp;Position · <b>Alt+←→</b>&nbsp;Ton verschieben · <b>↑↓</b>&nbsp;Saite (Bund bleibt, Ton ändert sich) · <b>Shift+↑↓</b>&nbsp;Saite (gleiche Tonhöhe) ·
     <b>+/−</b>&nbsp;Dauer · <b>t</b>&nbsp;Triole · <b>b</b>&nbsp;Bend · <b>s</b>&nbsp;Slide · <b>i</b>&nbsp;Einschleifer · <b>h</b>&nbsp;Hammer/Pull ·
     <b>v</b>&nbsp;Vibrato · <b>x</b>&nbsp;tote Note · <b>n</b>&nbsp;Vorschlag · <b>.</b>&nbsp;Staccato · <b>g</b>&nbsp;Betonung · <b>p</b>&nbsp;Pause · <b>Entf</b>&nbsp;löschen ·
@@ -2829,7 +2841,7 @@ function renderLickPanel() {
                 title="${match ? 'Klick: auswählen (Anzeige am Griffbrett)' : 'Passt nicht zur aktuellen Tonart-/Box-Auswahl – Klick wählt trotzdem aus'}">
       <td class="lt-pick"><input type="checkbox" ${S.lickSet.includes(l.id) ? 'checked' : ''}
           onclick="event.stopPropagation();toggleLickInSet('${l.id}')" title="Für den Parcours auswählen"></td>
-      <td class="lt-name">${name}</td>
+      <td class="lt-name">${name}${l.comment ? ` <span class="lt-note" title="${l.comment.replace(/"/g, '&quot;').replace(/</g, '&lt;')}">💬</span>` : ''}</td>
       <td>${l.box || '–'}</td>
       <td>${l.scale === 'minor' ? 'Moll' : 'Dur'}</td>
       <td>${beats}</td>
@@ -3150,7 +3162,7 @@ function beginEdit(id) {
   S.lickRec = (t || lk.notes).map(n => ({ ...n }));
   S.editKey = t ? S.key : lk.key;
   S.editBox = lk.box || detectBox(lk) || 0;               // hinterlegte Box, sonst Auto-Vorschlag
-  openEditor(lk.name);
+  openEditor(lk.name, lk.comment || '');
 }
 // Neuen Lick im Editor anlegen: leerer Buffer, Töne kommen per Griffbrett-Klick.
 // Aufnehmen und Bearbeiten sind damit ein und derselbe Modus.
@@ -3163,15 +3175,37 @@ function beginNewLick() {
   S.lickRec = [];
   S.editKey = S.key;
   S.editBox = 0;
-  openEditor('Lick ' + (S.licks.length + 1));
+  openEditor('Lick ' + (S.licks.length + 1), '');
 }
-function openEditor(name) {
+function openEditor(name, comment) {
   document.getElementById('editBox').value = S.editBox;
   document.getElementById('editName').value = name;
-  document.getElementById('editorRow').style.display = 'block';   // Vollbild-Dialog
+  document.getElementById('editComment').value = comment || '';
+  document.getElementById('editorRow').style.display = 'block';   // angedockte Leiste unten
+  document.body.classList.add('editing');
+  window.scrollTo(0, 0);                       // Griffbrett nach oben holen – dort wird geklickt
   renderEditor();
   renderLickPanel();
   render();
+  fitEditorSheet();
+}
+// Die Editor-Leiste darf nie über das Griffbrett wachsen – dort werden die Töne
+// angeklickt. Höhe deshalb an den freien Platz unter dem Griffbrett koppeln.
+function fitEditorSheet() {
+  const row = document.getElementById('editorRow');
+  if (!row || row.style.display === 'none') return;
+  const fb = document.getElementById('fb');
+  const avail = fb ? innerHeight - fb.getBoundingClientRect().bottom - 8 : innerHeight * 0.5;
+  row.style.maxHeight = Math.round(Math.max(200, Math.min(innerHeight * 0.54, avail))) + 'px';
+  document.body.style.paddingBottom = Math.round(row.getBoundingClientRect().height + 24) + 'px';
+}
+addEventListener('resize', fitEditorSheet);
+function toggleEditHelp() {
+  const h = document.getElementById('editHelp');
+  const open = h.style.display === 'none';
+  h.style.display = open ? 'block' : 'none';
+  document.getElementById('editHelpBtn').classList.toggle('active', open);
+  fitEditorSheet();
 }
 // ─── Editor: Noten- und TAB-Ansicht (SVG, wie in Lehr-TABs) ─────────────────
 // Gitarre wird eine Oktave höher notiert als sie klingt (Konvention).
@@ -3396,9 +3430,18 @@ function renderEditorStaff() {
 function renderFbStaff() {
   const box = document.getElementById('fbStaff');
   if (!box) return;
+  // Freitext-Notiz des gewählten Licks unter dem Griffbrett zeigen
+  const cbox = document.getElementById('fbComment');
+  if (cbox) {
+    const cl = !capturing() && S.selectedLick ? findLick(S.selectedLick) : null;
+    const txt = cl && cl.comment ? cl.comment : '';
+    cbox.textContent = txt ? '💬 ' + txt : '';
+    cbox.style.display = txt ? 'block' : 'none';
+  }
+  // Beim Editieren zeigt der Editor dieselben Noten – hier ausblenden, das spart
+  // Höhe, damit das Griffbrett über der Editor-Leiste vollständig sichtbar bleibt.
   let notes = null;
-  if (capturing() && S.lickRec.length) notes = S.lickRec;
-  else if (S.selectedLick && S.lickShow) {
+  if (!capturing() && S.selectedLick && S.lickShow) {
     const lk = findLick(S.selectedLick);
     if (lk) notes = displayNotes(lk);
   }
@@ -3492,6 +3535,7 @@ function renderEditor() {
   renderEditorStaff();
   renderEditTools();
   updateEditMeta();
+  fitEditorSheet();
   const el2 = document.getElementById('editSel');
   if (!el2) return;
   if (!S.lickRec.length) {
@@ -3667,6 +3711,7 @@ function saveEdit() {
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
       name: (document.getElementById('editName').value || '').trim() || 'Lick ' + (S.licks.length + 1),
       key: S.editKey ?? S.key, scale: S.scale,
+      comment: (document.getElementById('editComment').value || '').trim() || undefined,
       notes: S.lickRec.map(n => ({ ...n })), created: new Date().toISOString()
     };
     nl.box = S.editBox || detectBox(nl) || undefined;
@@ -3679,6 +3724,8 @@ function saveEdit() {
   lk.name = (document.getElementById('editName').value || '').trim() || lk.name;
   lk.notes = S.lickRec.map(n => ({ ...n }));
   lk.key = S.editKey ?? S.key;               // Tonart des Buffers; scale (Dur/Moll-Kennung) bleibt
+  const cm = (document.getElementById('editComment').value || '').trim();
+  if (cm) lk.comment = cm; else delete lk.comment;
   if (S.editBox) lk.box = S.editBox; else delete lk.box;
   lk.edited = new Date().toISOString();
   if (saveLicks()) { S.selectedLick = lk.id; closeEdit(); }
@@ -3691,6 +3738,7 @@ function saveEditAsNew() {
     id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
     name: base + ' (Kopie)', key: S.editKey ?? S.key, scale: src ? src.scale : S.scale,
     box: S.editBox || undefined,
+    comment: (document.getElementById('editComment').value || '').trim() || undefined,
     notes: S.lickRec.map(n => ({ ...n })), created: new Date().toISOString()
   };
   S.licks.push(nl);
@@ -3699,6 +3747,8 @@ function saveEditAsNew() {
 function closeEdit() {
   S.editing = null; S.editSel = -1; S.editKey = null; S.editBox = 0; S.lickRec = [];
   resetLickStep();
+  document.body.classList.remove('editing');
+  document.body.style.paddingBottom = '';
   const row = document.getElementById('editorRow');
   if (row) row.style.display = 'none';
   renderLickPanel();
