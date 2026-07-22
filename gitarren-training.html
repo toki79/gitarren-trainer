@@ -165,21 +165,20 @@ select {
 }
 .lick-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .lick-head > label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); font-weight: 600; }
-#recBtn.active { background: #dc2626; border-color: #dc2626; color: #fff; }
 #lickLoopBtn.active { background: #22d3ee; border-color: #22d3ee; color: #083344; }
 #trainerBar .lick-head button.active { background: var(--triad-col); border-color: var(--triad-col); color: #04231a; }
 .train-dot { width: 10px; height: 10px; border-radius: 50%; background: #22c55e; animation: recblink 1.2s infinite; flex-shrink: 0; }
 .mic-meter { width: 80px; height: 9px; background: var(--panel2); border: 1px solid var(--border); border-radius: 5px; overflow: hidden; flex-shrink: 0; }
 #micLevel { display: block; height: 100%; width: 0%; background: #6b7280; transition: width 0.06s; }
 .rec-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.rec-dot { width: 10px; height: 10px; border-radius: 50%; background: #dc2626; animation: recblink 1s infinite; flex-shrink: 0; }
 .rec-label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); font-weight: 600; }
-#recDurBtns button { min-width: 42px; font-size: 0.82rem; font-family: ui-monospace, monospace; padding: 5px 8px; }
-#recDurBtns button.active, #recStaccBtn.active, #recVibBtn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 /* Lick-Editor als Vollbild-Dialog */
 #editorRow { position: fixed; inset: 0; z-index: 100; background: rgba(3,6,12,0.82); padding: 18px; overflow: auto; }
-#editorRow .edit-modal { max-width: 1500px; margin: 0 auto; background: var(--panel);
+#editorRow .edit-modal { position: relative; max-width: 1500px; margin: 0 auto; background: var(--panel);
   border: 1.5px solid rgba(245,158,11,0.55); border-radius: 12px; padding: 14px 16px; box-shadow: 0 18px 60px rgba(0,0,0,0.6); }
+#editClose { position: absolute; top: 8px; right: 10px; z-index: 2; min-width: 34px; padding: 5px 10px;
+  font-size: 1rem; line-height: 1; border-radius: 8px; }
+#editClose:hover { background: #dc2626; border-color: #dc2626; color: #fff; }
 .fb-staff { overflow-x: auto; margin-top: 6px; border: 1px solid var(--border); border-radius: 8px; background: #0d1117; }
 .fb-staff svg { display: block; }
 /* Spielmodus: alles ausblenden außer Kopfleiste, Griffbrett, Akkorde, Noten */
@@ -232,8 +231,6 @@ body.play-mode #playBar { display: flex; }
 .path-apply { flex: 1; background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
 .path-nav button:disabled { opacity: 0.35; cursor: default; }
 @keyframes recblink { 0%,100% { opacity: 1; } 50% { opacity: 0.25; } }
-#lickName { flex: 1 1 180px; background: var(--panel2); color: var(--text); border: 1px solid var(--border); padding: 7px 10px; border-radius: 7px; font-size: 0.85rem; }
-#lickName:focus { outline: none; border-color: var(--accent); }
 .lick-list { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; }
 .lib-label { width: 100%; display: flex; align-items: center; gap: 10px; font-size: 0.66rem; text-transform: uppercase; letter-spacing: 1.2px; color: var(--muted); font-weight: 600; margin: 2px 0; }
 .lib-cat { width: 100%; font-size: 0.72rem; color: var(--scale-col); font-weight: 600; margin: 6px 0 1px; }
@@ -590,7 +587,7 @@ details.card > summary:hover { color: var(--text); }
   <div class="card-body">
   <div class="lick-head">
     <div class="btn-row">
-      <button id="recBtn" onclick="toggleRecording()" title="Aufnahme starten – dann Töne am Griffbrett anklicken (alle Bünde klickbar, auch Blue Notes)">● Aufnehmen</button>
+      <button onclick="beginNewLick()" title="Neuen Lick anlegen: öffnet den Editor – Töne am Griffbrett anklicken (alle Bünde), Notenwert und Artikulation direkt dazu einstellen">＋ Neuer Lick</button>
       <button onclick="playSelectedLick()" title="Ausgewählten Lick im BPM-Tempo abspielen (mit aufgenommenem Rhythmus)">▶ Lick</button>
       <button id="lickLoopBtn" onclick="toggleLickLoop()" title="Lick taktsynchron zum Metronom/Backing wiederholen – startet mit ▶ Play">🔁 Loop</button>
       <button onclick="stepLick(-1)" title="Einen Ton zurück">|◀</button>
@@ -604,35 +601,6 @@ details.card > summary:hover { color: var(--text); }
       <button onclick="document.getElementById('mxlFile').click()" title="MusicXML aus Guitar Pro importieren (.xml/.musicxml) – jeder Takt/jede Übung wird ein Lick mit Saiten, Bünden, Bends, Slides, Vibrato und Triolen">⬆ MusicXML</button>
       <input type="file" id="mxlFile" accept=".xml,.musicxml,application/xml,text/xml" style="display:none"
              onchange="importMusicXML(this.files[0]); this.value=''">
-    </div>
-  </div>
-  <div id="recRow" style="display:none">
-    <div class="rec-row" style="border-bottom:1px solid var(--border);padding-bottom:8px;margin-bottom:8px">
-      <span class="rec-label">Notenwert</span>
-      <span class="btn-row" id="recDurBtns">
-        <button data-dur="8" onclick="setRecDur(8)" title="Ganze Note (4 Schläge)">1/1</button>
-        <button data-dur="4" onclick="setRecDur(4)" title="Halbe Note (2 Schläge)">1/2</button>
-        <button data-dur="2" onclick="setRecDur(2)" title="Viertel (1 Schlag)">1/4</button>
-        <button data-dur="1" class="active" onclick="setRecDur(1)" title="Achtel (½ Schlag)">1/8</button>
-        <button data-dur="0.5" onclick="setRecDur(0.5)" title="Sechzehntel (¼ Schlag)">1/16</button>
-        <button data-dur="0.666667" onclick="setRecDur(2/3)" title="Achtel-Triole – 3 Töne pro Schlag (Shuffle-Läufe)">1/8T</button>
-        <button data-dur="0.333333" onclick="setRecDur(1/3)" title="Sechzehntel-Triole – 6 Töne pro Schlag (Sextolen)">1/16T</button>
-      </span>
-      <span class="tb-sep"></span>
-      <span class="rec-label">Artikulation</span>
-      <button id="recStaccBtn" onclick="toggleRecStacc()" title="Staccato: kurz &amp; abgehackt anspielen">• Staccato</button>
-      <button id="recVibBtn" onclick="toggleRecVib()" title="Vibrato: Ton leiert – klassisch für lange, gehaltene Töne">∿ Vibrato</button>
-      <button onclick="recordRest()" title="Pause im gewählten Notenwert anhängen – Phrasen brauchen Luft">⏸ Pause</button>
-      <span class="hint" style="margin-left:auto">Wert wählen, dann Ton am Griffbrett anklicken</span>
-    </div>
-    <div class="rec-row">
-      <span class="rec-dot"></span>
-      <span id="recInfo">0 Töne</span>
-      <button onclick="undoRecNote()" title="Letzten Ton entfernen">↩ letzter Ton</button>
-      <input id="lickName" placeholder="Name des Licks (z. B. „Box-1-Turnaround“)"
-             onkeydown="if(event.key==='Enter')saveLick()">
-      <button onclick="saveLick()">💾 Speichern</button>
-      <button onclick="discardRec()">✖ Verwerfen</button>
     </div>
   </div>
   <div class="lick-head" style="border-top:1px solid var(--border);padding-top:8px">
@@ -785,6 +753,7 @@ details.card > summary:hover { color: var(--text); }
      unabhängig davon funktioniert, ob die Licks-Karte auf- oder zugeklappt ist -->
 <div id="editorRow" style="display:none">
  <div class="edit-modal">
+  <button id="editClose" onclick="closeEdit()" title="Editor schließen (Esc) – ungespeicherte Änderungen werden verworfen">✕</button>
   <div class="edit-head">
     <span class="rec-label">✎ Lick-Editor</span>
     <input id="editName" placeholder="Name des Licks">
@@ -812,7 +781,7 @@ details.card > summary:hover { color: var(--text); }
     <b>0–9</b>&nbsp;Bund (zweistellig schnell tippen) · <b>←→</b>&nbsp;Position · <b>Alt+←→</b>&nbsp;Ton verschieben · <b>↑↓</b>&nbsp;Saite (Bund bleibt, Ton ändert sich) · <b>Shift+↑↓</b>&nbsp;Saite (gleiche Tonhöhe) ·
     <b>+/−</b>&nbsp;Dauer · <b>t</b>&nbsp;Triole · <b>b</b>&nbsp;Bend · <b>s</b>&nbsp;Slide · <b>i</b>&nbsp;Einschleifer · <b>h</b>&nbsp;Hammer/Pull ·
     <b>v</b>&nbsp;Vibrato · <b>x</b>&nbsp;tote Note · <b>n</b>&nbsp;Vorschlag · <b>.</b>&nbsp;Staccato · <b>g</b>&nbsp;Betonung · <b>p</b>&nbsp;Pause · <b>Entf</b>&nbsp;löschen ·
-    <b>Leertaste</b>&nbsp;anhören · <b>Esc</b>&nbsp;schließen. Griffbrett-Klick fügt hinter dem Cursor ein.</div>
+    <b>Leertaste</b>&nbsp;anhören · <b>Esc</b>&nbsp;schließen. <b>Griffbrett-Klick fügt hinter dem Cursor ein</b> – jeder Bund ist anklickbar, auch außerhalb der Box.</div>
   <div id="editTools" class="edit-tools"></div>
   <div id="editStaff" class="edit-staff" style="display:none"></div>
   <div id="editSel" class="edit-sel"></div>
@@ -870,8 +839,8 @@ const S = { key: 9, scale: 'minor', pos: 1, triad: 'none', set: 'DGB', label: 'n
             exercise: null, bluesForm: null, click: true, drums: true, bass: true,
             groove: 'straight', tripletFeel: false, vol: { click: 1, drums: 1, bass: 1, guitar: 1, lick: 1 },
             drive: 'clean',
-            licks: [], recording: false, lickRec: [], selectedLick: null, lickLoop: false,
-            recDur: 1, recStacc: false, recVib: false, lickShow: true,
+            licks: [], lickRec: [], selectedLick: null, lickLoop: false,
+            lickShow: true,
             staffShow: true, staffZoom: 1.4, playMode: false,
             lickSet: [], parcours: false, parcPlay: false, parcFollow: false,
             editing: null, editSel: -1, editKey: null, editBox: 0, soloDraft: null, lickStep: -1,
@@ -1610,9 +1579,9 @@ function render() {
       'text-anchor':'middle', 'dominant-baseline':'middle', style:'user-select:none;pointer-events:none' }, ext));
   }
 
-  // Lick-Aufnahme: ALLE Positionen klickbar machen (auch außerhalb der Pentatonik,
+  // Lick-Editor: ALLE Positionen klickbar machen (auch außerhalb der Pentatonik,
   // z. B. für Blue Notes). Skalen-Punkte werden danach oben drauf gezeichnet.
-  if (S.recording) {
+  if (capturing()) {
     for (let s = 0; s < 6; s++)
       for (let f = 0; f <= FRETS; f++)
         dot(fx(f), sy(s), DR - 2,
@@ -1765,7 +1734,7 @@ function render() {
         svg.appendChild(el('circle', { cx:x, cy:y, r:13, fill:'none', stroke:'#f59e0b', 'stroke-width':2.5, 'stroke-dasharray':'4 3' }));
       // Bend-Ton: gebogener Pfeil nach oben + Label (½ = Halbton, 1 = Ganzton)
       if (n.bend) {
-        const bl = n.bend === 1 ? '½' : n.bend === 2 ? '1' : (n.bend / 2);
+        const bl = bendLabel(n.bend);
         svg.appendChild(el('path', { d:`M ${x + 10} ${y} q 14 0 14 -16`, fill:'none', stroke:'#f59e0b', 'stroke-width':2 }));
         svg.appendChild(el('polygon', { points:`${x + 24},${y - 16} ${x + 21},${y - 9} ${x + 27},${y - 10}`, fill:'#f59e0b' }));
         svg.appendChild(el('text', { x:x + 27, y:y - 20, fill:'#f59e0b', 'font-size':9, 'font-weight':'bold',
@@ -1823,7 +1792,7 @@ function render() {
 
   // Trainer-Zielton (Box-/Arpeggio-Übung) grün markieren; "Ton finden" und
   // "Call & Response" zeigen bewusst nichts an (Griffbrett-Kenntnis / Gehör).
-  if (S.trainer && S.trainer.targets && ['box', 'arp'].includes(S.trainer.mode) && !S.recording) {
+  if (S.trainer && S.trainer.targets && ['box', 'arp'].includes(S.trainer.mode) && !capturing()) {
     const cur = S.trainer.targets[S.trainer.idx];
     if (cur) svg.appendChild(el('circle', {
       cx: fx(cur.fret), cy: sy(cur.s), r: 13,
@@ -2428,18 +2397,8 @@ function transposeLick(lick) {
   return notes;
 }
 
-// Werden Griffbrett-Klicks gerade als Lick-Töne erfasst? (Aufnahme ODER Editor)
-function capturing() { return S.recording || !!S.editing; }
-function toggleRecording() {
-  if (S.editing) closeEdit();          // Editor und Aufnahme schließen sich aus
-  S.recording = !S.recording;
-  if (S.recording) { S.lickRec = []; S.selectedLick = null; resetLickStep(); if (S.trainer) stopTrainer(); }
-  document.getElementById('recBtn').classList.toggle('active', S.recording);
-  document.getElementById('recRow').style.display = S.recording ? 'block' : 'none';
-  updateRecInfo();
-  renderLickPanel();
-  render();
-}
+// Werden Griffbrett-Klicks gerade als Lick-Töne erfasst? (nur im Editor)
+function capturing() { return !!S.editing; }
 // Triolen: Dauern in Dritteln einer Viertel (Achtel-Triole = 2/3 Achtel-Einheit usw.).
 // Float-Drift beim Aufsummieren wird an den Takt-/Längen-Grenzen weggerundet (round6).
 const T4 = 4 / 3, T8 = 2 / 3, T16 = 1 / 3;
@@ -2448,66 +2407,28 @@ const round6 = x => Math.round(x * 1e6) / 1e6;
 // Guitar Pro kürzt dafür die Nachbarnote, so bleibt das Taktraster exakt)
 const lickLen = notes => round6(notes.reduce((a, n) => a + (n.d || 1), 0));
 const isTriplet = d => Math.abs(d * 3 - Math.round(d * 3)) < 1e-4 && Math.abs(d * 2 - Math.round(d * 2)) > 1e-4;
+// Bend-Stärke in Halbtönen → Beschriftung (0.5 = Viertelton-„Smear")
+const bendLabel = b => b === 2 ? 'full' : b === 1 ? '½' : b === 0.5 ? '¼' : String(b);
 const DUR_LABEL = { 8: 'Ganze', 4: 'Halbe', 2: 'Viertel', 1: 'Achtel', 0.5: '16tel',
   [T4]: 'Viertel-Triole', [T8]: 'Achtel-Triole', [T16]: '16tel-Triole' };
-// Ton mit dem aktuell gewählten Notenwert + Artikulation aufnehmen
+// Ton am Griffbrett anklicken → hinter dem Cursor einfügen (Editor).
+// Der Notenwert wird vom Cursor-Ton übernommen, sodass Läufe im gleichen Wert
+// weiterlaufen; Artikulation setzt man danach über Palette oder Tastatur.
 function recordNote(s, fret) {
-  const n = { s, fret, d: S.recDur };
-  if (S.recStacc) n.stacc = 1;
-  if (S.recVib) n.vib = 1;
-  // Editor mit markierter Zeile: hinter der Markierung einfügen, sonst anhängen
-  if (S.editing && S.editSel >= 0 && S.editSel < S.lickRec.length) {
+  if (!S.editing) return;
+  const cur = S.editSel >= 0 ? S.lickRec[S.editSel] : S.lickRec[S.lickRec.length - 1];
+  const n = { s, fret, d: cur ? (cur.d || 1) : 1 };
+  if (S.editSel >= 0 && S.editSel < S.lickRec.length) {
     S.lickRec.splice(S.editSel + 1, 0, n);
     S.editSel++;
   } else {
     S.lickRec.push(n);
-    if (S.editing) S.editSel = S.lickRec.length - 1;
+    S.editSel = S.lickRec.length - 1;
   }
-  pluck(OPEN_MIDI[s] + fret, 0, S.recStacc ? 0.16 : 0.9, 0.95, 0, S.recVib, 'lick');   // Vorschau mit Artikulation
+  pluck(OPEN_MIDI[s] + fret, 0, 0.9, 0.95, 0, false, 'lick');   // Vorschau
   flashAt(s, fret, 0, '#22d3ee');
-  if (S.editing) renderEditor();
-  updateRecInfo();
+  renderEditor();
   render();
-}
-function setRecDur(d) {
-  S.recDur = d;
-  document.querySelectorAll('#recDurBtns button').forEach(b =>
-    b.classList.toggle('active', Math.abs(+b.dataset.dur - d) < 0.01));   // tolerant (Triolen-Floats)
-  updateRecInfo();
-}
-function toggleRecStacc() { S.recStacc = !S.recStacc; document.getElementById('recStaccBtn').classList.toggle('active', S.recStacc); updateRecInfo(); }
-function toggleRecVib() { S.recVib = !S.recVib; document.getElementById('recVibBtn').classList.toggle('active', S.recVib); updateRecInfo(); }
-function undoRecNote() { S.lickRec.pop(); updateRecInfo(); render(); }
-function recordRest() {                        // Pause im gewählten Notenwert anhängen (nur Aufnahme)
-  if (!S.recording) return;
-  S.lickRec.push({ rest: 1, d: S.recDur });
-  updateRecInfo();
-  render();
-}
-function updateRecInfo() {
-  const el = document.getElementById('recInfo');
-  if (!el) return;
-  const cnt = S.lickRec.filter(n => !n.rest).length;
-  const art = [S.recStacc ? 'Staccato' : '', S.recVib ? 'Vibrato' : ''].filter(Boolean).join('+');
-  el.textContent = `${cnt} ${cnt === 1 ? 'Ton' : 'Töne'} · nächster: ${DUR_LABEL[S.recDur]}${art ? ' · ' + art : ''}`;
-}
-function discardRec() { S.lickRec = []; if (S.recording) toggleRecording(); }
-function saveLick() {
-  if (!S.lickRec.length) { alert('Noch keine Töne aufgenommen – klicke Töne am Griffbrett an.'); return; }
-  const name = (document.getElementById('lickName').value || '').trim()
-    || 'Lick ' + (S.licks.length + 1);
-  S.licks.push({
-    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-    name, key: S.key, scale: S.scale,
-    box: detectBox({ key: S.key, scale: S.scale, notes: S.lickRec }) || undefined,   // Box automatisch
-    notes: S.lickRec.map(n => ({ ...n })),      // explizite Notenwerte + Artikulation
-    created: new Date().toISOString()
-  });
-  if (saveLicks()) {
-    document.getElementById('lickName').value = '';
-    S.selectedLick = S.licks[S.licks.length - 1].id;
-    toggleRecording();                        // beendet Aufnahme, rendert Panel + Brett
-  }
 }
 function selectLick(id) {
   // Editor offen: Klick auf ein eigenes Lick wechselt den Editor dorthin,
@@ -2517,10 +2438,6 @@ function selectLick(id) {
     if (id === S.editing) return;                        // Chip des gerade bearbeiteten Licks: nichts tun
     if (S.licks.some(l => l.id === id)) { beginEdit(id); return; }
     closeEdit();
-  }
-  if (S.recording) {
-    if (S.lickRec.length) return;                        // laufende Aufnahme mit Tönen nicht wegwerfen
-    toggleRecording();                                   // leere Aufnahme beenden, dann auswählen
   }
   resetLickStep();
   S.selectedLick = S.selectedLick === id ? null : id;
@@ -2734,7 +2651,8 @@ function mxlMeasureToRec(noteEls, divisions, barLen) {
     if (el.querySelector('notehead')?.textContent.trim() === 'x' || el.querySelector('unpitched')) { note.mute = 1; rec.push(note); lastVoiced = null; return; }
     const bendAlt = el.querySelector('technical > bend > bend-alter');
     const release = el.querySelector('technical > bend > release');
-    if (bendAlt && !release) { const ba = +bendAlt.textContent; note.bend = ba >= 1.5 ? 2 : (ba > 0 ? 1 : undefined); }
+    if (bendAlt && !release) { const ba = +bendAlt.textContent;   // 0.5 = Viertelton-Smear
+      note.bend = ba >= 1.5 ? 2 : ba >= 0.75 ? 1 : ba > 0 ? 0.5 : undefined; }
     if (mxlNoteVibrato(el)) note.vib = 1;
     // Slide: Ziel = nächste Spalte auf gleicher Saite
     if (el.querySelector('slide[type="start"]')) {
@@ -3223,7 +3141,6 @@ const EDIT_DUR_OPTS = [[8, '1/1 · ganze'], [6, '1/2 · punktiert'], [4, '1/2 ·
 function beginEdit(id) {
   const lk = S.licks.find(l => l.id === id);
   if (!lk) return;
-  if (S.recording) toggleRecording();      // laufende Aufnahme sauber beenden
   if (S.trainer) stopTrainer();
   S.editing = id;
   S.editSel = -1;
@@ -3233,10 +3150,25 @@ function beginEdit(id) {
   S.lickRec = (t || lk.notes).map(n => ({ ...n }));
   S.editKey = t ? S.key : lk.key;
   S.editBox = lk.box || detectBox(lk) || 0;               // hinterlegte Box, sonst Auto-Vorschlag
+  openEditor(lk.name);
+}
+// Neuen Lick im Editor anlegen: leerer Buffer, Töne kommen per Griffbrett-Klick.
+// Aufnehmen und Bearbeiten sind damit ein und derselbe Modus.
+function beginNewLick() {
+  if (S.trainer) stopTrainer();
+  S.editing = '_new';
+  S.editSel = -1;
+  S.selectedLick = null;
+  resetLickStep();
+  S.lickRec = [];
+  S.editKey = S.key;
+  S.editBox = 0;
+  openEditor('Lick ' + (S.licks.length + 1));
+}
+function openEditor(name) {
   document.getElementById('editBox').value = S.editBox;
-  document.getElementById('editName').value = lk.name;
+  document.getElementById('editName').value = name;
   document.getElementById('editorRow').style.display = 'block';   // Vollbild-Dialog
-  document.getElementById('recRow').style.display = 'none';
   renderEditor();
   renderLickPanel();
   render();
@@ -3418,7 +3350,7 @@ function renderStaff(box, recNotes, opts = {}) {
       if (n.bend) {                                           // Bend: Pfeil hoch + ½/full
         svg.appendChild(el('path', { d: `M ${x + 7} ${ty - 1} q 8 0 8 -9`, fill: 'none', stroke: '#f59e0b', 'stroke-width': 1.5 }));
         svg.appendChild(el('polygon', { points: `${x + 15},${ty - 12} ${x + 12.5},${ty - 7} ${x + 17.5},${ty - 8}`, fill: '#f59e0b' }));
-        svg.appendChild(el('text', { x: x + 16, y: ty - 14, fill: '#f59e0b', 'font-size': 8, 'text-anchor': 'middle' }, n.bend === 2 ? 'full' : '½'));
+        svg.appendChild(el('text', { x: x + 16, y: ty - 14, fill: '#f59e0b', 'font-size': 8, 'text-anchor': 'middle' }, bendLabel(n.bend)));
       }
     }
     if (onClick) {                                              // nur im Editor anklickbar
@@ -3517,7 +3449,7 @@ function toggleSelTrip() {
   }
 }
 const cycleOn = (cur, list) => list[(list.indexOf(cur) + 1) % list.length];
-function cycleSelBend() { const n = selNote(); if (n && !n.rest) setNoteBend(S.editSel, cycleOn(n.bend || 0, [0, 1, 2])); }
+function cycleSelBend() { const n = selNote(); if (n && !n.rest) setNoteBend(S.editSel, cycleOn(n.bend || 0, [0, 0.5, 1, 2])); }
 function cycleSelSlide() { const n = selNote(); if (n && !n.rest) setNoteSlide(S.editSel, cycleOn(n.slide || 0, [0, 1, 2, -1, -2])); }
 function cycleSelSlideIn() { const n = selNote(); if (n && !n.rest) setNoteSlideIn(S.editSel, cycleOn(n.slideIn || 0, [0, -2, 2])); }
 function cycleSelAcc() { const n = selNote(); if (n && !n.rest) setNoteAcc(S.editSel, cycleOn(n.acc || 0, [0, 1, -1])); }
@@ -3545,7 +3477,7 @@ function renderEditTools() {
       ${artBtn('toggleSelTrip()', '3 Triole', isTrip, 'Triole – drei Töne auf zwei', has)}
      </span>
      <span class="et-lbl">Artikulation</span><span class="et-art">
-      ${artBtn('cycleSelBend()', 'Bend ' + (snd && n.bend ? (n.bend === 2 ? 'full' : '½') : '–'), snd && !!n.bend, 'Bend: – / ½ / full (Taste b)')}
+      ${artBtn('cycleSelBend()', 'Bend ' + (snd && n.bend ? bendLabel(n.bend) : '–'), snd && !!n.bend, 'Bend: – / ¼ (Smear) / ½ / full (Taste b)')}
       ${artBtn('cycleSelSlide()', 'Slide ' + (snd && n.slide ? (n.slide > 0 ? '+' : '−') + (Math.abs(n.slide) === 2 ? '1' : '½') : '–'), snd && !!n.slide, 'Slide zum Folgeton: – / +½ / +1 / −½ / −1 (Taste s)')}
       ${artBtn('cycleSelSlideIn()', 'Einschleifer ' + (snd && n.slideIn ? (n.slideIn < 0 ? '↗' : '↘') : '–'), snd && !!n.slideIn, 'Slide IN den Ton hinein – von unten ↗ oder von oben ↘ (Taste i)')}
       ${artBtn('toggleNoteLeg(S.editSel)', '⌒', snd && !!n.leg, 'Legato: Hammer-on/Pull-off (Taste h)')}
@@ -3574,7 +3506,7 @@ function renderEditor() {
     return;
   }
   const marks = [n.grace ? 'Vorschlag' : '',
-    n.bend ? (n.bend === 2 ? 'Bend full' : 'Bend ½') : '',
+    n.bend ? 'Bend ' + bendLabel(n.bend) : '',
     n.slide ? 'Slide ' + (n.slide > 0 ? '+' : '−') + (Math.abs(n.slide) === 2 ? '1' : '½') : '',
     n.slideIn ? 'Einschleifer ' + (n.slideIn < 0 ? 'von unten ↗' : 'von oben ↘') : '',
     n.leg ? 'Legato ⌒' : '', n.vib ? 'Vibrato ∿' : '', n.stacc ? 'Staccato •' : '',
@@ -3677,7 +3609,7 @@ function editorKeydown(e) {
     return;
   } else if (k === 'b') {                                      // Bend – / ½ / full
     if (!n || n.rest) return;
-    const c = [0, 1, 2]; setNoteBend(i, c[(c.indexOf(n.bend || 0) + 1) % c.length]);
+    const c = [0, 0.5, 1, 2]; setNoteBend(i, c[(c.indexOf(n.bend || 0) + 1) % c.length]);
   } else if (k === 's') {                                      // Slide – / +½ / +1 / −½ / −1
     if (!n || n.rest) return;
     const c = [0, 1, 2, -1, -2]; setNoteSlide(i, c[(c.indexOf(n.slide || 0) + 1) % c.length]);
@@ -3729,7 +3661,19 @@ function playEditBuffer() {
 }
 function saveEdit() {
   if (!S.editing) return;
-  if (!S.lickRec.length) { alert('Der Lick hat keine Töne. Füge Töne hinzu oder schließe den Editor.'); return; }
+  if (!S.lickRec.length) { alert('Der Lick hat keine Töne. Klicke Töne am Griffbrett an.'); return; }
+  if (S.editing === '_new') {                            // neu angelegter Lick
+    const nl = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      name: (document.getElementById('editName').value || '').trim() || 'Lick ' + (S.licks.length + 1),
+      key: S.editKey ?? S.key, scale: S.scale,
+      notes: S.lickRec.map(n => ({ ...n })), created: new Date().toISOString()
+    };
+    nl.box = S.editBox || detectBox(nl) || undefined;
+    S.licks.push(nl);
+    if (saveLicks()) { S.selectedLick = nl.id; closeEdit(); }
+    return;
+  }
   const lk = S.licks.find(l => l.id === S.editing);
   if (!lk) { closeEdit(); return; }
   lk.name = (document.getElementById('editName').value || '').trim() || lk.name;
