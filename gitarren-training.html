@@ -792,7 +792,7 @@ details.card > summary:hover { color: var(--text); }
   </div>
   <div id="editHelp" class="hint" style="margin-bottom:8px;display:none"><b>Direkt in der TAB editieren:</b> Klick setzt den Cursor (orange Spalte), dann
     <b>0–9</b>&nbsp;Bund (zweistellig schnell tippen) · <b>←→</b>&nbsp;Position · <b>Alt+←→</b>&nbsp;Ton verschieben · <b>↑↓</b>&nbsp;Saite (Bund bleibt, Ton ändert sich) · <b>Shift+↑↓</b>&nbsp;Saite (gleiche Tonhöhe) ·
-    <b>+/−</b>&nbsp;Dauer · <b>t</b>&nbsp;Triole · <b>b</b>&nbsp;Bend · <b>s</b>&nbsp;Slide · <b>i</b>&nbsp;Einschleifer · <b>h</b>&nbsp;Hammer/Pull ·
+    <b>+/−</b>&nbsp;Dauer · <b>t</b>&nbsp;Triole · <b>b</b>&nbsp;Bend · <b>s</b>&nbsp;Slide · <b>i</b>&nbsp;Einschleifer · <b>h</b>&nbsp;Hammer/Pull · <b>d</b>&nbsp;Schlag binden ·
     <b>v</b>&nbsp;Vibrato · <b>x</b>&nbsp;tote Note · <b>n</b>&nbsp;Vorschlag · <b>.</b>&nbsp;Staccato · <b>g</b>&nbsp;Betonung · <b>p</b>&nbsp;Pause · <b>Entf</b>&nbsp;löschen ·
     <b>Leertaste</b>&nbsp;anhören · <b>Esc</b>&nbsp;schließen. <b>Griffbrett-Klick fügt hinter dem Cursor ein</b> – jeder Bund ist anklickbar, auch außerhalb der Box.</div>
   <div id="editTools" class="edit-tools"></div>
@@ -1725,7 +1725,8 @@ function render() {
     // Pausen klingen nicht und werden nicht gezeichnet; Linien nur zwischen direkt
     // aufeinanderfolgenden Tönen (eine Pause dazwischen trennt die Phrase sichtbar)
     const vis = [];
-    lickNotes.forEach((n, i) => { if (!n.rest) vis.push({ n, i }); });
+    // Gebundene Töne liegen auf demselben Bund wie ihr Vorton – nicht doppelt zeichnen
+    lickNotes.forEach((n, i) => { if (!n.rest && !n.tie) vis.push({ n, i }); });
     for (let k = 0; k < vis.length - 1; k++) {
       if (vis[k + 1].i !== vis[k].i + 1) continue;
       const a = vis[k].n, b = vis[k + 1].n;
@@ -2440,7 +2441,9 @@ const round6 = x => Math.round(x * 1e6) / 1e6;
 const lickLen = notes => round6(notes.reduce((a, n) => a + (n.d || 1), 0));
 const isTriplet = d => Math.abs(d * 3 - Math.round(d * 3)) < 1e-4 && Math.abs(d * 2 - Math.round(d * 2)) > 1e-4;
 // Bend-Stärke in Halbtönen → Beschriftung (0.5 = Viertelton-„Smear")
-const bendLabel = b => b === 2 ? 'full' : b === 1 ? '½' : b === 0.5 ? '¼' : String(b);
+// Bend in Halbtönen: 0,5 = Viertelton-Smear · 1 = ½ · 2 = ganzer Ton · 3 = 1½ (kleine Terz)
+const bendLabel = b => b === 3 ? '1½' : b === 2 ? 'full' : b === 1 ? '½' : b === 0.5 ? '¼' : String(b);
+const BEND_CYCLE = [0, 0.5, 1, 2, 3];
 const DUR_LABEL = { 8: 'Ganze', 4: 'Halbe', 2: 'Viertel', 1: 'Achtel', 0.5: '16tel',
   [T4]: 'Viertel-Triole', [T8]: 'Achtel-Triole', [T16]: '16tel-Triole' };
 // Ton am Griffbrett anklicken → hinter dem Cursor einfügen (Editor).
@@ -2505,10 +2508,21 @@ function playLickAt(lick, delaySec, quiet) {
   const notes = transposeLick(lick);
   if (!notes) { if (!quiet) alert('Lick passt in dieser Tonart nicht aufs Griffbrett.'); return 0; }
   const spb = 60 / S.bpm;
+  // Gebundene Folgetöne: klingen nicht selbst, sondern verlängern den Vorton
+  const tieExt = i => {
+    let e = 0;
+    for (let j = i + 1; j < lick.notes.length; j++) {
+      const s2 = lick.notes[j];
+      if (s2.rest || !s2.tie) break;
+      e += s2.d || 1;
+    }
+    return e;
+  };
   let off = 0;
   notes.forEach((n, i) => {
     const src = lick.notes[i], d = src.d || 1;
     if (src.rest) { off += d; return; }                             // Pause: nur Zeit weiterrücken
+    if (src.tie) { off += d; return; }                              // gebunden: kein neuer Anschlag
     const start = delaySec + eighthTime(off, spb);
     if (src.grace) {                                                 // Vorschlag: kurz angerissen
       if (src.mute) pluckDead(OPEN_MIDI[n.s] + n.fret, start, 0.85, 'lick');
@@ -2522,7 +2536,8 @@ function playLickAt(lick, delaySec, quiet) {
       flashAt(n.s, n.fret, start * 1000, '#94a3b8');
       off += d; return;
     }
-    let dur = Math.max((eighthTime(off + d, spb) - eighthTime(off, spb)) * 1.05, 0.18);
+    const dTot = d + tieExt(i);                                     // Haltebogen verlängert den Ton
+    let dur = Math.max((eighthTime(off + dTot, spb) - eighthTime(off, spb)) * 1.05, 0.18);
     if (src.stacc) dur = Math.min(dur, 0.16);                       // Staccato: kurz
     const g = 0.95 * (src.acc === 1 ? 1.5 : src.acc === -1 ? 0.45 : 1)    // Betonung: Akzent / Ghost
                    * (src.leg ? 0.55 : 1);                                // Legato (H/P): kein Anschlag
@@ -2549,7 +2564,7 @@ function playSelectedLick() { if (S.selectedLick) playLickById(S.selectedLick); 
 function stepLick(dir) {
   const lk = findLick(S.selectedLick);
   if (!lk) { alert('Erst ein Lick auswählen (Bibliothek oder eigene Sammlung).'); return; }
-  const notes = (transposeLick(lk) || []).filter(n => !n.rest);
+  const notes = (transposeLick(lk) || []).filter(n => !n.rest && !n.tie);   // gebunden = kein Anschlag
   if (!notes.length) return;
   if (!S.lickShow) toggleLickShow();
   S.lickStep = S.lickStep < 0
@@ -2684,7 +2699,7 @@ function mxlMeasureToRec(noteEls, divisions, barLen) {
     const bendAlt = el.querySelector('technical > bend > bend-alter');
     const release = el.querySelector('technical > bend > release');
     if (bendAlt && !release) { const ba = +bendAlt.textContent;   // 0.5 = Viertelton-Smear
-      note.bend = ba >= 1.5 ? 2 : ba >= 0.75 ? 1 : ba > 0 ? 0.5 : undefined; }
+      note.bend = ba >= 2.5 ? 3 : ba >= 1.5 ? 2 : ba >= 0.75 ? 1 : ba > 0 ? 0.5 : undefined; }
     if (mxlNoteVibrato(el)) note.vib = 1;
     // Slide: Ziel = nächste Spalte auf gleicher Saite
     if (el.querySelector('slide[type="start"]')) {
@@ -3402,9 +3417,11 @@ function renderStaff(box, recNotes, opts = {}) {
       const marks = [n.vib ? '∿' : '', n.stacc ? '•' : '', n.acc === 1 ? '>' : '', n.acc === -1 ? 'p' : ''].filter(Boolean).join('');
       if (marks) svg.appendChild(el('text', { x, y: tabOnly ? tBot + 11 : nTop - 10, fill: '#22d3ee', 'font-size': 9, 'font-weight': 'bold', 'text-anchor': 'middle' }, marks));
       // ── TAB-Zeile ──
-      svg.appendChild(el('rect', { x: x - 6 * sc, y: ty - 5 * sc, width: 12 * sc, height: 10 * sc, fill: bg }));
-      svg.appendChild(el('text', { x, y: ty + 3.5 * sc, fill: col, 'font-size': 10 * sc, 'font-weight': 'bold', 'text-anchor': 'middle',
-        'font-family': 'ui-monospace,monospace' }, n.mute ? '✕' : String(n.fret)));   // tote Note: ✕ in der TAB
+      // gebundener Ton: Bund in Klammern (üblich in TABs – er wird nicht neu angeschlagen)
+      const tabTxt = n.mute ? '✕' : n.tie ? `(${n.fret})` : String(n.fret);
+      svg.appendChild(el('rect', { x: x - (n.tie ? 9 : 6) * sc, y: ty - 5 * sc, width: (n.tie ? 18 : 12) * sc, height: 10 * sc, fill: bg }));
+      svg.appendChild(el('text', { x, y: ty + 3.5 * sc, fill: col, 'font-size': (n.tie ? 8.5 : 10) * sc, 'font-weight': 'bold', 'text-anchor': 'middle',
+        'font-family': 'ui-monospace,monospace' }, tabTxt));                          // tote Note: ✕ in der TAB
       if (n.leg && prev) {                                    // Legato: Bogen vom vorigen Ton (Noten + TAB)
         const midX = (prev.x + x) / 2;
         const nyTop = Math.min(prev.y, y) - 6;
@@ -3413,6 +3430,13 @@ function renderStaff(box, recNotes, opts = {}) {
         const tyTop = Math.min(prev.ty, ty) - 7;
         svg.appendChild(el('path', { d: `M ${prev.x + 3} ${prev.ty - 7} Q ${midX} ${tyTop - 7} ${x - 3} ${ty - 7}`,
           fill: 'none', stroke: '#22d3ee', 'stroke-width': 1.2 }));
+      }
+      if (n.tie && prev) {                                    // Haltebogen: unter den Noten, über der TAB
+        const midX = (prev.x + x) / 2;
+        addN(el('path', { d: `M ${prev.x + 4} ${prev.y + 6} Q ${midX} ${Math.max(prev.y, y) + 13} ${x - 4} ${y + 6}`,
+          fill: 'none', stroke: '#dfe6f3', 'stroke-width': 1.2 }));
+        svg.appendChild(el('path', { d: `M ${prev.x + 5} ${prev.ty - 7} Q ${midX} ${Math.min(prev.ty, ty) - 13} ${x - 6} ${ty - 7}`,
+          fill: 'none', stroke: '#dfe6f3', 'stroke-width': 1.2 }));
       }
       prev = { x, y, ty };
       if (n.slideIn) {                                        // Einschleifer: Schrägstrich VOR dem Ton
@@ -3541,7 +3565,7 @@ function toggleSelTrip() {
   }
 }
 const cycleOn = (cur, list) => list[(list.indexOf(cur) + 1) % list.length];
-function cycleSelBend() { const n = selNote(); if (n && !n.rest) setNoteBend(S.editSel, cycleOn(n.bend || 0, [0, 0.5, 1, 2])); }
+function cycleSelBend() { const n = selNote(); if (n && !n.rest) setNoteBend(S.editSel, cycleOn(n.bend || 0, BEND_CYCLE)); }
 function cycleSelSlide() { const n = selNote(); if (n && !n.rest) setNoteSlide(S.editSel, cycleOn(n.slide || 0, [0, 1, 2, -1, -2])); }
 function cycleSelSlideIn() { const n = selNote(); if (n && !n.rest) setNoteSlideIn(S.editSel, cycleOn(n.slideIn || 0, [0, -2, 2])); }
 function cycleSelAcc() { const n = selNote(); if (n && !n.rest) setNoteAcc(S.editSel, cycleOn(n.acc || 0, [0, 1, -1])); }
@@ -3569,10 +3593,13 @@ function renderEditTools() {
       ${artBtn('toggleSelTrip()', '3 Triole', isTrip, 'Triole – drei Töne auf zwei', has)}
      </span>
      <span class="et-lbl">Artikulation</span><span class="et-art">
-      ${artBtn('cycleSelBend()', 'Bend ' + (snd && n.bend ? bendLabel(n.bend) : '–'), snd && !!n.bend, 'Bend: – / ¼ (Smear) / ½ / full (Taste b)')}
+      ${artBtn('cycleSelBend()', 'Bend ' + (snd && n.bend ? bendLabel(n.bend) : '–'), snd && !!n.bend, 'Bend: – / ¼ (Smear) / ½ / full / 1½ (Taste b)')}
       ${artBtn('cycleSelSlide()', 'Slide ' + (snd && n.slide ? (n.slide > 0 ? '+' : '−') + (Math.abs(n.slide) === 2 ? '1' : '½') : '–'), snd && !!n.slide, 'Slide zum Folgeton: – / +½ / +1 / −½ / −1 (Taste s)')}
       ${artBtn('cycleSelSlideIn()', 'Einschleifer ' + (snd && n.slideIn ? (n.slideIn < 0 ? '↗' : '↘') : '–'), snd && !!n.slideIn, 'Slide IN den Ton hinein – von unten ↗ oder von oben ↘ (Taste i)')}
       ${artBtn('toggleNoteLeg(S.editSel)', '⌒', snd && !!n.leg, 'Legato: Hammer-on/Pull-off (Taste h)')}
+      ${artBtn('toggleNoteTie(S.editSel)', '⌣ binden', snd && !!n.tie,
+        'Schlag binden – Haltebogen zum Vorton: nicht neu anschlagen, Dauer addiert sich (Taste d)',
+        snd && (!!n.tie || !!prevSounding(S.editSel)))}
       ${artBtn('toggleNoteVib(S.editSel)', '∿', snd && !!n.vib, 'Vibrato (Taste v)')}
       ${artBtn('toggleNoteStacc(S.editSel)', '•', snd && !!n.stacc, 'Staccato (Taste .)')}
       ${artBtn('toggleNoteMute(S.editSel)', '✕', snd && !!n.mute, 'Tote Note / Rake (Taste x)')}
@@ -3580,7 +3607,18 @@ function renderEditTools() {
       ${artBtn('cycleSelAcc()', 'Betonung ' + (snd && n.acc ? (n.acc === 1 ? '>' : 'p') : '–'), snd && !!n.acc, 'Betonung: – / Akzent > / leise p (Taste g)')}
      </span>`;
 }
+// Gebundene Töne an ihren Vorton angleichen – nötig, wenn dieser nachträglich
+// verschoben oder gelöscht wurde (ein Haltebogen ohne Vorton ergibt keinen Ton).
+function syncTies() {
+  let last = null;
+  S.lickRec.forEach(n => {
+    if (n.rest) return;
+    if (n.tie) { if (last) { n.s = last.s; n.fret = last.fret; } else delete n.tie; }
+    if (!n.tie) last = n;
+  });
+}
 function renderEditor() {
+  syncTies();
   renderEditorStaff();
   renderEditTools();
   updateEditMeta();
@@ -3602,6 +3640,7 @@ function renderEditor() {
     n.bend ? 'Bend ' + bendLabel(n.bend) : '',
     n.slide ? 'Slide ' + (n.slide > 0 ? '+' : '−') + (Math.abs(n.slide) === 2 ? '1' : '½') : '',
     n.slideIn ? 'Einschleifer ' + (n.slideIn < 0 ? 'von unten ↗' : 'von oben ↘') : '',
+    n.tie ? 'gebunden ⌣' : '',
     n.leg ? 'Legato ⌒' : '', n.vib ? 'Vibrato ∿' : '', n.stacc ? 'Staccato •' : '',
     n.mute ? 'tote Note ✕' : '', n.acc === 1 ? 'Akzent >' : '', n.acc === -1 ? 'leise p' : '']
     .filter(Boolean).join(' · ');
@@ -3625,6 +3664,24 @@ function toggleNoteVib(i) { const n = S.lickRec[i]; if (n.vib) delete n.vib; els
 function toggleNoteLeg(i) { const n = S.lickRec[i]; if (n.leg) delete n.leg; else n.leg = 1; renderEditor(); render(); }
 function toggleNoteMute(i) { const n = S.lickRec[i]; if (n.mute) delete n.mute; else n.mute = 1; renderEditor(); render(); }
 function toggleNoteGrace(i) { const n = S.lickRec[i]; if (n.grace) delete n.grace; else n.grace = 1; renderEditor(); render(); }
+// Haltebogen: der Ton wird nicht neu angeschlagen, sondern verlängert den Vorton.
+// Nötig für Töne über den Taktstrich und für Dauern, die kein einzelner Notenwert
+// hergibt. Ein Haltebogen verbindet denselben Ton → Saite/Bund vom Vorton übernehmen.
+function prevSounding(i) {
+  for (let j = i - 1; j >= 0; j--) if (!S.lickRec[j].rest) return S.lickRec[j];
+  return null;
+}
+function toggleNoteTie(i) {
+  const n = S.lickRec[i];
+  if (n.tie) delete n.tie;
+  else {
+    const p = prevSounding(i);
+    if (!p) return;                          // erster Ton kann nichts binden
+    n.tie = 1; n.s = p.s; n.fret = p.fret;
+    delete n.grace; delete n.mute; delete n.leg; delete n.slideIn;
+  }
+  renderEditor(); render();
+}
 function setNoteBend(i, v) { const n = S.lickRec[i]; if (v) n.bend = v; else delete n.bend; renderEditor(); render(); }
 function setNoteAcc(i, v) { const n = S.lickRec[i]; if (v) n.acc = v; else delete n.acc; renderEditor(); render(); }
 function setNoteSlide(i, v) { const n = S.lickRec[i]; if (v) n.slide = v; else delete n.slide; renderEditor(); render(); }
@@ -3702,14 +3759,15 @@ function editorKeydown(e) {
     return;
   } else if (k === 'b') {                                      // Bend – / ½ / full
     if (!n || n.rest) return;
-    const c = [0, 0.5, 1, 2]; setNoteBend(i, c[(c.indexOf(n.bend || 0) + 1) % c.length]);
+    setNoteBend(i, BEND_CYCLE[(BEND_CYCLE.indexOf(n.bend || 0) + 1) % BEND_CYCLE.length]);
   } else if (k === 's') {                                      // Slide – / +½ / +1 / −½ / −1
     if (!n || n.rest) return;
     const c = [0, 1, 2, -1, -2]; setNoteSlide(i, c[(c.indexOf(n.slide || 0) + 1) % c.length]);
   } else if (k === 'i') {                                      // Einschleifer – / von unten / von oben
     if (!n || n.rest) return;
     const c = [0, -2, 2]; setNoteSlideIn(i, c[(c.indexOf(n.slideIn || 0) + 1) % c.length]);
-  } else if (k === 'h') { if (!n || n.rest) return; toggleNoteLeg(i); }
+  } else if (k === 'd') { if (!n || n.rest) return; toggleNoteTie(i); }   // Schlag binden (durchhalten)
+  else if (k === 'h') { if (!n || n.rest) return; toggleNoteLeg(i); }
   else if (k === 'v') { if (!n || n.rest) return; toggleNoteVib(i); }
   else if (k === 'x') { if (!n || n.rest) return; toggleNoteMute(i); }
   else if (k === 'n') { if (!n || n.rest) return; toggleNoteGrace(i); }   // Vorschlagsnote
@@ -4002,7 +4060,7 @@ function trainerTargets() {                       // Modus 'lick': Ziele aus dem
   const lk = findLick(S.selectedLick);
   if (!lk) return null;
   const notes = transposeLick(lk);
-  return notes && notes.filter(n => !n.rest).map(n => ({ ...n, midi: OPEN_MIDI[n.s] + n.fret }));
+  return notes && notes.filter(n => !n.rest && !n.tie).map(n => ({ ...n, midi: OPEN_MIDI[n.s] + n.fret }));
 }
 // Box auf- und absteigend (ohne Wiederholung des Spitzentons)
 function boxTargets() {
