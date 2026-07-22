@@ -779,6 +779,7 @@ details.card > summary:hover { color: var(--text); }
     <span class="tb-sep"></span>
     <button onclick="setStaffZoom(-1)" title="Noten kleiner">🔍−</button>
     <button onclick="setStaffZoom(1)" title="Noten größer">🔍+</button>
+    <button id="btn-staffview" onclick="toggleStaffView()" title="Noten + TAB – klicke für „nur TAB“ (spart Höhe)">♪ TAB</button>
     <button onclick="insertRestEdit()" title="Pause hinter dem Cursor einfügen">⏸ Pause</button>
     <button onclick="playEditBuffer()" title="Aktuellen Stand abspielen (folgt Groove &amp; Tempo)">▶ Anhören</button>
     <button onclick="saveEdit()" title="Änderungen speichern (überschreibt den Lick)">💾 Speichern</button>
@@ -853,7 +854,7 @@ const S = { key: 9, scale: 'minor', pos: 1, triad: 'none', set: 'DGB', label: 'n
             drive: 'clean',
             licks: [], lickRec: [], selectedLick: null, lickLoop: false,
             lickShow: true,
-            staffShow: true, staffZoom: 1.4, playMode: false,
+            staffShow: true, staffZoom: 1.4, staffView: 'both', playMode: false,
             lickSet: [], parcours: false, parcPlay: false, parcFollow: false,
             editing: null, editSel: -1, editKey: null, editBox: 0, soloDraft: null, lickStep: -1,
             trading: false, motif: false, limit: null, limitNotes: [], limitFrets: [0, 3],
@@ -2025,7 +2026,26 @@ function setStaffZoom(dir) {
   S.staffZoom = Math.min(3, Math.max(0.8, round6(S.staffZoom + dir * 0.2)));
   renderFbStaff();
   if (S.editing) renderEditorStaff();
+  fitEditorSheet();
   saveSettings();
+}
+// Noten + TAB ⇄ nur TAB. „Nur TAB“ ist knapp halb so hoch – hilft auf kleinen
+// Fenstern, wo der Editor sonst das Griffbrett verdrängt.
+function toggleStaffView() {
+  S.staffView = S.staffView === 'tab' ? 'both' : 'tab';
+  applyStaffView();
+  renderFbStaff();
+  if (S.editing) renderEditorStaff();
+  fitEditorSheet();
+  saveSettings();
+}
+function applyStaffView() {
+  const b = document.getElementById('btn-staffview');
+  if (!b) return;
+  const tab = S.staffView === 'tab';
+  b.textContent = tab ? 'TAB' : '♪ TAB';
+  b.title = tab ? 'Nur TAB – klicke für Noten + TAB' : 'Noten + TAB – klicke für „nur TAB“ (spart Höhe)';
+  b.classList.toggle('active', tab);
 }
 
 // ─── Layout-Steuerung: Preset-Tabs, Sound-Schublade, Legende, Karten ─────────
@@ -3195,8 +3215,23 @@ function fitEditorSheet() {
   const row = document.getElementById('editorRow');
   if (!row || row.style.display === 'none') return;
   const fb = document.getElementById('fb');
+  const MIN_SHEET = 190, MIN_FB = 130;                 // darunter wird beides unbedienbar
+  if (fb) {
+    fb.style.maxWidth = fb.style.minWidth = '';        // erst die Naturgröße messen
+    const r0 = fb.getBoundingClientRect();
+    const top = Math.max(0, r0.top);
+    const want = Math.min(row.scrollHeight + 4, innerHeight * 0.54);
+    const room = innerHeight - top - Math.max(MIN_SHEET, want) - 12;
+    // Reicht die Höhe nicht, das Griffbrett stufenlos schrumpfen (Seitenverhältnis
+    // bleibt) – lieber ein kleineres Griffbrett als ein verdecktes. min-width muss
+    // mit weichen, sonst gewinnt es gegen max-width.
+    if (r0.height > room && r0.height > MIN_FB) {
+      fb.style.minWidth = '0';
+      fb.style.maxWidth = Math.round(r0.width * Math.max(MIN_FB, room) / r0.height) + 'px';
+    }
+  }
   const avail = fb ? innerHeight - fb.getBoundingClientRect().bottom - 8 : innerHeight * 0.5;
-  row.style.maxHeight = Math.round(Math.max(200, Math.min(innerHeight * 0.54, avail))) + 'px';
+  row.style.maxHeight = Math.round(Math.max(MIN_SHEET, Math.min(innerHeight * 0.54, avail))) + 'px';
   document.body.style.paddingBottom = Math.round(row.getBoundingClientRect().height + 24) + 'px';
 }
 addEventListener('resize', fitEditorSheet);
@@ -3214,26 +3249,36 @@ const STAFF_DIA = { C: 0, D: 1, E: 2, F: 3, G: 4, A: 5, B: 6 };
 // Zeichnet Noten + TAB eines Notenarrays in einen Container.
 // opts: { key, sel, selColor, zoom, onClick } – sel = hervorgehobener Index.
 function renderStaff(box, recNotes, opts = {}) {
-  const { key: sKey = S.key, sel = -1, selColor = '#f59e0b', zoom = 1, onClick = null } = opts;
+  const { key: sKey = S.key, sel = -1, selColor = '#f59e0b', zoom = 1, onClick = null, view = S.staffView } = opts;
   const PXE = 26, MLx = 46, E = S.beatsPerMeasure * 2;
   const total = lickLen(recNotes);                            // Vorschläge zählen nicht mit
   const W2 = MLx + total * PXE + 24;
   const nTop = 36, nGap = 8, nBot = nTop + 4 * nGap;          // Notensystem (5 Linien), Platz für Takt-Labels
   const tTop = nBot + 32, tGap = 7, tBot = tTop + 5 * tGap;   // TAB (6 Linien)
   const H2 = tBot + 16, bg = '#0d1117';
+  // „Nur TAB“ spart über die Hälfte der Höhe: gezeichnet wird unverändert, der
+  // Ausschnitt (viewBox) zeigt aber nur das TAB-System – das Notensystem liegt
+  // dann außerhalb und wird vom SVG weggeschnitten.
+  const tabOnly = view === 'tab';
+  const vbY = tabOnly ? tTop - 28 : 0;
+  const vbH = tabOnly ? tBot + 14 - vbY : H2;
   // viewBox bleibt konstant, width/height skalieren → knackscharfe Vergrößerung
-  const svg = el('svg', { viewBox: `0 0 ${W2} ${H2}`, width: Math.round(W2 * zoom), height: Math.round(H2 * zoom) });
-  svg.appendChild(el('rect', { x: 0, y: 0, width: W2, height: H2, fill: bg }));
+  const svg = el('svg', { viewBox: `0 ${vbY} ${W2} ${vbH}`, width: Math.round(W2 * zoom), height: Math.round(vbH * zoom) });
+  svg.appendChild(el('rect', { x: 0, y: vbY, width: W2, height: vbH, fill: bg }));
+  // addN: Element gehört zum Notensystem – im TAB-Modus gar nicht erst zeichnen.
+  // (Wegschneiden per viewBox genügt nicht: tiefe Töne sitzen mit Hilfslinien so
+  //  weit unter dem Notensystem, dass sie sonst in die TAB-Zeile ragen.)
+  const addN = node => { if (!tabOnly) svg.appendChild(node); };
   for (let i = 0; i < 5; i++)
-    svg.appendChild(el('line', { x1: MLx - 16, y1: nTop + i * nGap, x2: W2 - 8, y2: nTop + i * nGap, stroke: '#3a4150', 'stroke-width': 1 }));
+    addN(el('line', { x1: MLx - 16, y1: nTop + i * nGap, x2: W2 - 8, y2: nTop + i * nGap, stroke: '#3a4150', 'stroke-width': 1 }));
   for (let i = 0; i < 6; i++)
     svg.appendChild(el('line', { x1: MLx - 16, y1: tTop + i * tGap, x2: W2 - 8, y2: tTop + i * tGap, stroke: '#3a4150', 'stroke-width': 1 }));
-  svg.appendChild(el('text', { x: 10, y: nTop + 2 * nGap + 5, fill: '#8b93a7', 'font-size': 14, 'font-weight': 'bold' }, '♪'));
+  addN(el('text', { x: 10, y: nTop + 2 * nGap + 5, fill: '#8b93a7', 'font-size': 14, 'font-weight': 'bold' }, '♪'));
   ['T', 'A', 'B'].forEach((ch, i) =>
     svg.appendChild(el('text', { x: 12, y: tTop + (i + 1.3) * tGap + 2, fill: '#8b93a7', 'font-size': 9, 'font-weight': 'bold' }, ch)));
   for (let b = E; b <= total; b += E) {                       // Taktstriche
     const x = MLx + b * PXE - 7, w = b === total ? 2 : 1;
-    svg.appendChild(el('line', { x1: x, y1: nTop, x2: x, y2: nBot, stroke: '#4a5264', 'stroke-width': w }));
+    addN(el('line', { x1: x, y1: nTop, x2: x, y2: nBot, stroke: '#4a5264', 'stroke-width': w }));
     svg.appendChild(el('line', { x1: x, y1: tTop, x2: x, y2: tBot, stroke: '#4a5264', 'stroke-width': w }));
   }
   // Takt-Nummer + Akkord der geladenen Progression über jedem Takt
@@ -3253,7 +3298,7 @@ function renderStaff(box, recNotes, opts = {}) {
           }
         });
       }
-      svg.appendChild(el('text', { x: MLx + b * E * PXE - 2, y: 14, fill: 'var(--scale-col)',
+      svg.appendChild(el('text', { x: MLx + b * E * PXE - 2, y: tabOnly ? tTop - 16 : 14, fill: 'var(--scale-col)',
         'font-size': 9, 'font-weight': 'bold' }, `${b + 1}${names.length ? ' · ' + names.join('→') : ''}`));
     }
   const durGlyph = d => {
@@ -3305,7 +3350,7 @@ function renderStaff(box, recNotes, opts = {}) {
   if (sel >= 0 && sel < items.length) {
     const ci = items[sel];
     const cw = Math.max(ci.n.grace ? 11 : 18, (ci.n.d || 1) * PXE);
-    svg.appendChild(el('rect', { x: ci.x - cw / 2 - 1, y: 4, width: cw, height: H2 - 8,
+    svg.appendChild(el('rect', { x: ci.x - cw / 2 - 1, y: vbY + 2, width: cw, height: vbH - 4,
       fill: selColor === '#f59e0b' ? 'rgba(245,158,11,0.12)' : 'rgba(34,197,94,0.15)', rx: 3 }));
   }
 
@@ -3316,44 +3361,46 @@ function renderStaff(box, recNotes, opts = {}) {
     const isSel = i === sel;
     const col = isSel ? selColor : '#dfe6f3';
     if (it.rest) {                                            // Pause: Block auf der Mittellinie
-      svg.appendChild(el('rect', { x: x - 4, y: nTop + 1.5 * nGap, width: 9, height: 5, rx: 1.5, fill: isSel ? selColor : '#6b7280' }));
-      if (g.dot) svg.appendChild(el('circle', { cx: x + 9, cy: nTop + 1.5 * nGap + 2, r: 1.6, fill: isSel ? selColor : '#6b7280' }));
+      const ry = tabOnly ? tTop + 2 * tGap - 2 : nTop + 1.5 * nGap;
+      svg.appendChild(el('rect', { x: x - 4, y: ry, width: 9, height: 5, rx: 1.5, fill: isSel ? selColor : '#6b7280' }));
+      if (g.dot) svg.appendChild(el('circle', { cx: x + 9, cy: ry + 2, r: 1.6, fill: isSel ? selColor : '#6b7280' }));
       prev = null;                                            // Bogen nie über eine Pause hinweg
     } else {
       const { y, ty, step, accid } = it;
       for (let s2 = 12; s2 <= step; s2 += 2)                  // Hilfslinien oben
-        svg.appendChild(el('line', { x1: x - 8, y1: nBot - (s2 - 2) * (nGap / 2), x2: x + 8, y2: nBot - (s2 - 2) * (nGap / 2), stroke: '#3a4150', 'stroke-width': 1 }));
+        addN(el('line', { x1: x - 8, y1: nBot - (s2 - 2) * (nGap / 2), x2: x + 8, y2: nBot - (s2 - 2) * (nGap / 2), stroke: '#3a4150', 'stroke-width': 1 }));
       for (let s2 = 0; s2 >= step; s2 -= 2)                   // Hilfslinien unten
-        svg.appendChild(el('line', { x1: x - 8, y1: nBot - (s2 - 2) * (nGap / 2), x2: x + 8, y2: nBot - (s2 - 2) * (nGap / 2), stroke: '#3a4150', 'stroke-width': 1 }));
+        addN(el('line', { x1: x - 8, y1: nBot - (s2 - 2) * (nGap / 2), x2: x + 8, y2: nBot - (s2 - 2) * (nGap / 2), stroke: '#3a4150', 'stroke-width': 1 }));
       const hollow = g.kind === 'whole' || g.kind === 'half';
       const sc = n.grace ? 0.68 : 1;                           // Vorschlag: kleiner Notenkopf
       if (n.mute)                                              // tote Note: ✕-Notenkopf
-        svg.appendChild(el('text', { x, y: y + 3.5 * sc, fill: col, 'font-size': 11 * sc, 'font-weight': 'bold', 'text-anchor': 'middle' }, '✕'));
+        addN(el('text', { x, y: y + 3.5 * sc, fill: col, 'font-size': 11 * sc, 'font-weight': 'bold', 'text-anchor': 'middle' }, '✕'));
       else
-        svg.appendChild(el('ellipse', { cx: x, cy: y, rx: 4.6 * sc, ry: 3.4 * sc, fill: hollow ? 'none' : col, stroke: col,
+        addN(el('ellipse', { cx: x, cy: y, rx: 4.6 * sc, ry: 3.4 * sc, fill: hollow ? 'none' : col, stroke: col,
           'stroke-width': hollow ? 1.6 : 1, transform: `rotate(-15 ${x} ${y})` }));
-      if (g.dot) svg.appendChild(el('circle', { cx: x + 8, cy: y - 2, r: 1.6, fill: col }));
-      if (accid) svg.appendChild(el('text', { x: x - 10, y: y + 3.5, fill: col, 'font-size': 10, 'text-anchor': 'middle' }, accid));
+      if (g.dot) addN(el('circle', { cx: x + 8, cy: y - 2, r: 1.6, fill: col }));
+      if (accid) addN(el('text', { x: x - 10, y: y + 3.5, fill: col, 'font-size': 10, 'text-anchor': 'middle' }, accid));
       const gr = beamed.get(it);
       if (gr) {                                               // Hals bis zum Balken (kein Fähnchen)
         const sx = gr.up ? x + 4.2 : x - 4.2;
-        svg.appendChild(el('line', { x1: sx, y1: y + (gr.up ? -1 : 1), x2: sx, y2: gr.beamY, stroke: col, 'stroke-width': 1.4 }));
+        addN(el('line', { x1: sx, y1: y + (gr.up ? -1 : 1), x2: sx, y2: gr.beamY, stroke: col, 'stroke-width': 1.4 }));
       } else if (g.kind !== 'whole') {                        // einzelner Hals + Fähnchen
         const up = step < 6;
         const sx = up ? x + 4.2 * sc : x - 4.2 * sc, sy2 = y + (up ? -24 : 24) * sc;
-        svg.appendChild(el('line', { x1: sx, y1: y + (up ? -1 : 1), x2: sx, y2: sy2, stroke: col, 'stroke-width': 1.4 * sc }));
+        addN(el('line', { x1: sx, y1: y + (up ? -1 : 1), x2: sx, y2: sy2, stroke: col, 'stroke-width': 1.4 * sc }));
         const flags = n.grace ? 1 : (g.kind === 'eighth' ? 1 : g.kind === 'sixteenth' ? 2 : 0);
         for (let f2 = 0; f2 < flags; f2++)
-          svg.appendChild(el('path', { d: `M ${sx} ${sy2 + (up ? f2 * 5 : -f2 * 5)} q ${8 * sc} ${up ? 4 : -4} ${4 * sc} ${(up ? 12 : -12) * sc}`,
+          addN(el('path', { d: `M ${sx} ${sy2 + (up ? f2 * 5 : -f2 * 5)} q ${8 * sc} ${up ? 4 : -4} ${4 * sc} ${(up ? 12 : -12) * sc}`,
             fill: 'none', stroke: col, 'stroke-width': 1.4 * sc }));
         if (n.grace)                                          // Vorschlags-Schrägstrich am Hals
-          svg.appendChild(el('line', { x1: sx - 5, y1: sy2 + (up ? 9 : -9), x2: sx + 5, y2: sy2 + (up ? 1 : -1),
+          addN(el('line', { x1: sx - 5, y1: sy2 + (up ? 9 : -9), x2: sx + 5, y2: sy2 + (up ? 1 : -1),
             stroke: col, 'stroke-width': 1.2 }));
-        if (g.trip) svg.appendChild(el('text', { x: sx + (up ? 3 : -3), y: sy2 + (up ? -3 : 10),
+        if (g.trip) svg.appendChild(el('text', { x: tabOnly ? x : sx + (up ? 3 : -3),
+          y: tabOnly ? tTop - 5 : sy2 + (up ? -3 : 10),        // im TAB-Modus über das TAB-System
           fill: '#8b93a7', 'font-size': 8.5, 'font-style': 'italic', 'font-weight': 'bold', 'text-anchor': 'middle' }, '3'));
       }
       const marks = [n.vib ? '∿' : '', n.stacc ? '•' : '', n.acc === 1 ? '>' : '', n.acc === -1 ? 'p' : ''].filter(Boolean).join('');
-      if (marks) svg.appendChild(el('text', { x, y: nTop - 10, fill: '#22d3ee', 'font-size': 9, 'font-weight': 'bold', 'text-anchor': 'middle' }, marks));
+      if (marks) svg.appendChild(el('text', { x, y: tabOnly ? tBot + 11 : nTop - 10, fill: '#22d3ee', 'font-size': 9, 'font-weight': 'bold', 'text-anchor': 'middle' }, marks));
       // ── TAB-Zeile ──
       svg.appendChild(el('rect', { x: x - 6 * sc, y: ty - 5 * sc, width: 12 * sc, height: 10 * sc, fill: bg }));
       svg.appendChild(el('text', { x, y: ty + 3.5 * sc, fill: col, 'font-size': 10 * sc, 'font-weight': 'bold', 'text-anchor': 'middle',
@@ -3361,7 +3408,7 @@ function renderStaff(box, recNotes, opts = {}) {
       if (n.leg && prev) {                                    // Legato: Bogen vom vorigen Ton (Noten + TAB)
         const midX = (prev.x + x) / 2;
         const nyTop = Math.min(prev.y, y) - 6;
-        svg.appendChild(el('path', { d: `M ${prev.x + 3} ${prev.y - 6} Q ${midX} ${nyTop - 8} ${x - 3} ${y - 6}`,
+        addN(el('path', { d: `M ${prev.x + 3} ${prev.y - 6} Q ${midX} ${nyTop - 8} ${x - 3} ${y - 6}`,
           fill: 'none', stroke: '#22d3ee', 'stroke-width': 1.2 }));
         const tyTop = Math.min(prev.ty, ty) - 7;
         svg.appendChild(el('path', { d: `M ${prev.x + 3} ${prev.ty - 7} Q ${midX} ${tyTop - 7} ${x - 3} ${ty - 7}`,
@@ -3389,7 +3436,7 @@ function renderStaff(box, recNotes, opts = {}) {
     }
     if (onClick) {                                              // nur im Editor anklickbar
       const hitW = Math.max(n.grace ? 11 : 18, (n.d || 1) * PXE);   // Vorschläge: schmalere Klickfläche
-      const hit = el('rect', { x: x - hitW / 2 - 1, y: 0, width: hitW, height: H2, fill: 'transparent' });
+      const hit = el('rect', { x: x - hitW / 2 - 1, y: vbY, width: hitW, height: vbH, fill: 'transparent' });
       hit.style.cursor = 'pointer';
       hit.addEventListener('click', () => onClick(i));
       svg.appendChild(hit);
@@ -3401,18 +3448,20 @@ function renderStaff(box, recNotes, opts = {}) {
     const up = gr.up, by = gr.beamY;
     const sx = it => up ? it.x + 4.2 : it.x - 4.2;
     const first = gr.list[0], last = gr.list[gr.list.length - 1];
-    svg.appendChild(el('line', { x1: sx(first), y1: by, x2: sx(last), y2: by, stroke: '#dfe6f3', 'stroke-width': 3 }));
+    addN(el('line', { x1: sx(first), y1: by, x2: sx(last), y2: by, stroke: '#dfe6f3', 'stroke-width': 3 }));
     const y2b = by + (up ? 5 : -5);
     gr.list.forEach((it, k) => {
       if (it.g.kind !== 'sixteenth') return;
       const nb = gr.list[k + 1], pb = gr.list[k - 1];
       if (nb && nb.g.kind === 'sixteenth')
-        svg.appendChild(el('line', { x1: sx(it), y1: y2b, x2: sx(nb), y2: y2b, stroke: '#dfe6f3', 'stroke-width': 3 }));
+        addN(el('line', { x1: sx(it), y1: y2b, x2: sx(nb), y2: y2b, stroke: '#dfe6f3', 'stroke-width': 3 }));
       else if (!(pb && pb.g.kind === 'sixteenth'))
-        svg.appendChild(el('line', { x1: sx(it), y1: y2b, x2: sx(it) + (nb ? 6 : -6), y2: y2b, stroke: '#dfe6f3', 'stroke-width': 3 }));
+        addN(el('line', { x1: sx(it), y1: y2b, x2: sx(it) + (nb ? 6 : -6), y2: y2b, stroke: '#dfe6f3', 'stroke-width': 3 }));
     });
-    if (gr.list.every(it => it.g.trip) && (gr.list.length === 3 || gr.list.length === 6))
-      svg.appendChild(el('text', { x: (sx(first) + sx(last)) / 2, y: by + (up ? -4 : 12),
+    // Im TAB-Modus fehlt der Balken als Gruppierungs-Hinweis → Ziffer immer setzen
+    if (gr.list.every(it => it.g.trip) && (tabOnly || gr.list.length === 3 || gr.list.length === 6))
+      svg.appendChild(el('text', { x: tabOnly ? (first.x + last.x) / 2 : (sx(first) + sx(last)) / 2,
+        y: tabOnly ? tTop - 5 : by + (up ? -4 : 12),
         fill: '#8b93a7', 'font-size': 9, 'font-style': 'italic', 'font-weight': 'bold', 'text-anchor': 'middle' }, String(gr.list.length)));
   });
   box.innerHTML = '';
@@ -3749,6 +3798,8 @@ function closeEdit() {
   resetLickStep();
   document.body.classList.remove('editing');
   document.body.style.paddingBottom = '';
+  const fbEl = document.getElementById('fb');
+  if (fbEl) fbEl.style.maxWidth = fbEl.style.minWidth = '';   // Griffbrett wieder in Originalgröße
   const row = document.getElementById('editorRow');
   if (row) row.style.display = 'none';
   renderLickPanel();
@@ -4506,7 +4557,7 @@ const PERSIST = ['key','scale','pos','triad','set','label','blue','blueArrows','
   'bass','groove','vol','boxMode','micBoost','lickLoop','sound','selectedLick',
   'presetTab','showLegend','cards','fbCompact','intervalMode','intervalRef',
   'lickShow','pathId','pathStep','lastBackupAt','drive','panels','outDevice',
-  'staffShow','staffZoom','playMode','lickSet','parcPlay','parcFollow'];
+  'staffShow','staffZoom','staffView','playMode','lickSet','parcPlay','parcFollow'];
 function saveSettings() {
   try {
     const o = {};
@@ -4638,6 +4689,7 @@ function applySettingsUI() {
   document.getElementById('fbLegend').style.display = S.showLegend ? 'flex' : 'none';
   document.getElementById('btn-legend').classList.toggle('active', S.showLegend);
   applyFbSize();
+  applyStaffView();
   applyIntervalBtn();
   Object.entries(S.cards || {}).forEach(([k, v]) => {
     const el = document.getElementById('card-' + k);
