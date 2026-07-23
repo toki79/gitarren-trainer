@@ -326,9 +326,13 @@ details.card > summary:hover { color: var(--text); }
 .ptab { background: var(--panel2); border: 1px solid var(--border); border-radius: 0 8px 8px 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
 .ptab-label { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 1.2px; color: var(--muted); font-weight: 600; }
 #btn-legend.active { background: var(--accent); border-color: var(--accent); color: #fff; }
-#panelMenu { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 2px 0 10px; padding: 0 2px; }
+#panelMenu { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 0 0 8px; padding: 6px 10px;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 12px; }
 #panelMenu button { padding: 4px 10px; font-size: 0.74rem; opacity: 0.55; }
 #panelMenu button.active { opacity: 1; background: var(--panel2); border-color: var(--muted); color: var(--text); }
+#panelMenu button:disabled { opacity: 0.4; cursor: default; }
+#panelMenu button#btn-editorPanel.active { background: var(--accent); border-color: var(--accent); color: #fff; opacity: 1; }
+#panelMenu .tb-sep { align-self: stretch; }
 </style>
 </head>
 <body>
@@ -336,6 +340,20 @@ details.card > summary:hover { color: var(--text); }
 <h1>Gitarren-Training · Pentatonik &amp; Triaden</h1>
 
 <div id="stickyTop">
+  <!-- Dauerleiste ganz oben: immer sichtbar, blendet alle Bereiche ein/aus -->
+  <div id="panelMenu" title="Bereiche ein-/ausblenden – ausgeblendete Bereiche behalten ihre Einstellungen">
+    <span class="tb-label">Bereiche</span>
+    <button data-panel="fb" class="active" onclick="togglePanel('fb')" title="Griffbrett ein-/ausblenden">▦ Griffbrett</button>
+    <button id="btn-editorPanel" onclick="closeEdit()" disabled title="Lick-Editor schließen – geöffnet wird er über die Lick-Liste (✎)">✎ Editor</button>
+    <button data-panel="path" class="active" onclick="togglePanel('path')">🗺 Lernpfad</button>
+    <button data-panel="triad" class="active" onclick="togglePanel('triad')">🎸 Triade</button>
+    <button data-panel="prog" class="active" onclick="togglePanel('prog')">🎼 Progression</button>
+    <button data-panel="licks" class="active" onclick="togglePanel('licks')">🎵 Licks</button>
+    <button data-panel="trainer" class="active" onclick="togglePanel('trainer')">🎤 Trainer</button>
+    <button data-panel="ton" class="active" onclick="togglePanel('ton')">🎚 Ton</button>
+    <span class="tb-sep"></span>
+    <button id="btn-settings" class="active" onclick="toggleSettings()" title="Einstellungszeile (Tonart, Box, Tempo …) ein-/ausblenden">⚙ Einstellungen</button>
+  </div>
   <div id="topBar">
     <label class="tb-field">Tonart
       <select id="keySelect" onchange="setKey(+this.value)"></select>
@@ -432,16 +450,6 @@ details.card > summary:hover { color: var(--text); }
       <span class="leg hint">Töne anklickbar 🔊</span>
     </div>
   </div>
-</div>
-
-<div id="panelMenu" title="Bereiche ein-/ausblenden – ausgeblendete Bereiche behalten ihre Einstellungen">
-  <span class="tb-label">Bereiche</span>
-  <button data-panel="path" class="active" onclick="togglePanel('path')">🗺 Lernpfad</button>
-  <button data-panel="triad" class="active" onclick="togglePanel('triad')">🎸 Triade</button>
-  <button data-panel="prog" class="active" onclick="togglePanel('prog')">🎼 Progression</button>
-  <button data-panel="licks" class="active" onclick="togglePanel('licks')">🎵 Licks</button>
-  <button data-panel="trainer" class="active" onclick="togglePanel('trainer')">🎤 Trainer</button>
-  <button data-panel="ton" class="active" onclick="togglePanel('ton')">🎚 Ton</button>
 </div>
 
 <details class="card" id="card-path" open ontoggle="cardToggled(this)">
@@ -870,7 +878,8 @@ const S = { key: 9, scale: 'minor', pos: 1, triad: 'none', set: 'DGB', label: 'n
             lickFilter: { text: '', box: 0, scale: 'all', sort: '', sortKey: '' },
             superId: 'none', pair: false, approach: false,
             presetTab: 'vorlagen', showLegend: false, fbCompact: false, outDevice: '',
-            panels: { path: true, triad: true, prog: true, licks: true, trainer: true, ton: true },
+            settingsShow: true,
+            panels: { fb: true, path: true, triad: true, prog: true, licks: true, trainer: true, ton: true },
             intervalMode: false, intervalRef: null,
             pathId: 'thrill', pathStep: 0, lastBackupAt: null,
             cards: { path: true, triad: true, prog: true, licks: false, trainer: false, ton: false } };
@@ -2067,18 +2076,50 @@ function setPresetTab(v) {
   saveSettings();
 }
 // Bereichs-Menü: ganze Karten ein-/ausblenden (Einstellungen bleiben erhalten)
+// Bereiche → Ziel-Element. Die meisten sind Karten (card-<key>); das Griffbrett
+// ist keine Karte, sondern die Griffbrett-Umrandung.
+function panelTarget(k) {
+  return k === 'fb' ? document.querySelector('.fretboard-wrap') : document.getElementById('card-' + k);
+}
 function applyPanels() {
   Object.entries(S.panels || {}).forEach(([k, v]) => {
-    const card = document.getElementById('card-' + k);
-    if (card) card.style.display = v ? '' : 'none';
+    const el = panelTarget(k);
+    if (el) el.style.display = v ? '' : 'none';
     const btn = document.querySelector(`#panelMenu button[data-panel="${k}"]`);
     if (btn) btn.classList.toggle('active', !!v);
   });
 }
 function togglePanel(k) {
+  // Beim Editieren werden Töne am Griffbrett angeklickt – es darf nicht weg.
+  if (k === 'fb' && S.editing) return;
   S.panels[k] = !S.panels[k];
   applyPanels();
   saveSettings();
+}
+// Einstellungszeile (Tonart/Box/Tempo) ein-/ausklappen – gibt oben Platz frei.
+function applySettings() {
+  const tb = document.getElementById('topBar');
+  if (tb) tb.style.display = S.settingsShow ? '' : 'none';
+  const b = document.getElementById('btn-settings');
+  if (b) b.classList.toggle('active', S.settingsShow);
+  if (S.editing) fitEditorSheet();          // Griffbrett rückt nach → Editor-Höhe neu
+}
+function toggleSettings() {
+  S.settingsShow = !S.settingsShow;
+  applySettings();
+  saveSettings();
+}
+// ✎-Editor-Knopf in der Leiste: nur aktiv, wenn der Editor offen ist (dann schließt er).
+function updateEditorBtn() {
+  const b = document.getElementById('btn-editorPanel');
+  if (!b) return;
+  b.disabled = !S.editing;
+  b.classList.toggle('active', !!S.editing);
+}
+// Griffbrett-Toggle sperren, solange editiert wird (Töne kommen vom Griffbrett).
+function lockFretboardToggle(lock) {
+  const b = document.querySelector('#panelMenu button[data-panel="fb"]');
+  if (b) { b.disabled = lock; b.title = lock ? 'Beim Editieren sichtbar – hier werden die Töne angeklickt' : 'Griffbrett ein-/ausblenden'; }
 }
 function toggleLegend() {
   S.showLegend = !S.showLegend;
@@ -3228,6 +3269,9 @@ function openEditor(name, comment) {
   document.getElementById('editComment').value = comment || '';
   document.getElementById('editorRow').style.display = 'block';   // angedockte Leiste unten
   document.body.classList.add('editing');
+  if (!S.panels.fb) { S._fbWasOff = true; S.panels.fb = true; applyPanels(); }   // Griffbrett wird zum Klicken gebraucht
+  lockFretboardToggle(true);
+  updateEditorBtn();
   window.scrollTo(0, 0);                       // Griffbrett nach oben holen – dort wird geklickt
   renderEditor();
   renderLickPanel();
@@ -3870,6 +3914,9 @@ function closeEdit() {
   if (fbEl) fbEl.style.maxWidth = fbEl.style.minWidth = '';   // Griffbrett wieder in Originalgröße
   const row = document.getElementById('editorRow');
   if (row) row.style.display = 'none';
+  if (S._fbWasOff) { S.panels.fb = false; applyPanels(); S._fbWasOff = false; }   // Vorzustand wiederherstellen
+  lockFretboardToggle(false);
+  updateEditorBtn();
   renderLickPanel();
   render();
 }
@@ -4624,7 +4671,7 @@ const PERSIST = ['key','scale','pos','triad','set','label','blue','blueArrows','
   'superId','bpm','beatsPerMeasure','tripletFeel','measuresPerChord','countIn','click','drums',
   'bass','groove','vol','boxMode','micBoost','lickLoop','sound','selectedLick',
   'presetTab','showLegend','cards','fbCompact','intervalMode','intervalRef',
-  'lickShow','pathId','pathStep','lastBackupAt','drive','panels','outDevice',
+  'lickShow','pathId','pathStep','lastBackupAt','drive','panels','settingsShow','outDevice',
   'staffShow','staffZoom','staffView','playMode','lickSet','parcPlay','parcFollow'];
 function saveSettings() {
   try {
@@ -4754,6 +4801,8 @@ function applySettingsUI() {
   // Layout: Preset-Tab, Bereichs-Menü, Legende, Karten-Zustände
   setPresetTab(S.presetTab || 'vorlagen');
   applyPanels();
+  applySettings();
+  updateEditorBtn();
   document.getElementById('fbLegend').style.display = S.showLegend ? 'flex' : 'none';
   document.getElementById('btn-legend').classList.toggle('active', S.showLegend);
   applyFbSize();
