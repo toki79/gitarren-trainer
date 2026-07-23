@@ -332,6 +332,10 @@ details.card > summary:hover { color: var(--text); }
 #panelMenu button.active { opacity: 1; background: var(--panel2); border-color: var(--muted); color: var(--text); }
 #panelMenu button:disabled { opacity: 0.4; cursor: default; }
 #panelMenu button#btn-editorPanel.active { background: var(--accent); border-color: var(--accent); color: #fff; opacity: 1; }
+/* „leuchtet auf", sobald ein Lick ausgewählt und damit bearbeitbar ist */
+#panelMenu button#btn-editorPanel:not(:disabled):not(.active) { opacity: 1; border-color: var(--accent); color: var(--text); }
+/* Bearbeiten-Aktion am Griffbrett: als deutliche Handlung hervorheben */
+#btn-editSel { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
 #panelMenu .tb-sep { align-self: stretch; }
 </style>
 </head>
@@ -344,7 +348,7 @@ details.card > summary:hover { color: var(--text); }
   <div id="panelMenu" title="Bereiche ein-/ausblenden – ausgeblendete Bereiche behalten ihre Einstellungen">
     <span class="tb-label">Bereiche</span>
     <button data-panel="fb" class="active" onclick="togglePanel('fb')" title="Griffbrett ein-/ausblenden">▦ Griffbrett</button>
-    <button id="btn-editorPanel" onclick="closeEdit()" disabled title="Lick-Editor schließen – geöffnet wird er über die Lick-Liste (✎)">✎ Editor</button>
+    <button id="btn-editorPanel" onclick="editorBarBtn()" disabled title="Erst ein Lick auswählen, dann hier bearbeiten">✎ Editor</button>
     <button data-panel="path" class="active" onclick="togglePanel('path')">🗺 Lernpfad</button>
     <button data-panel="triad" class="active" onclick="togglePanel('triad')">🎸 Triade</button>
     <button data-panel="prog" class="active" onclick="togglePanel('prog')">🎼 Progression</button>
@@ -402,6 +406,7 @@ details.card > summary:hover { color: var(--text); }
       <button id="btn-pair" onclick="togglePair()" title="Triaden-Paar (Hexatonik): eigener Dreiklang + Dur-Dreiklang einen Ganzton darunter – zwei simple Griffe, moderner 6-Ton-Klang">⚭ Paar</button>
       <button id="btn-approach" onclick="toggleApproach()" title="½-Anlauf: den Triaden-Griff aus einem Halbton darunter in den Zielakkord rutschen – Spannung mit sauberer Auflösung">↦ ½-Anlauf</button>
       <button id="btn-lickshow" class="active" onclick="toggleLickShow()" title="Ausgewählten Lick auf dem Griffbrett ein-/ausblenden – die Auswahl bleibt erhalten (▶ Lick, Loop und Trainer funktionieren weiter)">🎵 Lick</button>
+      <button id="btn-editSel" onclick="editSelectedLick()" style="display:none" title="Ausgewähltes Lick im Editor bearbeiten">✎ Bearbeiten</button>
       <span class="btn-row">
         <button id="btn-staffshow" class="active" onclick="toggleStaffShow()" title="Noten &amp; TAB des gewählten Licks unter dem Griffbrett ein-/ausblenden – zum Mitlesen beim Spielen">🎼 Noten</button>
         <button onclick="setStaffZoom(-1)" title="Noten kleiner">🔍−</button>
@@ -1834,6 +1839,7 @@ function render() {
   S.currentGrip = grip;
   updateInfo(grip);
   renderFbStaff();         // Noten/TAB unter dem Griffbrett mitziehen
+  updateEditAffordances(); // ✎-Knöpfe an die aktuelle Auswahl anpassen
   saveSettings();          // letzte Einstellungen merken (Neustart stellt sie wieder her)
 }
 
@@ -2109,12 +2115,34 @@ function toggleSettings() {
   applySettings();
   saveSettings();
 }
-// ✎-Editor-Knopf in der Leiste: nur aktiv, wenn der Editor offen ist (dann schließt er).
-function updateEditorBtn() {
-  const b = document.getElementById('btn-editorPanel');
-  if (!b) return;
-  b.disabled = !S.editing;
-  b.classList.toggle('active', !!S.editing);
+// Ist das Lick bearbeitbar? Eigene direkt, Bibliotheks-Licks als Kopie. _solo (Entwurf) nicht.
+function isEditableLick(id) {
+  return !!id && id !== '_solo' &&
+    (S.licks.some(l => l.id === id) || BUILTIN_LICKS.some(l => l.id === id));
+}
+// Ausgewähltes Lick bearbeiten – eigenes direkt, Bibliotheks-Lick als Kopie.
+function editSelectedLick() {
+  const id = S.selectedLick;
+  if (!isEditableLick(id)) return;
+  if (S.licks.some(l => l.id === id)) beginEdit(id);
+  else editLibLick(id);
+}
+// ✎-Knopf in der Leiste: offen → schließen, sonst das ausgewählte Lick öffnen.
+function editorBarBtn() { if (S.editing) closeEdit(); else editSelectedLick(); }
+// Bearbeiten-Schaltflächen (Leisten-Knopf + Knopf am Griffbrett) an den Zustand anpassen:
+// beim Editieren „schließen", bei Auswahl „bearbeiten", sonst inaktiv.
+function updateEditAffordances() {
+  const canOpen = !S.editing && isEditableLick(S.selectedLick);
+  const bar = document.getElementById('btn-editorPanel');
+  if (bar) {
+    bar.disabled = !(S.editing || canOpen);
+    bar.classList.toggle('active', !!S.editing);
+    bar.title = S.editing ? 'Lick-Editor schließen (Esc)'
+      : canOpen ? 'Ausgewähltes Lick im Editor bearbeiten'
+      : 'Erst ein Lick auswählen, dann hier bearbeiten';
+  }
+  const inl = document.getElementById('btn-editSel');
+  if (inl) inl.style.display = canOpen ? '' : 'none';
 }
 // Griffbrett-Toggle sperren, solange editiert wird (Töne kommen vom Griffbrett).
 function lockFretboardToggle(lock) {
@@ -3271,7 +3299,7 @@ function openEditor(name, comment) {
   document.body.classList.add('editing');
   if (!S.panels.fb) { S._fbWasOff = true; S.panels.fb = true; applyPanels(); }   // Griffbrett wird zum Klicken gebraucht
   lockFretboardToggle(true);
-  updateEditorBtn();
+  updateEditAffordances();
   window.scrollTo(0, 0);                       // Griffbrett nach oben holen – dort wird geklickt
   renderEditor();
   renderLickPanel();
@@ -3906,7 +3934,11 @@ function saveEditAsNew() {
   if (saveLicks()) { S.selectedLick = nl.id; closeEdit(); }
 }
 function closeEdit() {
+  const wasEditing = S.editing;                 // für die Auswahl nach dem Schließen merken
   S.editing = null; S.editSel = -1; S.editKey = null; S.editBox = 0; S.lickRec = [];
+  // Ohne frische Auswahl (also kein Speichern) das bearbeitete Lick weiter zeigen –
+  // sonst verschwindet es beim Schließen vom Griffbrett.
+  if (!S.selectedLick && wasEditing && wasEditing !== '_new' && findLick(wasEditing)) S.selectedLick = wasEditing;
   resetLickStep();
   document.body.classList.remove('editing');
   document.body.style.paddingBottom = '';
@@ -3916,7 +3948,7 @@ function closeEdit() {
   if (row) row.style.display = 'none';
   if (S._fbWasOff) { S.panels.fb = false; applyPanels(); S._fbWasOff = false; }   // Vorzustand wiederherstellen
   lockFretboardToggle(false);
-  updateEditorBtn();
+  updateEditAffordances();
   renderLickPanel();
   render();
 }
@@ -4802,7 +4834,7 @@ function applySettingsUI() {
   setPresetTab(S.presetTab || 'vorlagen');
   applyPanels();
   applySettings();
-  updateEditorBtn();
+  updateEditAffordances();
   document.getElementById('fbLegend').style.display = S.showLegend ? 'flex' : 'none';
   document.getElementById('btn-legend').classList.toggle('active', S.showLegend);
   applyFbSize();
