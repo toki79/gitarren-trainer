@@ -814,7 +814,7 @@ details.card > summary:hover { color: var(--text); }
   <div id="editHelp" class="hint" style="margin-bottom:8px;display:none"><b>Direkt in der TAB editieren:</b> Klick setzt den Cursor (orange Spalte), dann
     <b>0–9</b>&nbsp;Bund (zweistellig schnell tippen) · <b>←→</b>&nbsp;Position · <b>Alt+←→</b>&nbsp;Ton verschieben · <b>↑↓</b>&nbsp;Saite (Bund bleibt, Ton ändert sich) · <b>Shift+↑↓</b>&nbsp;Saite (gleiche Tonhöhe) ·
     <b>+/−</b>&nbsp;Dauer · <b>t</b>&nbsp;Triole · <b>b</b>&nbsp;Bend · <b>s</b>&nbsp;Slide · <b>i</b>&nbsp;Einschleifer · <b>h</b>&nbsp;Hammer/Pull · <b>d</b>&nbsp;Schlag binden ·
-    <b>v</b>&nbsp;Vibrato · <b>x</b>&nbsp;tote Note · <b>n</b>&nbsp;Vorschlag · <b>.</b>&nbsp;Staccato · <b>g</b>&nbsp;Betonung · <b>p</b>&nbsp;Pause · <b>Entf</b>&nbsp;löschen ·
+    <b>v</b>&nbsp;Vibrato · <b>x</b>&nbsp;tote Note · <b>c</b>&nbsp;Doppelgriff (dann 2. Saite klicken · auch Shift-Klick) · <b>n</b>&nbsp;Vorschlag · <b>.</b>&nbsp;Staccato · <b>g</b>&nbsp;Betonung · <b>p</b>&nbsp;Pause · <b>Entf</b>&nbsp;löschen ·
     <b>Leertaste</b>&nbsp;anhören · <b>Esc</b>&nbsp;schließen. <b>Griffbrett-Klick fügt hinter dem Cursor ein</b> – jeder Bund ist anklickbar, auch außerhalb der Box.</div>
   <div id="editTools" class="edit-tools"></div>
   <div id="editStaff" class="edit-staff" style="display:none"></div>
@@ -877,7 +877,7 @@ const S = { key: 9, scale: 'minor', pos: 1, triad: 'none', set: 'DGB', label: 'n
             lickShow: true,
             staffShow: true, staffZoom: 1.4, staffView: 'both', playMode: false,
             lickSet: [], parcours: false, parcPlay: false, parcFollow: false,
-            editing: null, editSel: -1, editKey: null, editBox: 0, soloDraft: null, lickStep: -1,
+            editing: null, editSel: -1, editKey: null, editBox: 0, stackNext: false, soloDraft: null, lickStep: -1,
             trading: false, motif: false, limit: null, limitNotes: [], limitFrets: [0, 3],
             trainer: null, micGate: 0.004, micBoost: 8, blue: false, blueArrows: false,
             lickFilter: { text: '', box: 0, scale: 'all', sort: '', sortKey: '' },
@@ -1570,8 +1570,8 @@ function render() {
   function dot(x, y, r, attrs, midi, s, fret, color) {
     const c = el('circle', { cx:x, cy:y, r, ...attrs });
     c.style.cursor = 'pointer';
-    c.addEventListener('click', () => {
-      if (capturing()) recordNote(s, fret);
+    c.addEventListener('click', e => {
+      if (capturing()) recordNote(s, fret, e.shiftKey);
       else playNote(midi, s, fret, color);
     });
     svg.appendChild(c);
@@ -1581,8 +1581,8 @@ function render() {
     const p = el('polygon', { points:`${x},${y-DR} ${x+DR},${y} ${x},${y+DR} ${x-DR},${y}`,
       fill:BLUE_COL, stroke:'rgba(255,255,255,0.35)', 'stroke-width':1.5, opacity });
     p.style.cursor = 'pointer';
-    p.addEventListener('click', () => {
-      if (capturing()) recordNote(s, fret);
+    p.addEventListener('click', e => {
+      if (capturing()) recordNote(s, fret, e.shiftKey);
       else playNote(midi, s, fret, BLUE_COL);
     });
     svg.appendChild(p);
@@ -1598,7 +1598,7 @@ function render() {
   function pairMarker(x, y, midi, s, fret, colFill, txt) {
     const c = el('circle', { cx:x, cy:y, r:DR-1, fill:colFill, stroke:'rgba(0,0,0,0.35)', 'stroke-width':1.5 });
     c.style.cursor = 'pointer';
-    c.addEventListener('click', () => { if (capturing()) recordNote(s, fret); else playNote(midi, s, fret, colFill); });
+    c.addEventListener('click', e => { if (capturing()) recordNote(s, fret, e.shiftKey); else playNote(midi, s, fret, colFill); });
     svg.appendChild(c);
     svg.appendChild(el('text', { x, y, fill:'#0b0f14', 'font-size': txt.length > 1 ? 8 : 9.5, 'font-weight':'bold',
       'text-anchor':'middle', 'dominant-baseline':'middle', style:'user-select:none;pointer-events:none' }, txt));
@@ -1608,7 +1608,7 @@ function render() {
     const r = el('rect', { x:x-DR, y:y-DR, width:2*DR, height:2*DR, rx:3,
       fill:SUPER_COL, stroke:'rgba(255,255,255,0.35)', 'stroke-width':1.5 });
     r.style.cursor = 'pointer';
-    r.addEventListener('click', () => { if (capturing()) recordNote(s, fret); else playNote(midi, s, fret, SUPER_COL); });
+    r.addEventListener('click', e => { if (capturing()) recordNote(s, fret, e.shiftKey); else playNote(midi, s, fret, SUPER_COL); });
     svg.appendChild(r);
     svg.appendChild(el('text', { x, y, fill:'#111', 'font-size': ext.length > 1 ? 8 : 10, 'font-weight':'bold',
       'text-anchor':'middle', 'dominant-baseline':'middle', style:'user-select:none;pointer-events:none' }, ext));
@@ -1727,7 +1727,7 @@ function render() {
         fill:'rgba(249,115,22,0.18)', stroke:'#fb923c', 'stroke-width':1.5, 'stroke-dasharray':'3 2' });
       ghost.style.cursor = 'pointer';
       const gm = OPEN_MIDI[g.s] + g.fret - 1, gs = g.s, gf = g.fret - 1;
-      ghost.addEventListener('click', () => { if (capturing()) recordNote(gs, gf); else playNote(gm, gs, gf, '#fb923c'); });
+      ghost.addEventListener('click', e => { if (capturing()) recordNote(gs, gf, e.shiftKey); else playNote(gm, gs, gf, '#fb923c'); });
       svg.appendChild(ghost);
       const ex = fx(g.fret) - (DR + 2);          // Pfeil endet vor dem Zielton
       svg.appendChild(el('line', { x1:gx + DR, y1:gy, x2:ex, y2:gy, stroke:'rgba(251,146,60,0.8)', 'stroke-width':2 }));
@@ -1786,10 +1786,10 @@ function render() {
       const bendCol = n.mute ? '#64748b' : n.grace ? '#a78bfa' : (n.bend || n.slide) ? '#f59e0b' : '#22d3ee';
       const c = el('circle', { cx:x, cy:y, r: n.grace ? 6 : 8.5, fill:bendCol, stroke:'#083344', 'stroke-width':1.5 });
       c.style.cursor = 'pointer';
-      c.addEventListener('click', () => {
+      c.addEventListener('click', e => {
         // Auch im Editor fügt ein Griffbrett-Klick ein (Zeilen wählt man in der Liste) –
         // Lick-Kreise übermalen die Box-Töne, sonst wäre Einfügen dort unmöglich
-        if (capturing()) recordNote(n.s, n.fret);
+        if (capturing()) recordNote(n.s, n.fret, e.shiftKey);
         else if (n.mute) pluckDead(OPEN_MIDI[n.s] + n.fret, 0, 0.9, 'lick');
         else pluck(OPEN_MIDI[n.s] + n.fret, 0, n.grace ? 0.13 : 1.1, 0.95, n.bend || 0, false, 'lick', n.slide || 0, n.slideIn || 0);
       });
@@ -1806,6 +1806,17 @@ function render() {
         style:'user-select:none;pointer-events:none' }, n.acc === 1 ? '>' : 'p'));                   // Betonung: Akzent / leise
       if (n.leg) svg.appendChild(el('path', { d:`M ${x - 6} ${y - 11} Q ${x} ${y - 17} ${x + 6} ${y - 11}`,
         fill:'none', stroke:'#22d3ee', 'stroke-width':1.5, style:'pointer-events:none' }));          // Legato-Bogen (H/P)
+      // Doppelgriff: Zusatztöne als verbundene zweite Punkte (gleiche Nummer)
+      if (n.add) n.add.forEach(a => {
+        const ax = fx(a.fret), ay = sy(a.s);
+        svg.appendChild(el('line', { x1:x, y1:y, x2:ax, y2:ay, stroke:'rgba(34,211,238,0.9)', 'stroke-width':2, style:'pointer-events:none' }));
+        const ac = el('circle', { cx:ax, cy:ay, r:8.5, fill:a.mute ? '#64748b' : bendCol, stroke:'#083344', 'stroke-width':1.5 });
+        ac.style.cursor = 'pointer';
+        ac.addEventListener('click', ev => { if (capturing()) recordNote(a.s, a.fret, ev.shiftKey); else pluck(OPEN_MIDI[a.s] + a.fret, 0, 1.1, 0.95, 0, false, 'lick'); });
+        svg.appendChild(ac);
+        svg.appendChild(el('text', { x:ax, y:ay, fill:'#083344', 'font-size':8.5, 'font-weight':'bold',
+          'text-anchor':'middle', 'dominant-baseline':'middle', style:'user-select:none;pointer-events:none' }, a.mute ? '✕' : String(k + 1)));
+      });
     });
   }
 
@@ -2499,11 +2510,15 @@ function displayNotes(lk) {
 function transposeLick(lick) {
   let d = ((S.key - lick.key) % 12 + 12) % 12;
   if (d > 6) d -= 12;
-  const shift = (n, by) => n.rest ? { ...n } : { ...n, fret: n.fret + by };   // Pausen haben keinen Bund
+  // Pausen haben keinen Bund; Doppelgriff-Zusatztöne (add) wandern mit
+  const shift = (n, by) => n.rest ? { ...n }
+    : { ...n, fret: n.fret + by, add: n.add ? n.add.map(a => ({ ...a, fret: a.fret + by })) : undefined };
+  const lo = n => n.rest ? Infinity : Math.min(n.fret, ...(n.add ? n.add.map(a => a.fret) : []));
+  const hi = n => n.rest ? -Infinity : Math.max(n.fret, ...(n.add ? n.add.map(a => a.fret) : []));
   let notes = lick.notes.map(n => shift(n, d));
-  while (notes.some(n => !n.rest && n.fret < 0))  notes = notes.map(n => shift(n, 12));
-  while (notes.some(n => !n.rest && n.fret > FRETS)) notes = notes.map(n => shift(n, -12));
-  if (notes.some(n => !n.rest && (n.fret < 0 || n.fret > FRETS))) return null;   // passt nicht aufs Brett
+  while (notes.some(n => lo(n) < 0))     notes = notes.map(n => shift(n, 12));    // ganzer Griff muss passen
+  while (notes.some(n => hi(n) > FRETS)) notes = notes.map(n => shift(n, -12));
+  if (notes.some(n => lo(n) < 0 || hi(n) > FRETS)) return null;                   // passt nicht aufs Brett
   return notes;
 }
 
@@ -2526,9 +2541,29 @@ const DUR_LABEL = { 8: 'Ganze', 4: 'Halbe', 2: 'Viertel', 1: 'Achtel', 0.5: '16t
 // Ton am Griffbrett anklicken → hinter dem Cursor einfügen (Editor).
 // Der Notenwert wird vom Cursor-Ton übernommen, sodass Läufe im gleichen Wert
 // weiterlaufen; Artikulation setzt man danach über Palette oder Tastatur.
-function recordNote(s, fret) {
+function recordNote(s, fret, stackArg) {
   if (!S.editing) return;
   const cur = S.editSel >= 0 ? S.lickRec[S.editSel] : S.lickRec[S.lickRec.length - 1];
+  // Doppelgriff: auf den aktuellen Schlag stapeln statt einen neuen Schlag anzuhängen
+  // (per Shift-Klick oder wenn „＋ Doppelgriff" scharf gestellt ist).
+  const stack = stackArg || S.stackNext;
+  if (stack && cur && !cur.rest) {
+    S.stackNext = false;
+    if (s !== cur.s) {                               // zwei Töne auf einer Saite gehen nicht
+      cur.add = cur.add || [];
+      const i = cur.add.findIndex(a => a.s === s);   // pro Saite höchstens ein Zusatzton
+      if (i >= 0) {
+        if (cur.add[i].fret === fret) cur.add.splice(i, 1);   // gleicher Ton nochmal = wieder entfernen
+        else cur.add[i].fret = fret;
+      } else cur.add.push({ s, fret });
+      if (!cur.add.length) delete cur.add;
+      pluck(OPEN_MIDI[s] + fret, 0, 0.9, 0.95, 0, false, 'lick');
+      flashAt(s, fret, 0, '#f59e0b');
+    }
+    renderEditor();
+    render();
+    return;
+  }
   const n = { s, fret, d: cur ? (cur.d || 1) : 1 };
   if (S.editSel >= 0 && S.editSel < S.lickRec.length) {
     S.lickRec.splice(S.editSel + 1, 0, n);
@@ -2603,15 +2638,26 @@ function playLickAt(lick, delaySec, quiet) {
     if (src.rest) { off += d; return; }                             // Pause: nur Zeit weiterrücken
     if (src.tie) { off += d; return; }                              // gebunden: kein neuer Anschlag
     const start = delaySec + eighthTime(off, spb);
+    // Doppelgriff-Zusatztöne klingen gleichzeitig mit der Hauptnote
+    const playAdds = (dur2, g2, dead) => {
+      if (!n.add) return;
+      n.add.forEach(a => {
+        if (dead || a.mute) pluckDead(OPEN_MIDI[a.s] + a.fret, start, 0.9, 'lick');
+        else pluck(OPEN_MIDI[a.s] + a.fret, start, dur2, g2, a.bend || 0, !!src.vib, 'lick', 0, 0);
+        flashAt(a.s, a.fret, start * 1000, '#22d3ee');
+      });
+    };
     if (src.grace) {                                                 // Vorschlag: kurz angerissen
       if (src.mute) pluckDead(OPEN_MIDI[n.s] + n.fret, start, 0.85, 'lick');
       else pluck(OPEN_MIDI[n.s] + n.fret, start, 0.13, 0.8, n.bend || 0, false, 'lick', n.slide || 0, n.slideIn || 0);
+      playAdds(0.13, 0.8, !!src.mute);
       flashAt(n.s, n.fret, start * 1000, '#a78bfa');
       off += d;
       return;
     }
     if (src.mute) {                                                  // tote Note (Rake): kurzer Klick
       pluckDead(OPEN_MIDI[n.s] + n.fret, start, 0.9, 'lick');
+      playAdds(0, 0, true);
       flashAt(n.s, n.fret, start * 1000, '#94a3b8');
       off += d; return;
     }
@@ -2621,6 +2667,7 @@ function playLickAt(lick, delaySec, quiet) {
     const g = 0.95 * (src.acc === 1 ? 1.5 : src.acc === -1 ? 0.45 : 1)    // Betonung: Akzent / Ghost
                    * (src.leg ? 0.55 : 1);                                // Legato (H/P): kein Anschlag
     pluck(OPEN_MIDI[n.s] + n.fret, start, dur, g, n.bend || 0, !!src.vib, 'lick', n.slide || 0, n.slideIn || 0);
+    playAdds(dur, g, false);
     flashAt(n.s, n.fret, start * 1000, n.bend ? '#f59e0b' : '#22d3ee');
     off += d;
   });
@@ -2654,6 +2701,7 @@ function stepLick(dir) {
   else {
     const g = 0.95 * (n.acc === 1 ? 1.5 : n.acc === -1 ? 0.45 : 1) * (n.leg ? 0.55 : 1) * (n.grace ? 0.85 : 1);
     pluck(OPEN_MIDI[n.s] + n.fret, 0, n.grace ? 0.13 : (n.stacc ? 0.16 : 1.1), g, n.bend || 0, !!n.vib, 'lick', n.slide || 0, n.slideIn || 0);
+    if (n.add) n.add.forEach(a => { if (a.mute) pluckDead(OPEN_MIDI[a.s] + a.fret, 0, 0.9, 'lick'); else { pluck(OPEN_MIDI[a.s] + a.fret, 0, n.stacc ? 0.16 : 1.1, g, a.bend || 0, !!n.vib, 'lick', 0, 0); flashAt(a.s, a.fret, 0, '#22c55e'); } });
   }
   flashAt(n.s, n.fret, 0, '#22c55e');
   const btn = document.getElementById('lickStepBtn');
@@ -2709,8 +2757,8 @@ function importLicks(file) {
 // ─── MusicXML-Import (Guitar Pro / MuseScore …) ──────────────────────────────
 // Liest den TAB-Notensystem-Zweig (plain <string>/<fret>). Eine Wiederholungs-
 // Sektion (|: … :|) wird ein Lick; ohne Wiederholungen ergeben alle Takte EINEN
-// mehrtaktigen Lick. Akkorde → höchster Ton (monophones Modell), Ties werden
-// verschmolzen, Triolen exakt. Erfasst: Bund/Saite, Dauer, Bend (½/full),
+// mehrtaktigen Lick. Akkorde → Doppelgriff (höchster Ton = Melodie, Rest als
+// Zusatztöne), Ties werden verschmolzen, Triolen exakt. Erfasst: Bund/Saite, Dauer, Bend (½/full),
 // Slide, Vibrato, tote Noten und Pausen.
 // MusicXML-Notenwerte → Dauer in Achtel-Einheiten. Vorschlagsnoten haben keine
 // <duration>; Guitar Pro rechnet ihre Zeit aber aus den Nachbarnoten heraus, also
@@ -2753,17 +2801,28 @@ function mxlMeasureToRec(noteEls, divisions, barLen) {
     if (isGrace) d = mxlGraceD(col[0]);
     else if (d <= 0) return;
     if (col[0].querySelector('rest')) { rec.push({ rest: 1, d }); lastVoiced = null; return; }
-    // höchsten (Melodie-)Ton der Spalte wählen
-    let top = null, topMidi = -1;
+    // alle Stimmen der Spalte sammeln; höchste = Melodie, Rest = Doppelgriff-Zusatztöne
+    const voices = [];
     for (const nn2 of col) {
       const s = +(nn2.querySelector('technical > string')?.textContent);
       const fr = +(nn2.querySelector('technical > fret')?.textContent);
       if (!Number.isInteger(s) || !Number.isInteger(fr) || s < 1 || s > 6) continue;
-      const midi = OPEN_MIDI[s - 1] + fr;
-      if (midi > topMidi) { topMidi = midi; top = { s: s - 1, fret: fr, el: nn2 }; }
+      voices.push({ s: s - 1, fret: fr, el: nn2, midi: OPEN_MIDI[s - 1] + fr });
     }
-    if (!top) return;
-    const el = top.el;
+    if (!voices.length) return;
+    voices.sort((a, b) => b.midi - a.midi);                 // höchste zuerst
+    const top = voices[0], el = top.el;
+    const mxlAddBend = v => {                               // Bend eines Zusatztons (falls vorhanden)
+      const ba = v.el.querySelector('technical > bend > bend-alter');
+      if (!ba || v.el.querySelector('technical > bend > release')) return undefined;
+      const b = +ba.textContent; return b >= 2.5 ? 3 : b >= 1.5 ? 2 : b >= 0.75 ? 1 : b > 0 ? 0.5 : undefined;
+    };
+    const buildAdds = () => voices.slice(1).map(v => {
+      const o = { s: v.s, fret: v.fret };
+      if (v.el.querySelector('notehead')?.textContent.trim() === 'x' || v.el.querySelector('unpitched')) o.mute = 1;
+      const b = mxlAddBend(v); if (b) o.bend = b;
+      return o;
+    });
     // Tie-Stop: an vorige gleiche Note anhängen (Dauer addieren) statt neuer Ton
     if ((el.querySelector('tie[type="stop"]') || el.querySelector('tied[type="stop"]')) &&
         lastVoiced && lastVoiced.s === top.s && lastVoiced.fret === top.fret) {
@@ -2773,6 +2832,7 @@ function mxlMeasureToRec(noteEls, divisions, barLen) {
     }
     const note = { s: top.s, fret: top.fret, d };
     if (isGrace) note.grace = 1;
+    if (voices.length > 1) note.add = buildAdds();          // Doppelgriff aus der Akkord-Spalte
     // tote Note (Rake/Mute): x-Notenkopf oder GP-Dämpfung
     if (el.querySelector('notehead')?.textContent.trim() === 'x' || el.querySelector('unpitched')) { note.mute = 1; rec.push(note); lastVoiced = null; return; }
     const bendAlt = el.querySelector('technical > bend > bend-alter');
@@ -3477,6 +3537,18 @@ function renderStaff(box, recNotes, opts = {}) {
           'stroke-width': hollow ? 1.6 : 1, transform: `rotate(-15 ${x} ${y})` }));
       if (g.dot) addN(el('circle', { cx: x + 8, cy: y - 2, r: 1.6, fill: col }));
       if (accid) addN(el('text', { x: x - 10, y: y + 3.5, fill: col, 'font-size': 10, 'text-anchor': 'middle' }, accid));
+      // Doppelgriff: Zusatz-Notenköpfe in derselben Spalte (teilen sich Hals/Fähnchen)
+      if (n.add) n.add.forEach(a => {
+        const am = OPEN_MIDI[a.s] + a.fret + 12, anm = nn(mod12(am), sKey);
+        const astep = (Math.floor(am / 12) - 1 - 4) * 7 + STAFF_DIA[anm[0]];
+        const ayy = nBot - (astep - 2) * (nGap / 2);
+        for (let s2 = 12; s2 <= astep; s2 += 2) addN(el('line', { x1: x - 8, y1: nBot - (s2 - 2) * (nGap / 2), x2: x + 8, y2: nBot - (s2 - 2) * (nGap / 2), stroke: '#3a4150', 'stroke-width': 1 }));
+        for (let s2 = 0; s2 >= astep; s2 -= 2) addN(el('line', { x1: x - 8, y1: nBot - (s2 - 2) * (nGap / 2), x2: x + 8, y2: nBot - (s2 - 2) * (nGap / 2), stroke: '#3a4150', 'stroke-width': 1 }));
+        if (a.mute) addN(el('text', { x, y: ayy + 3.5 * sc, fill: col, 'font-size': 11 * sc, 'font-weight': 'bold', 'text-anchor': 'middle' }, '✕'));
+        else addN(el('ellipse', { cx: x, cy: ayy, rx: 4.6 * sc, ry: 3.4 * sc, fill: hollow ? 'none' : col, stroke: col, 'stroke-width': hollow ? 1.6 : 1, transform: `rotate(-15 ${x} ${ayy})` }));
+        const aac = anm[1] === '#' ? '♯' : anm[1] === 'b' ? '♭' : '';
+        if (aac) addN(el('text', { x: x - 10, y: ayy + 3.5, fill: col, 'font-size': 10, 'text-anchor': 'middle' }, aac));
+      });
       const gr = beamed.get(it);
       if (gr) {                                               // Hals bis zum Balken (kein Fähnchen)
         const sx = gr.up ? x + 4.2 : x - 4.2;
@@ -3504,6 +3576,12 @@ function renderStaff(box, recNotes, opts = {}) {
       svg.appendChild(el('rect', { x: x - (n.tie ? 9 : 6) * sc, y: ty - 5 * sc, width: (n.tie ? 18 : 12) * sc, height: 10 * sc, fill: bg }));
       svg.appendChild(el('text', { x, y: ty + 3.5 * sc, fill: col, 'font-size': (n.tie ? 8.5 : 10) * sc, 'font-weight': 'bold', 'text-anchor': 'middle',
         'font-family': 'ui-monospace,monospace' }, tabTxt));                          // tote Note: ✕ in der TAB
+      if (n.add) n.add.forEach(a => {                                                 // Doppelgriff: Bundzahl auf ihrer Saite
+        const aty = tTop + a.s * tGap;
+        svg.appendChild(el('rect', { x: x - 6 * sc, y: aty - 5 * sc, width: 12 * sc, height: 10 * sc, fill: bg }));
+        svg.appendChild(el('text', { x, y: aty + 3.5 * sc, fill: col, 'font-size': 10 * sc, 'font-weight': 'bold', 'text-anchor': 'middle',
+          'font-family': 'ui-monospace,monospace' }, a.mute ? '✕' : String(a.fret)));
+      });
       if (n.leg && prev) {                                    // Legato: Bogen vom vorigen Ton (Noten + TAB)
         const midX = (prev.x + x) / 2;
         const nyTop = Math.min(prev.y, y) - 6;
@@ -3651,6 +3729,14 @@ function cycleSelBend() { const n = selNote(); if (n && !n.rest) setNoteBend(S.e
 function cycleSelSlide() { const n = selNote(); if (n && !n.rest) setNoteSlide(S.editSel, cycleOn(n.slide || 0, [0, 1, 2, -1, -2])); }
 function cycleSelSlideIn() { const n = selNote(); if (n && !n.rest) setNoteSlideIn(S.editSel, cycleOn(n.slideIn || 0, [0, -2, 2])); }
 function cycleSelAcc() { const n = selNote(); if (n && !n.rest) setNoteAcc(S.editSel, cycleOn(n.acc || 0, [0, 1, -1])); }
+// „＋ Doppelgriff" scharf stellen: der nächste Griffbrett-Klick legt einen zweiten
+// Ton auf DENSELBEN Schlag (statt einen neuen Schlag anzuhängen).
+function toggleStackNext() {
+  const n = selNote();
+  if (!n || n.rest) { S.stackNext = false; return; }
+  S.stackNext = !S.stackNext;
+  renderEditTools();
+}
 function renderEditTools() {
   const box = document.getElementById('editTools');
   if (!box) return;
@@ -3685,6 +3771,8 @@ function renderEditTools() {
       ${artBtn('toggleNoteVib(S.editSel)', '∿', snd && !!n.vib, 'Vibrato (Taste v)')}
       ${artBtn('toggleNoteStacc(S.editSel)', '•', snd && !!n.stacc, 'Staccato (Taste .)')}
       ${artBtn('toggleNoteMute(S.editSel)', '✕', snd && !!n.mute, 'Tote Note / Rake (Taste x)')}
+      ${artBtn('toggleStackNext()', '＋ Doppelgriff' + (snd && n.add && n.add.length ? ' (' + (n.add.length + 1) + ')' : ''), snd && (!!S.stackNext || !!(n.add && n.add.length)),
+        'Doppelgriff: scharf stellen, dann eine zweite Saite am Griffbrett anklicken (oder Shift-Klick). Erneut auf denselben Ton = wieder entfernen. (Taste c)')}
       ${artBtn('toggleNoteGrace(S.editSel)', 'Vorschlag', snd && !!n.grace, 'Vorschlagsnote (Taste n)')}
       ${artBtn('cycleSelAcc()', 'Betonung ' + (snd && n.acc ? (n.acc === 1 ? '>' : 'p') : '–'), snd && !!n.acc, 'Betonung: – / Akzent > / leise p (Taste g)')}
      </span>`;
@@ -3719,6 +3807,8 @@ function renderEditor() {
     return;
   }
   const marks = [n.grace ? 'Vorschlag' : '',
+    n.add && n.add.length ? 'Doppelgriff (' + n.add.map(a => STR_LABELS[a.s] + ' ' + a.fret).join(', ') + ')' : '',
+    S.stackNext ? '＋ zweite Saite anklicken …' : '',
     n.bend ? 'Bend ' + bendLabel(n.bend) : '',
     n.slide ? 'Slide ' + (n.slide > 0 ? '+' : '−') + (Math.abs(n.slide) === 2 ? '1' : '½') : '',
     n.slideIn ? 'Einschleifer ' + (n.slideIn < 0 ? 'von unten ↗' : 'von oben ↘') : '',
@@ -3852,6 +3942,7 @@ function editorKeydown(e) {
   else if (k === 'h') { if (!n || n.rest) return; toggleNoteLeg(i); }
   else if (k === 'v') { if (!n || n.rest) return; toggleNoteVib(i); }
   else if (k === 'x') { if (!n || n.rest) return; toggleNoteMute(i); }
+  else if (k === 'c') { if (!n || n.rest) return; toggleStackNext(); }    // Doppelgriff scharf stellen
   else if (k === 'n') { if (!n || n.rest) return; toggleNoteGrace(i); }   // Vorschlagsnote
   else if (k === '.') { if (!n || n.rest) return; toggleNoteStacc(i); }
   else if (k === 'g') {                                        // Betonung – / > / p
@@ -3872,6 +3963,7 @@ function playEditNote(i) {
   else {
     const g = 0.95 * (n.acc === 1 ? 1.5 : n.acc === -1 ? 0.45 : 1) * (n.leg ? 0.55 : 1) * (n.grace ? 0.85 : 1);
     pluck(OPEN_MIDI[n.s] + n.fret, 0, n.grace ? 0.13 : (n.stacc ? 0.16 : 1.0), g, n.bend || 0, !!n.vib, 'lick', n.slide || 0, n.slideIn || 0);
+    if (n.add) n.add.forEach(a => { if (a.mute) pluckDead(OPEN_MIDI[a.s] + a.fret, 0, 0.9, 'lick'); else { pluck(OPEN_MIDI[a.s] + a.fret, 0, n.stacc ? 0.16 : 1.0, g, a.bend || 0, !!n.vib, 'lick', 0, 0); flashAt(a.s, a.fret, 0, '#f59e0b'); } });
   }
   flashAt(n.s, n.fret, 0, '#f59e0b');
   S.editSel = i; renderEditor(); render();
@@ -3935,7 +4027,7 @@ function saveEditAsNew() {
 }
 function closeEdit() {
   const wasEditing = S.editing;                 // für die Auswahl nach dem Schließen merken
-  S.editing = null; S.editSel = -1; S.editKey = null; S.editBox = 0; S.lickRec = [];
+  S.editing = null; S.editSel = -1; S.editKey = null; S.editBox = 0; S.lickRec = []; S.stackNext = false;
   // Ohne frische Auswahl (also kein Speichern) das bearbeitete Lick weiter zeigen –
   // sonst verschwindet es beim Schließen vom Griffbrett.
   if (!S.selectedLick && wasEditing && wasEditing !== '_new' && findLick(wasEditing)) S.selectedLick = wasEditing;
