@@ -203,6 +203,10 @@ body.play-mode #playBar { display: flex; }
 #parcBtn.active { background: #22c55e; border-color: #22c55e; color: #04231a; }
 .lt-pick { width: 26px; text-align: center; }
 .lt-pick input { cursor: pointer; }
+#lickPickHead.has-sel { cursor: pointer; color: #ef4444; }
+#lickPickHead.has-sel:hover { color: #f87171; }
+.lf-clear { font-size: 0.74rem; padding: 3px 9px; border-color: rgba(239,68,68,0.5); color: #f87171; }
+.lf-clear:hover { background: #dc2626; border-color: #dc2626; color: #fff; }
 #parcInfo { font-size: 0.82rem; }
 #parcInfo b { color: #22c55e; }
 .edit-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
@@ -705,11 +709,13 @@ details.card > summary:hover { color: var(--text); }
       <option value="major">Dur</option>
     </select>
     <span id="lfCount" class="hint"></span>
+    <button id="lfClearSet" class="lf-clear" onclick="clearLickSet()" style="display:none"
+            title="Alle angehakten Licks abwählen (🎯-Auswahl für den Parcours leeren)">✖ Auswahl aufheben</button>
   </div>
   <div style="overflow-x:auto">
     <table class="lick-table">
       <thead><tr>
-        <th class="lt-pick" title="Für den Lick-Parcours auswählen">🎯</th>
+        <th class="lt-pick" id="lickPickHead" onclick="clearLickSet()" title="Für den Lick-Parcours auswählen">🎯</th>
         <th>Name</th><th>Box</th><th>Skala</th><th>Schläge</th>
         <th class="sortable" onclick="cycleLickSort('rating')" title="Klick sortiert nach Bewertung: beste zuerst → schlechteste zuerst → Standard-Reihenfolge">Bewertung <span id="lfSort_rating"></span></th>
         <th class="sortable" onclick="cycleLickSort('date')" title="Klick sortiert nach Anlage-Datum: neueste zuerst → älteste zuerst → Standard-Reihenfolge">Datum <span id="lfSort_date"></span></th>
@@ -3049,6 +3055,7 @@ function renderLickPanel() {
   });
   const cnt = document.getElementById('lfCount');
   if (cnt) cnt.textContent = `${rows.length} Licks`;
+  updateSetControls();
   tb.innerHTML = rows.length ? rows.map(({ l, lib }) => {
     const beats = +(lickLen(l.notes) / 2).toFixed(1);
     const match = lickMatches(l, lib);
@@ -3336,9 +3343,26 @@ function toggleLickInSet(id) {
   const i = S.lickSet.indexOf(id);
   if (i >= 0) S.lickSet.splice(i, 1); else S.lickSet.push(id);
   updateParcInfo();
+  updateSetControls();
   saveSettings();
 }
-function clearLickSet() { S.lickSet = []; renderLickPanel(); saveSettings(); }
+function clearLickSet() {
+  if (!S.lickSet.length) return;
+  S.lickSet = [];
+  document.querySelectorAll('#lickTbody input[type="checkbox"]').forEach(c => c.checked = false);
+  updateParcInfo();
+  updateSetControls();
+  saveSettings();
+}
+// Rücksetz-Knopf + Tabellenkopf über den 🎯-Checkboxen an die Zahl der angehakten Licks anpassen
+function updateSetControls() {
+  const n = S.lickSet.length;
+  const clr = document.getElementById('lfClearSet');
+  if (clr) { clr.style.display = n ? '' : 'none'; clr.textContent = `✖ Auswahl aufheben (${n})`; }
+  const head = document.getElementById('lickPickHead');
+  if (head) { head.textContent = n ? '✖' : '🎯'; head.classList.toggle('has-sel', n > 0);
+    head.title = n ? `${n} angehakt – klicken hebt die Auswahl auf` : 'Für den Lick-Parcours auswählen'; }
+}
 function toggleParcPlay() {
   S.parcPlay = !S.parcPlay;
   document.getElementById('parcPlayBtn').classList.toggle('active', S.parcPlay);
