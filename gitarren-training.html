@@ -336,6 +336,16 @@ details.card > summary:hover { color: var(--text); }
 #panelMenu button#btn-editorPanel:not(:disabled):not(.active) { opacity: 1; border-color: var(--accent); color: var(--text); }
 /* Bearbeiten-Aktion am Griffbrett: als deutliche Handlung hervorheben */
 #btn-editSel { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+/* Kompakte Lick-Auswahl direkt unter dem Griffbrett (bleibt oben sichtbar) */
+#lickBar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px;
+  padding: 6px 10px; background: var(--panel2); border: 1px solid var(--border); border-radius: 9px; }
+#lickBar select { flex: 1 1 180px; min-width: 120px; max-width: 340px; background: var(--panel); color: var(--text);
+  border: 1px solid var(--border); padding: 5px 8px; border-radius: 7px; font-size: 0.82rem; }
+#lickBar button { font-size: 0.8rem; padding: 4px 9px; }
+#lickBar .lb-stars { display: inline-flex; gap: 1px; font-size: 0.98rem; line-height: 1; }
+#lickBar .lb-stars .st { color: #f59e0b; cursor: pointer; }
+#lickBar .lb-stars .st.off { color: var(--border); }
+#lickBar #lickBarCount { margin-left: auto; }
 #panelMenu .tb-sep { align-self: stretch; }
 </style>
 </head>
@@ -427,8 +437,19 @@ details.card > summary:hover { color: var(--text); }
     </div>
     <svg id="fb" viewBox="0 0 920 235"></svg>
     <div id="fbProg" style="display:none" title="Laufende Progression – Klick springt zum Akkord"></div>
-    <div id="fbStaff" class="fb-staff" style="display:none" title="Noten &amp; TAB des gewählten Licks – Größe über 🔍−/+ in der Werkzeugleiste"></div>
-    <div id="fbComment" style="display:none"></div>
+    <!-- Kompakte Lick-Auswahl: bleibt mit dem Griffbrett oben, damit man Licks
+         wechseln kann, ohne zur großen Tabelle zu scrollen -->
+    <div id="lickBar" style="display:none">
+      <span class="tb-label">Lick</span>
+      <button onclick="stepSelLick(-1)" title="Voriges Lick">◀</button>
+      <select id="lickBarSel" onchange="chooseLickFromBar(this.value)" title="Lick auswählen"></select>
+      <button onclick="stepSelLick(1)" title="Nächstes Lick">▶</button>
+      <span id="lickBarStars" class="lb-stars" title="Bewertung"></span>
+      <span class="tb-sep"></span>
+      <button onclick="playSelectedLick()" title="Ausgewählten Lick abspielen (folgt Groove &amp; Tempo)">▶ Play</button>
+      <button id="lickBarEdit" onclick="editSelectedLick()" title="Ausgewähltes Lick bearbeiten">✎</button>
+      <span id="lickBarCount" class="hint"></span>
+    </div>
     <div id="playBar">
       <button onclick="playSelectedLick()" title="Ausgewählten Lick abspielen">▶ Lick</button>
       <button onclick="stepLick(-1)" title="Einen Ton zurück">|◀</button>
@@ -456,6 +477,12 @@ details.card > summary:hover { color: var(--text); }
     </div>
   </div>
 </div>
+
+<!-- Noten/TAB (+ Notiz) des gewählten Licks: bewusst UNTER der klebenden Region –
+     so pinnt das Griffbrett oben, aber der hohe Noten-Streifen scrollt weg und gibt
+     der Lick-Liste Platz. Das Lick bleibt am Griffbrett (Overlay) sichtbar. -->
+<div id="fbStaff" class="fb-staff" style="display:none" title="Noten &amp; TAB des gewählten Licks – Größe über 🔍−/+ in der Werkzeugleiste"></div>
+<div id="fbComment" style="display:none"></div>
 
 <details class="card" id="card-path" open ontoggle="cardToggled(this)">
   <summary>🗺 Song-Lernpfad · Schritt für Schritt zum Song</summary>
@@ -2105,6 +2132,7 @@ function applyPanels() {
     const btn = document.querySelector(`#panelMenu button[data-panel="${k}"]`);
     if (btn) btn.classList.toggle('active', !!v);
   });
+  renderLickBar();                                   // kompakte Auswahl folgt dem „Licks"-Bereich
 }
 function togglePanel(k) {
   // Beim Editieren werden Töne am Griffbrett angeklickt – es darf nicht weg.
@@ -2976,14 +3004,14 @@ function starsHtml(l, lib) {
     `<span class="star ${i <= r ? 'on' : ''}" onclick="event.stopPropagation();setLickRating('${l.id}',${i})"
            title="${i} von 5 Sternen${i === r ? ' – nochmal klicken löscht' : ''}">★</span>`).join('') + '</span>';
 }
-function renderLickPanel() {
-  const tb = document.getElementById('lickTbody');
-  if (!tb) return;
+// Gefilterte + sortierte Lick-Zeilen (Bibliothek + eigene) – geteilt von Tabelle
+// und kompakter Auswahl-Leiste, damit beide dieselbe Reihenfolge zeigen.
+function lickRows() {
   const f = S.lickFilter;
   const rows = [
     ...BUILTIN_LICKS.map(l => ({ l, lib: true })),
     ...S.licks.map(l => ({ l, lib: false }))
-  ].filter(({ l, lib }) => {
+  ].filter(({ l }) => {
     if (f.text && !l.name.toLowerCase().includes(f.text.toLowerCase())) return false;
     if (f.box && l.box !== f.box) return false;   // Licks ohne Box-Tag nur bei „alle"
     if (f.scale !== 'all' && l.scale !== f.scale) return false;
@@ -2993,6 +3021,14 @@ function renderLickPanel() {
     const val = l => f.sortKey === 'rating' ? (l.rating || 0) : (l.created ? Date.parse(l.created) : 0);
     rows.sort((a, b) => f.sort === 'desc' ? val(b.l) - val(a.l) : val(a.l) - val(b.l));
   }
+  return rows;
+}
+function renderLickPanel() {
+  const tb = document.getElementById('lickTbody');
+  renderLickBar();                                 // kompakte Auswahl-Leiste mitziehen
+  if (!tb) return;
+  const f = S.lickFilter;
+  const rows = lickRows();
   ['date', 'rating'].forEach(k => {
     const ar = document.getElementById('lfSort_' + k);
     if (ar) ar.textContent = (f.sortKey === k && f.sort) ? (f.sort === 'desc' ? '▼' : '▲') : '';
@@ -3026,6 +3062,43 @@ function renderLickPanel() {
     </tr>`;
   }).join('') : '<tr><td colspan="9" class="prog-empty" style="padding:12px 8px">Keine Licks für diesen Filter – Suchtext leeren oder Box/Skala auf „alle" stellen.</td></tr>';
   updateParcInfo();
+}
+// Kompakte Lick-Auswahl unter dem Griffbrett – Licks wechseln ohne zur Tabelle zu scrollen.
+function renderLickBar() {
+  const bar = document.getElementById('lickBar');
+  if (!bar) return;
+  const rows = lickRows();
+  // Nicht beim Editieren (Editor hat eigene Steuerung); nur wenn Bereich „Licks" an ist und es Licks gibt.
+  const show = !S.editing && S.panels && S.panels.licks && rows.length > 0;
+  bar.style.display = show ? 'flex' : 'none';
+  if (!show) return;
+  const curId = S.selectedLick && rows.some(r => r.l.id === S.selectedLick) ? S.selectedLick : '';
+  const sel = document.getElementById('lickBarSel');
+  if (document.activeElement !== sel)               // nicht neu aufbauen, während man auswählt
+    sel.innerHTML = `<option value="">— Lick wählen —</option>` + rows.map(({ l, lib }) =>
+      `<option value="${l.id}" ${l.id === curId ? 'selected' : ''}>${(lib ? '📖 ' : '') + l.name.replace(/</g, '&lt;')}</option>`).join('');
+  const stars = document.getElementById('lickBarStars');
+  const cur = curId ? rows.find(r => r.l.id === curId) : null;
+  if (cur && !cur.lib) {                             // Sterne nur für eigene Licks
+    const rt = cur.l.rating || 0;
+    stars.style.display = '';
+    stars.innerHTML = [1, 2, 3, 4, 5].map(i =>
+      `<span class="st ${i <= rt ? '' : 'off'}" onclick="setLickRating('${cur.l.id}',${i})" title="${i} von 5 Sternen">★</span>`).join('');
+  } else stars.style.display = 'none';
+  const eb = document.getElementById('lickBarEdit'); if (eb) eb.disabled = !isEditableLick(curId);
+  const cnt = document.getElementById('lickBarCount');
+  if (cnt) { const idx = rows.findIndex(r => r.l.id === curId); cnt.textContent = curId ? `${idx + 1} / ${rows.length}` : `${rows.length} Licks`; }
+}
+function chooseLickFromBar(id) {
+  if (id && id !== S.selectedLick) selectLick(id);   // Platzhalter „—" ignorieren
+}
+function stepSelLick(dir) {
+  const rows = lickRows();
+  if (!rows.length) return;
+  let idx = rows.findIndex(r => r.l.id === S.selectedLick);
+  idx = idx < 0 ? (dir > 0 ? 0 : rows.length - 1) : (idx + dir + rows.length) % rows.length;
+  const id = rows[idx].l.id;
+  if (id !== S.selectedLick) selectLick(id);
 }
 function copyLibLick(id) {
   const src = BUILTIN_LICKS.find(l => l.id === id);
@@ -3687,7 +3760,9 @@ function renderFbStaff() {
     for (let i = 0; i < notes.length; i++)
       if (!notes[i].rest && ++c === S.lickStep) { stepIdx = i; break; }
   }
-  renderStaff(box, notes, { key: S.key, sel: stepIdx, selColor: '#22c55e', zoom: S.staffZoom });
+  // Kompakt-Modus (= Spielansicht) zeigt nur TAB – halbiert die Höhe des Streifens
+  renderStaff(box, notes, { key: S.key, sel: stepIdx, selColor: '#22c55e', zoom: S.staffZoom,
+    view: S.fbCompact ? 'tab' : S.staffView });
 }
 
 // Akkord an einer Achtel-Position des Licks – aus dem Zählzeit-Fahrplan der
