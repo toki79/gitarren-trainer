@@ -346,6 +346,18 @@ details.card > summary:hover { color: var(--text); }
 #lickBar .lb-stars .st { color: #f59e0b; cursor: pointer; }
 #lickBar .lb-stars .st.off { color: var(--border); }
 #lickBar #lickBarCount { margin-left: auto; }
+/* Breite Bildschirme: Lick-Liste als angedockte rechte Spalte neben dem Griffbrett –
+   beide gleichzeitig voll bedienbar. Auf schmalen Fenstern automatisch gestapelt. */
+@media (min-width: 1280px) {
+  body.licks-side:not(.play-mode) { padding-right: 380px; }
+  body.licks-side:not(.play-mode) #card-licks {
+    position: fixed; top: 12px; right: 12px; width: 356px; margin: 0; z-index: 45;
+    max-height: calc(100vh - 24px); overflow: auto; }
+  body.licks-side:not(.play-mode) #lickBar { display: none !important; }   /* die Spalte ersetzt die schmale Leiste */
+  /* Beim Editieren die rechte Spalte ausblenden – die Editor-Leiste unten würde sie überlappen */
+  body.licks-side.editing { padding-right: 0; }
+  body.licks-side.editing #card-licks { display: none !important; }
+}
 #panelMenu .tb-sep { align-self: stretch; }
 </style>
 </head>
@@ -2132,6 +2144,8 @@ function applyPanels() {
     const btn = document.querySelector(`#panelMenu button[data-panel="${k}"]`);
     if (btn) btn.classList.toggle('active', !!v);
   });
+  // Breite Schirme: rechte Lick-Spalte nur, wenn der Bereich „Licks" an ist
+  document.body.classList.toggle('licks-side', !!(S.panels && S.panels.licks));
   renderLickBar();                                   // kompakte Auswahl folgt dem „Licks"-Bereich
 }
 function togglePanel(k) {
