@@ -203,6 +203,7 @@ body.play-mode #playBar { display: flex; }
 #parcBtn.active { background: #22c55e; border-color: #22c55e; color: #04231a; }
 .lt-pick { width: 26px; text-align: center; }
 .lt-pick input { cursor: pointer; }
+.lt-prac { text-align: center; font-variant-numeric: tabular-nums; color: var(--scale-col); white-space: nowrap; }
 #lickPickHead.has-sel { cursor: pointer; color: #ef4444; }
 #lickPickHead.has-sel:hover { color: #f87171; }
 .lf-clear { font-size: 0.74rem; padding: 3px 9px; border-color: rgba(239,68,68,0.5); color: #f87171; }
@@ -464,6 +465,7 @@ details.card > summary:hover { color: var(--text); }
       <span class="tb-sep"></span>
       <button onclick="playSelectedLick()" title="Ausgewählten Lick abspielen (folgt Groove &amp; Tempo)">▶ Play</button>
       <button id="lickBarEdit" onclick="editSelectedLick()" title="Ausgewähltes Lick bearbeiten">✎</button>
+      <span id="lickBarPrac" class="hint" title="Wie oft geübt"></span>
       <span id="lickBarCount" class="hint"></span>
     </div>
     <div id="playBar">
@@ -719,6 +721,7 @@ details.card > summary:hover { color: var(--text); }
         <th>Name</th><th>Box</th><th>Skala</th><th>Schläge</th>
         <th class="sortable" onclick="cycleLickSort('rating')" title="Klick sortiert nach Bewertung: beste zuerst → schlechteste zuerst → Standard-Reihenfolge">Bewertung <span id="lfSort_rating"></span></th>
         <th class="sortable" onclick="cycleLickSort('date')" title="Klick sortiert nach Anlage-Datum: neueste zuerst → älteste zuerst → Standard-Reihenfolge">Datum <span id="lfSort_date"></span></th>
+        <th class="sortable" onclick="cycleLickSort('practice')" title="Wie oft geübt (manuelle ▶-Wiedergabe). Klick sortiert: meist geübt → am wenigsten → Standard-Reihenfolge">Geübt <span id="lfSort_practice"></span></th>
         <th>Kategorie</th><th></th>
       </tr></thead>
       <tbody id="lickTbody"></tbody>
@@ -919,6 +922,7 @@ const S = { key: 9, scale: 'minor', pos: 1, triad: 'none', set: 'DGB', label: 'n
             groove: 'straight', tripletFeel: false, vol: { click: 1, drums: 1, bass: 1, guitar: 1, lick: 1 },
             drive: 'clean',
             licks: [], lickRec: [], selectedLick: null, lickLoop: false,
+            practice: {},                 // Übungs-Protokoll je Lick: { [id]: { count, last, days } }
             lickShow: true,
             staffShow: true, staffZoom: 1.4, staffView: 'both', playMode: false,
             lickSet: [], parcours: false, parcPlay: false, parcFollow: false,
@@ -2650,6 +2654,7 @@ function deleteLick(id) {
   const lk = S.licks.find(l => l.id === id);
   if (!lk || !confirm(`Lick „${lk.name}“ wirklich löschen?`)) return;
   S.licks = S.licks.filter(l => l.id !== id);
+  if (S.practice && S.practice[id]) { delete S.practice[id]; saveSettings(); }   // Übungs-Protokoll mitlöschen
   if (S.selectedLick === id) { S.selectedLick = null; if (S.trainer && S.trainer.mode === 'lick') stopTrainer(); }
   saveLicks();
   renderLickPanel();
@@ -2730,9 +2735,41 @@ function nextBarDelay() {
 }
 function playLickById(id) {
   const lk = findLick(id);
-  if (lk) playLickAt(lk, nextBarDelay());   // läuft das Metronom, startet der Lick auf der nächsten Eins
+  if (!lk) return;
+  playLickAt(lk, nextBarDelay());          // läuft das Metronom, startet der Lick auf der nächsten Eins
+  logPractice(id);                         // Üben protokollieren
 }
 function playSelectedLick() { if (S.selectedLick) playLickById(S.selectedLick); }
+// ─── Übungs-Protokoll: jede manuelle Wiedergabe eines Licks zählt als „geübt" ──
+// (Loop/Parcours/Schrittmodus zählen nicht – das sind Dauerläufe bzw. Einzeltöne)
+function logPractice(id) {
+  if (!id || id === '_solo' || !findLick(id)) return;    // nur echte Licks, kein Solo-Entwurf
+  if (!S.practice) S.practice = {};
+  const p = S.practice[id] || { count: 0, days: {} };
+  p.count = (p.count || 0) + 1;
+  p.last = new Date().toISOString();
+  const d = p.last.slice(0, 10);                          // YYYY-MM-DD
+  p.days = p.days || {};
+  p.days[d] = (p.days[d] || 0) + 1;
+  S.practice[id] = p;
+  saveSettings();
+  updatePracticeUI(id);
+}
+function practiceOf(id) { return (S.practice && S.practice[id]) || null; }
+// Kurz-Label für Tabelle/Leiste: „12×" + Tooltip mit letztem Datum und Tagen
+function practiceLabel(id) {
+  const p = practiceOf(id);
+  if (!p || !p.count) return { text: '–', title: 'Noch nicht geübt' };
+  const last = p.last ? new Date(p.last).toLocaleDateString('de-DE') : '–';
+  const days = p.days ? Object.keys(p.days).length : 0;
+  return { text: `${p.count}×`, title: `${p.count}× gespielt · zuletzt ${last} · an ${days} ${days === 1 ? 'Tag' : 'Tagen'}` };
+}
+// Nach einer Wiedergabe nur die betroffene Zeile + die Leiste aktualisieren (kein Tabellen-Rebuild)
+function updatePracticeUI(id) {
+  const cell = document.querySelector(`#lickTbody [data-prac="${id}"]`);
+  if (cell) { const l = practiceLabel(id); cell.textContent = l.text; cell.title = l.title; }
+  renderLickBar();
+}
 // Lick Ton für Ton durchgehen: jeder Klick spielt den nächsten/vorherigen Ton
 // (mit Artikulation), der aktuelle ist am Griffbrett grün umrandet.
 function stepLick(dir) {
@@ -3038,7 +3075,9 @@ function lickRows() {
     return true;
   });
   if (f.sort && f.sortKey) {
-    const val = l => f.sortKey === 'rating' ? (l.rating || 0) : (l.created ? Date.parse(l.created) : 0);
+    const val = l => f.sortKey === 'rating' ? (l.rating || 0)
+      : f.sortKey === 'practice' ? ((practiceOf(l.id) || {}).count || 0)
+      : (l.created ? Date.parse(l.created) : 0);
     rows.sort((a, b) => f.sort === 'desc' ? val(b.l) - val(a.l) : val(a.l) - val(b.l));
   }
   return rows;
@@ -3049,7 +3088,7 @@ function renderLickPanel() {
   if (!tb) return;
   const f = S.lickFilter;
   const rows = lickRows();
-  ['date', 'rating'].forEach(k => {
+  ['date', 'rating', 'practice'].forEach(k => {
     const ar = document.getElementById('lfSort_' + k);
     if (ar) ar.textContent = (f.sortKey === k && f.sort) ? (f.sort === 'desc' ? '▼' : '▲') : '';
   });
@@ -3060,6 +3099,7 @@ function renderLickPanel() {
     const beats = +(lickLen(l.notes) / 2).toFixed(1);
     const match = lickMatches(l, lib);
     const when = l.created ? new Date(l.created).toLocaleDateString('de-DE') : '–';
+    const prac = practiceLabel(l.id);
     const name = l.name.replace(/</g, '&lt;');
     const act = lib
       ? `<button onclick="event.stopPropagation();playLickById('${l.id}')" title="Abspielen (folgt Groove &amp; Tempo)">▶</button>
@@ -3078,10 +3118,11 @@ function renderLickPanel() {
       <td>${beats}</td>
       <td>${starsHtml(l, lib)}</td>
       <td>${when}</td>
+      <td class="lt-prac" data-prac="${l.id}" title="${prac.title}">${prac.text}</td>
       <td class="lt-cat">${lib ? l.cat.replace(/</g, '&lt;') : 'Eigene'}</td>
       <td class="lt-actions">${act}</td>
     </tr>`;
-  }).join('') : '<tr><td colspan="9" class="prog-empty" style="padding:12px 8px">Keine Licks für diesen Filter – Suchtext leeren oder Box/Skala auf „alle" stellen.</td></tr>';
+  }).join('') : '<tr><td colspan="10" class="prog-empty" style="padding:12px 8px">Keine Licks für diesen Filter – Suchtext leeren oder Box/Skala auf „alle" stellen.</td></tr>';
   updateParcInfo();
 }
 // Kompakte Lick-Auswahl unter dem Griffbrett – Licks wechseln ohne zur Tabelle zu scrollen.
@@ -3107,6 +3148,9 @@ function renderLickBar() {
       `<span class="st ${i <= rt ? '' : 'off'}" onclick="setLickRating('${cur.l.id}',${i})" title="${i} von 5 Sternen">★</span>`).join('');
   } else stars.style.display = 'none';
   const eb = document.getElementById('lickBarEdit'); if (eb) eb.disabled = !isEditableLick(curId);
+  const prc = document.getElementById('lickBarPrac');
+  if (prc) { const l = curId ? practiceLabel(curId) : null; const has = l && l.text !== '–';
+    prc.textContent = has ? '🎸 ' + l.text : ''; prc.title = has ? l.title : ''; prc.style.display = has ? '' : 'none'; }
   const cnt = document.getElementById('lickBarCount');
   if (cnt) { const idx = rows.findIndex(r => r.l.id === curId); cnt.textContent = curId ? `${idx + 1} / ${rows.length}` : `${rows.length} Licks`; }
 }
@@ -4908,7 +4952,7 @@ const PERSIST = ['key','scale','pos','triad','set','label','blue','blueArrows','
   'superId','bpm','beatsPerMeasure','tripletFeel','measuresPerChord','countIn','click','drums',
   'bass','groove','vol','boxMode','micBoost','lickLoop','sound','selectedLick',
   'presetTab','showLegend','cards','fbCompact','intervalMode','intervalRef',
-  'lickShow','pathId','pathStep','lastBackupAt','drive','panels','settingsShow','outDevice',
+  'lickShow','pathId','pathStep','lastBackupAt','drive','panels','settingsShow','outDevice','practice',
   'staffShow','staffZoom','staffView','playMode','lickSet','parcPlay','parcFollow'];
 function saveSettings() {
   try {
@@ -5004,6 +5048,7 @@ function applySettingsUI() {
   document.getElementById('btn-lickshow').classList.toggle('active', S.lickShow);
   document.getElementById('btn-staffshow').classList.toggle('active', S.staffShow);
   if (!Array.isArray(S.lickSet)) S.lickSet = [];
+  if (!S.practice || typeof S.practice !== 'object') S.practice = {};
   document.getElementById('parcPlayBtn').classList.toggle('active', S.parcPlay);
   document.getElementById('parcFollowBtn').classList.toggle('active', S.parcFollow);
   applyPlayMode();
