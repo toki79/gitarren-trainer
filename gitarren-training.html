@@ -748,6 +748,7 @@ details.card > summary:hover { color: var(--text); }
     <button id="tr-third" onclick="startTrainerMode('third')" title="Wie „Akkordton auf die 1", aber das Ziel ist konkret die TERZ des Akkords – sie definiert seinen Klang und schärft das Hören der Changes am meisten. Die Terz-Positionen sind grün markiert (Mikrofon).">③ Terz auf die 1</button>
     <button id="tradeBtn" onclick="toggleTrading()" title="Jam-Partner: die App spielt 4 Takte (frisch generiert, akkordbewusst), dann gehören 4 Takte dir – im Wechsel durch die Form. Kein Mikrofon nötig; kombinierbar mit 🎯/③.">🔁 Trading Fours</button>
     <button id="motifBtn" onclick="toggleMotif()" title="Motiv-Entwicklung: der ausgewählte Lick (ideal: 3–5 Töne) wird pro Akkord der Progression transponiert angezeigt – trage ihn durch die Changes. Kein Mikrofon nötig.">🧬 Motiv-Reise</button>
+    <button id="crBtn" onclick="toggleCallResp()" title="12-Bar-Blues Frage &amp; Antwort: auf jeder Eins schlägt die App den Akkord an, dann sagt sie ein Lick an – du antwortest im Takt. Verinnerlicht die Form. Braucht ein Backing.">🗣 Akkord &amp; Lick</button>
     <span class="tb-sep"></span>
     <span class="rec-label">Limitierung</span>
     <span class="btn-row" id="limitBtns">
@@ -756,6 +757,16 @@ details.card > summary:hover { color: var(--text); }
       <button data-limit="f4" onclick="setLimit('f4')" title="Nur ein 4-Bund-Fenster – kleiner Raum, große Fantasie">4 Bünde</button>
       <button data-limit="n3" onclick="setLimit('n3')" title="Nur 3 zufällige Box-Töne – alles kommt aus Rhythmus, Dynamik und Vibrato. Nochmal klicken würfelt neu.">3 Töne</button>
     </span>
+  </div>
+  <div id="crCfg" class="rec-row" style="display:none;margin-top:6px">
+    <span class="rec-label">🗣 Akkord &amp; Lick</span>
+    <span class="btn-row">
+      <button id="crBars1" class="active" onclick="setCrBars(1)" title="Akkord + Lick jeden Takt">jeder Takt</button>
+      <button id="crBars2" onclick="setCrBars(2)" title="Akkord im 1. Takt, Antwort über den 2. – mehr Raum zum Atmen (empfohlen)">alle 2 Takte</button>
+    </span>
+    <button id="crRandomBtn" onclick="toggleCrRandom()" title="Licks zufällig statt der Reihe nach ansagen">🔀 Zufall</button>
+    <button id="crDemoBtn" onclick="toggleCrDemo()" title="Das angesagte Lick zusätzlich vorspielen (zum Lernen) – aus: nur anzeigen, du spielst (zählt dann als geübt)">🔊 Lick vorspielen</button>
+    <button id="crThirdBtn" onclick="toggleCrThird()" title="Die Terz des aktuellen Akkords am Griffbrett grün markieren – lande darauf, dann werden die Changes hörbar">③ Terz zeigen</button>
   </div>
   <div id="jamInfo" class="hint" style="display:none;margin-top:6px"></div>
   <div id="trainRow" class="rec-row" style="display:none">
@@ -926,6 +937,7 @@ const S = { key: 9, scale: 'minor', pos: 1, triad: 'none', set: 'DGB', label: 'n
             lickShow: true,
             staffShow: true, staffZoom: 1.4, staffView: 'both', playMode: false,
             lickSet: [], parcours: false, parcPlay: false, parcFollow: false,
+            callResp: false, crBars: 1, crRandom: false, crDemo: false, crThird: false,   // Akkord-&-Lick-Übung
             editing: null, editSel: -1, editKey: null, editBox: 0, stackNext: false, soloDraft: null, lickStep: -1,
             trading: false, motif: false, limit: null, limitNotes: [], limitFrets: [0, 3],
             trainer: null, micGate: 0.004, micBoost: 8, blue: false, blueArrows: false,
@@ -939,7 +951,7 @@ const S = { key: 9, scale: 'minor', pos: 1, triad: 'none', set: 'DGB', label: 'n
             cards: { path: true, triad: true, prog: true, licks: false, trainer: false, ton: false } };
 let metroTimer = null;
 const metro = { nextNote: 0, beat: 0, countInBeats: 0, sched: null, lickNextBeat: 0, tradeSeg: -1,
-                parcIdx: 0, parcNextBeat: 0 };
+                parcIdx: 0, parcNextBeat: 0, crIdx: 0, crNextBeat: 0 };
 
 // ─── Audio (Web Audio API) ────────────────────────────────────────────────────
 let actx = null, masterGain = null, driveNodes = null;
@@ -1871,7 +1883,7 @@ function render() {
 
   // Terz-Targeting: alle Positionen der Terz des aktuellen Akkords grün markieren
   // (chromatisch im Box-Fenster – die Terz kann außerhalb der Pentatonik liegen, z. B. G♯ bei E-Dur)
-  if (S.trainer && S.trainer.mode === 'third' && S.prog.length && S.progIdx >= 0 && !capturing()) {
+  if (((S.trainer && S.trainer.mode === 'third') || (S.callResp && S.crThird)) && S.prog.length && S.progIdx >= 0 && !capturing()) {
     const ch = S.prog[S.progIdx];
     const tp = mod12(ch.rootPc + ch.third);
     const win = boxWindowNow();
@@ -3317,7 +3329,7 @@ function saveSoloDraft() {
 function jamInfo(txt) {
   const el = document.getElementById('jamInfo');
   if (!el) return;
-  el.textContent = txt;
+  el.innerHTML = txt;                    // Modi geben teils HTML (fett/Icons); Lick-Namen sind escaped
   el.style.display = txt ? 'block' : 'none';
 }
 // Limitierung: nur ein Teil des Griffbretts ist "erlaubt", der Rest wird abgedunkelt
@@ -3468,6 +3480,77 @@ function parcoursAdvance(whenSec) {
     renderLickPanel(); render();
   }, Math.max(0, whenSec * 1000));
   return bars;
+}
+
+// ─── Übung „Akkord & Lick" (12-Bar-Blues Frage & Antwort) ────────────────────
+// Auf jeder Eins (alle crBars Takte) wird der aktuelle Akkord als kurzer Jab
+// angeschlagen, dann ein Lick angesagt: du antwortest im Takt. Klassischer
+// Call-and-Response, der die Form verinnerlicht.
+function crLickIds() {
+  if (S.lickSet.length) return S.lickSet.slice();      // angehakte Auswahl in Reihenfolge
+  return lickRows().map(r => r.l.id);                  // sonst die gefilterte Liste
+}
+// Akkord-Jab: kurzer, betonter Anschlag der Akkordtöne (R,3,5,♭7 = Dominant-Blues)
+function chordJab(ch, whenSec) {
+  const bass = 40 + mod12(ch.rootPc - 4);              // tiefe Lage (wie beim Farbe-Anschlag)
+  [0, ch.third ?? 4, ch.fifth ?? 7, 10].forEach((iv, i) => pluck(bass + 12 + iv, whenSec + i * 0.02, 0.5, 0.95));
+  if (S.triad !== 'none' && ch.voice) {                // Griff aufs Brett flashen, wenn vorhanden
+    const grip = voicingToGrip(ch.voice, ch.rootPc, ch.third, ch.voice.set);
+    grip.forEach(gn => flashAt(gn.s, gn.fret, whenSec * 1000, ROLE_COL[gn.role] || '#f59e0b'));
+  }
+}
+function callRespCycle(whenSec, mm) {
+  const ch = chordAtBeat(mm);
+  if (ch) chordJab(ch, whenSec);
+  const ids = crLickIds();
+  const spb = 60 / S.bpm;
+  let id = null, lk = null;
+  if (ids.length) {
+    id = S.crRandom ? ids[Math.floor(Math.random() * ids.length)] : ids[metro.crIdx % ids.length];
+    metro.crIdx++;
+    lk = findLick(id);
+  }
+  if (lk) {
+    if (S.crDemo) playLickAt(lk, whenSec + spb, true);   // Demo im Zwischenraum nach dem Jab
+    else logPractice(id);                                // du spielst selbst → als geübt zählen
+  }
+  setTimeout(() => {
+    if (!S.callResp) return;
+    if (lk) { S.selectedLick = id; if (!S.lickShow) toggleLickShow(); }
+    const chName = ch ? ch.name : '';
+    jamInfo(lk
+      ? `🎸 <b>${chName}</b> anschlagen &nbsp;→&nbsp; 🎶 ${S.crDemo ? 'hör &amp; spiel mit' : 'jetzt du'}: <b>${lk.name.replace(/</g, '&lt;')}</b>`
+      : `🎸 <b>${chName}</b> anschlagen — <span class="hint">kein Lick gewählt: in der Tabelle 🎯 anhaken oder Sammlung füllen</span>`);
+    render(); renderLickBar();
+  }, Math.max(0, whenSec * 1000));
+}
+function toggleCallResp() {
+  if (!S.callResp) {
+    if (!S.prog.length) { alert('Diese Übung braucht ein Backing – lade eine Progression oder ein Blues-Preset.'); return; }
+    if (!crLickIds().length) { alert('Keine Licks vorhanden – lege ein paar Licks an oder hake in der Tabelle welche mit 🎯 an.'); return; }
+    if (S.lickLoop) toggleLickLoop();                   // andere Automatik-Modi weichen
+    if (S.trading) toggleTrading();
+    if (S.parcours) toggleParcours();
+    if (S.motif) toggleMotif();
+  }
+  S.callResp = !S.callResp;
+  const b = document.getElementById('crBtn'); if (b) b.classList.toggle('active', S.callResp);
+  const cfg = document.getElementById('crCfg'); if (cfg) cfg.style.display = S.callResp ? 'flex' : 'none';
+  metro.crIdx = 0; metro.crNextBeat = 0;
+  if (S.callResp) {
+    jamInfo('🎸 Akkord & Lick: auf der nächsten Eins kommt der Akkord, dann bist du dran.');
+    if (!S.metroOn) startMetro();
+  } else jamInfo('');
+  render();
+}
+function setCrBars(n) { S.crBars = n; renderCrCfg(); saveSettings(); }
+function toggleCrRandom() { S.crRandom = !S.crRandom; renderCrCfg(); saveSettings(); }
+function toggleCrDemo() { S.crDemo = !S.crDemo; renderCrCfg(); saveSettings(); }
+function toggleCrThird() { S.crThird = !S.crThird; renderCrCfg(); render(); saveSettings(); }
+function renderCrCfg() {
+  const set = (id, on) => { const b = document.getElementById(id); if (b) b.classList.toggle('active', !!on); };
+  set('crBars1', S.crBars === 1); set('crBars2', S.crBars === 2);
+  set('crRandomBtn', S.crRandom); set('crDemoBtn', S.crDemo); set('crThirdBtn', S.crThird);
 }
 
 // ─── Lick-Editor: bestehende Licks nachträglich bearbeiten ───────────────────
@@ -4806,6 +4889,11 @@ function metroScheduler() {
         const bars = parcoursAdvance(t - ac.currentTime);
         metro.parcNextBeat = m + bars * S.beatsPerMeasure;
       }
+      // Akkord & Lick: auf der Eins alle crBars Takte den Akkord anschlagen und ein Lick ansagen
+      if (S.callResp && S.prog.length && beatInMeasure === 0 && mm >= 0 && m >= metro.crNextBeat) {
+        callRespCycle(t - ac.currentTime, mm);
+        metro.crNextBeat = m + Math.max(1, S.crBars) * S.beatsPerMeasure;
+      }
       // Trading Fours: alle 4 Takte wechseln sich App (generiertes Segment) und Spieler ab
       if (S.trading && S.prog.length && beatInMeasure === 0 && m % (4 * S.beatsPerMeasure) === 0) {
         const seg = Math.floor(m / (4 * S.beatsPerMeasure));
@@ -4854,6 +4942,7 @@ function startMetro() {
   metro.lickNextBeat = 0;                                                     // Lick-Loop neu starten
   metro.tradeSeg = -1;                                                        // Trading Fours neu starten
   metro.parcIdx = 0; metro.parcNextBeat = 0;                                  // Lick-Parcours neu starten
+  metro.crIdx = 0; metro.crNextBeat = 0;                                      // Akkord-&-Lick-Übung neu starten
   metro.nextNote = audio().currentTime + 0.12;
   if (S.prog.length) { S.progIdx = 0; renderChips(); render(); }
   const b = document.getElementById('metroBtn');
@@ -4953,6 +5042,7 @@ const PERSIST = ['key','scale','pos','triad','set','label','blue','blueArrows','
   'bass','groove','vol','boxMode','micBoost','lickLoop','sound','selectedLick',
   'presetTab','showLegend','cards','fbCompact','intervalMode','intervalRef',
   'lickShow','pathId','pathStep','lastBackupAt','drive','panels','settingsShow','outDevice','practice',
+  'crBars','crRandom','crDemo','crThird',
   'staffShow','staffZoom','staffView','playMode','lickSet','parcPlay','parcFollow'];
 function saveSettings() {
   try {
@@ -5085,6 +5175,7 @@ function applySettingsUI() {
   applyPanels();
   applySettings();
   updateEditAffordances();
+  renderCrCfg();
   document.getElementById('fbLegend').style.display = S.showLegend ? 'flex' : 'none';
   document.getElementById('btn-legend').classList.toggle('active', S.showLegend);
   applyFbSize();
