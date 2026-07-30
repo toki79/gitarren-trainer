@@ -786,6 +786,7 @@ details.card > summary:hover { color: var(--text); }
       <button id="clickBtn" class="active" onclick="toggleClick()" title="Metronom-Klick an/aus (Akkorde spielen unabhängig davon weiter)">🔔 Klick</button>
       <button id="drumsBtn" class="active" onclick="toggleDrums()" title="Schlagzeug-Begleitung (Kick/Snare/HiHat) an/aus">🥁 Drums</button>
       <button id="bassBtn" class="active" onclick="toggleBass()" title="Bass-Begleitung an/aus – spielt Grundton und Quinte des aktuellen Akkords">🎸 Bass</button>
+      <button id="fillsBtn" class="active" onclick="toggleFills()" title="Fills &amp; Akzente: Crash auf die Eins jeder neuen 12-Bar-Form und ein Turnaround-Fill im letzten Takt">🥁 Fills</button>
       <span class="tb-sep"></span>
       <label class="metro-field" id="grooveField" title="Drum-Feel: Muster von Kick, Snare, Hi-Hat und Swing – der Charakter der Begleitung">Feel
         <select id="drumFeel" onchange="setDrumFeel(this.value)">
@@ -932,7 +933,7 @@ const S = { key: 9, scale: 'minor', pos: 1, triad: 'none', set: 'DGB', label: 'n
             sound: true, currentGrip: [], boxMode: 'strict', currentSet: 'DGB',
             bpm: 90, beatsPerMeasure: 4, measuresPerChord: 1, metroOn: false, countIn: true,
             exercise: null, bluesForm: null, click: true, drums: true, bass: true,
-            groove: 'straight', drumFeel: 'chicago', tripletFeel: false, vol: { click: 1, drums: 1, bass: 1, guitar: 1, lick: 1 },
+            groove: 'straight', drumFeel: 'chicago', fills: true, tripletFeel: false, vol: { click: 1, drums: 1, bass: 1, guitar: 1, lick: 1 },
             drive: 'clean',
             licks: [], lickRec: [], selectedLick: null, lickLoop: false,
             practice: {},                 // Übungs-Protokoll je Lick: { [id]: { count, last, days } }
@@ -4812,6 +4813,22 @@ function hihat(t, gainMul = 1) {
   src.connect(hp); hp.connect(g); g.connect(trackGain.drums);
   src.start(t); src.stop(t + 0.05);
 }
+// Tom (für Fills) – gestimmter, kurz abfallender Trommelton
+function tom(t, freq = 200) {
+  const ac = audio();
+  const o = ac.createOscillator(); o.type = 'sine';
+  o.frequency.setValueAtTime(freq, t); o.frequency.exponentialRampToValueAtTime(freq * 0.5, t + 0.15);
+  const g = ac.createGain(); g.gain.setValueAtTime(0.55, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
+  o.connect(g); g.connect(trackGain.drums); o.start(t); o.stop(t + 0.25);
+}
+// Crash-Becken – heller Rausch-Akzent mit langem Ausklang (Form-Anfang)
+function crash(t) {
+  const ac = audio();
+  const src = ac.createBufferSource(); src.buffer = noiseBuf(); src.loop = true;   // 0,5-s-Puffer loopen für längeren Ausklang
+  const hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 3500;
+  const g = ac.createGain(); g.gain.setValueAtTime(0.32, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.9);
+  src.connect(hp); hp.connect(g); g.connect(trackGain.drums); src.start(t); src.stop(t + 1.0);
+}
 function bassNote(midi, t, dur) {
   const ac = audio();
   const f = midiToFreq(midi);
@@ -4852,10 +4869,22 @@ const DRUM_FEELS = {
 const KICK_BEATS  = { 2: [0], 3: [0], 4: [0, 2], 6: [0] };
 const SNARE_BEATS = { 2: [1], 3: [2], 4: [1, 3], 6: [3] };
 const FIFTH_BEATS = { 2: [],  3: [2], 4: [2],    6: [3] };
-function scheduleDrums(t, beat) {
+function scheduleDrums(t, beat, mm = -1) {
   const spb = 60 / S.bpm;
   const f = DRUM_FEELS[S.drumFeel] || DRUM_FEELS.chicago;
   const use4 = S.beatsPerMeasure === 4;                       // Feel-Muster gelten für 4/4 (Blues)
+  // Fills & Akzente nur mit geladener Form (Progression)
+  const inForm = mm >= 0 && metro.sched;
+  const total = inForm ? metro.sched.total : 0;
+  // Crash auf die Eins jeder neuen Form
+  if (S.fills && inForm && mm === 0) crash(t);
+  // Turnaround-Fill: letzter Takt, letzte zwei Zählzeiten (statt normalem Muster ein absteigender Tom-Lauf)
+  if (S.fills && inForm && use4 && mm >= total - S.beatsPerMeasure && beat >= 2) {
+    const off = spb / 2;
+    if (beat === 2) { tom(t, 260); tom(t + off, 220); }
+    else { tom(t, 180); snare(t + off); }                    // letzte Achtel: Snare-Pickup in den Crash
+    return;
+  }
   const kb = use4 ? f.kick  : (KICK_BEATS[S.beatsPerMeasure]  || [0]);
   const sb = use4 ? f.snare : (SNARE_BEATS[S.beatsPerMeasure] || []);
   if (kb.includes(beat)) kick(t);
@@ -4897,7 +4926,7 @@ function metroScheduler() {
       ? ((m % metro.sched.total) + metro.sched.total) % metro.sched.total : -1;
     // Backing Track (nicht während des Einzählers; Drums auch ohne Progression)
     if (!isCountIn) {
-      if (S.drums) scheduleDrums(t, beatInMeasure);
+      if (S.drums) scheduleDrums(t, beatInMeasure, mm);
       if (S.bass && mm >= 0 && S.prog.length) scheduleBass(t, beatInMeasure, mm);
       // Lick-Loop: ausgewählten Lick an Taktgrenzen wiederholen (pausiert bei Trading Fours)
       if (S.lickLoop && !S.trading && S.selectedLick && beatInMeasure === 0 && m >= metro.lickNextBeat) {
@@ -5016,6 +5045,11 @@ function toggleBass() {
   S.bass = !S.bass;
   document.getElementById('bassBtn').classList.toggle('active', S.bass);
 }
+function toggleFills() {
+  S.fills = !S.fills;
+  document.getElementById('fillsBtn').classList.toggle('active', S.fills);
+  saveSettings();
+}
 function setGroove(v) {
   S.groove = v;
   const a = document.getElementById('btn-grstraight'), b = document.getElementById('btn-grshuffle');
@@ -5069,7 +5103,7 @@ function reparseProg() {
 const SETTINGS_KEY = 'gitarrenTraining.settings';
 const PERSIST = ['key','scale','pos','triad','set','label','blue','blueArrows','pair','approach',
   'superId','bpm','beatsPerMeasure','tripletFeel','measuresPerChord','countIn','click','drums',
-  'bass','groove','drumFeel','vol','boxMode','micBoost','lickLoop','sound','selectedLick',
+  'bass','groove','drumFeel','fills','vol','boxMode','micBoost','lickLoop','sound','selectedLick',
   'presetTab','showLegend','cards','fbCompact','intervalMode','intervalRef',
   'lickShow','pathId','pathStep','lastBackupAt','drive','panels','settingsShow','outDevice','practice',
   'crBars','crRandom','crDemo','crThird',
@@ -5180,6 +5214,8 @@ function applySettingsUI() {
   cb.textContent = S.click ? '🔔 Klick' : '🔕 Klick'; cb.classList.toggle('active', S.click);
   document.getElementById('drumsBtn').classList.toggle('active', S.drums);
   document.getElementById('bassBtn').classList.toggle('active', S.bass);
+  if (S.fills === undefined) S.fills = true;
+  document.getElementById('fillsBtn').classList.toggle('active', S.fills);
   document.getElementById('countInBtn').classList.toggle('active', S.countIn);
   // Drum-Feel: für Bestandsnutzer ohne gespeicherten Feel aus Groove/12-8 ableiten
   if (!DRUM_FEELS[S.drumFeel]) S.drumFeel = S.tripletFeel ? 'slow12' : S.groove === 'shuffle' ? 'chicago' : 'straight';
