@@ -787,11 +787,15 @@ details.card > summary:hover { color: var(--text); }
       <button id="drumsBtn" class="active" onclick="toggleDrums()" title="Schlagzeug-Begleitung (Kick/Snare/HiHat) an/aus">🥁 Drums</button>
       <button id="bassBtn" class="active" onclick="toggleBass()" title="Bass-Begleitung an/aus – spielt Grundton und Quinte des aktuellen Akkords">🎸 Bass</button>
       <span class="tb-sep"></span>
-      <label class="metro-field" id="grooveField">Groove
-        <span class="btn-row">
-          <button id="btn-grstraight" class="active" onclick="setGroove('straight')" title="Gerade Achtel">Gerade</button>
-          <button id="btn-grshuffle" onclick="setGroove('shuffle')" title="Triolisches Achtel-Feel (Swing/Blues)">Shuffle</button>
-        </span>
+      <label class="metro-field" id="grooveField" title="Drum-Feel: Muster von Kick, Snare, Hi-Hat und Swing – der Charakter der Begleitung">Feel
+        <select id="drumFeel" onchange="setDrumFeel(this.value)">
+          <option value="straight">Straight (Boogie)</option>
+          <option value="chicago">Chicago-Shuffle</option>
+          <option value="texas">Texas-Shuffle (treibend)</option>
+          <option value="slow12">Slow Blues 12/8</option>
+          <option value="crossstick">Cross-Stick (soft)</option>
+          <option value="halftime">Half-Time (breit)</option>
+        </select>
       </label>
       <label class="metro-field" title="Verzerrung der Lick-Spur (▶ Lick, Loop, Editor, Solo-Generator, Trading Fours) – Akkorde und Backing bleiben clean">Lick-Sound
         <span class="btn-row" id="driveBtns">
@@ -928,7 +932,7 @@ const S = { key: 9, scale: 'minor', pos: 1, triad: 'none', set: 'DGB', label: 'n
             sound: true, currentGrip: [], boxMode: 'strict', currentSet: 'DGB',
             bpm: 90, beatsPerMeasure: 4, measuresPerChord: 1, metroOn: false, countIn: true,
             exercise: null, bluesForm: null, click: true, drums: true, bass: true,
-            groove: 'straight', tripletFeel: false, vol: { click: 1, drums: 1, bass: 1, guitar: 1, lick: 1 },
+            groove: 'straight', drumFeel: 'chicago', tripletFeel: false, vol: { click: 1, drums: 1, bass: 1, guitar: 1, lick: 1 },
             drive: 'clean',
             licks: [], lickRec: [], selectedLick: null, lickLoop: false,
             practice: {},                 // Übungs-Protokoll je Lick: { [id]: { count, last, days } }
@@ -2351,7 +2355,7 @@ function bluesPreset(form) {
   document.getElementById('progInput').value = bluesVariant(form);
   applyProg();
   S.bluesForm = form;                        // nach applyProg setzen (das räumt es auf)
-  setGroove('shuffle');                       // Blues lebt vom Shuffle-Feel
+  setDrumFeel('chicago');                      // Blues lebt vom Shuffle-Feel
 }
 function blues12()    { bluesPreset('standard'); }
 function bluesQuick() { bluesPreset('quick'); }
@@ -2362,16 +2366,16 @@ function bluesTurnaround() { bluesPreset('turn'); }
 // Ein Stil = Form + Tonart + Tempo + Taktart + Groove (alles nicht schützbar);
 // Melodien werden bewusst nicht übernommen.
 const SONG_STYLES = {
-  thrill: { name: 'Thrill-Moll-Blues (Bm)', key: 11, scale: 'minor', bpm: 88, sig: '4', groove: 'straight', pos: 2,
+  thrill: { name: 'Thrill-Moll-Blues (Bm)', key: 11, scale: 'minor', bpm: 88, sig: '4', groove: 'straight', feel: 'slow12', pos: 2,
     prog: 'i | i | i | i | iv | iv | i | i | VI | V | i | i',
     hint: 'Im Stil von „The Thrill Is Gone“: langsamer Moll-Blues in Bm, gerades Feel, die VI→V-Wendung (G→F♯) ist die Signature. Wenig Töne, viel Raum. Box 2 (BB-Box) ist geladen – öffne die Licks-Karte für das 🎩 Thrill-Style-Paket mit Bends.' },
-  chicago: { name: 'Chicago-Shuffle (E)', key: 4, scale: 'major', bpm: 104, sig: '4', groove: 'shuffle', pos: 1,
+  chicago: { name: 'Chicago-Shuffle (E)', key: 4, scale: 'major', bpm: 104, sig: '4', groove: 'shuffle', feel: 'chicago', pos: 1,
     prog: 'I | IV | I | I | IV | IV | I | I | V | IV | I | V',
     hint: 'Im Stil von „Sweet Home Chicago“: Quick-Change-Shuffle in E. Dur-Blues-Reibung (♭3→3) und treibende Achtel.' },
-  slow128: { name: 'Slow-Blues 12/8 (G)', key: 7, scale: 'major', bpm: 60, sig: '12-8', groove: 'shuffle', pos: 1,
+  slow128: { name: 'Slow-Blues 12/8 (G)', key: 7, scale: 'major', bpm: 60, sig: '12-8', groove: 'shuffle', feel: 'slow12', pos: 1,
     prog: 'I | IV | I | I | IV | IV | I | I | V | IV | I | V',
     hint: 'Im Stil von „Stormy Monday“ (vereinfachte Changes): 12/8-Wiegen bei 60 BPM. Jede Note zelebrieren, Triolen ausspielen.' },
-  boogie: { name: 'Boogie-Vamp (A)', key: 9, scale: 'major', bpm: 120, sig: '4', groove: 'shuffle', pos: 1,
+  boogie: { name: 'Boogie-Vamp (A)', key: 9, scale: 'major', bpm: 120, sig: '4', groove: 'shuffle', feel: 'texas', pos: 1,
     prog: 'I | I | I | I | I | I | I | I',
     hint: 'Ein-Akkord-Boogie in A (John-Lee-Hooker-Feeling): kein Wechsel, nur Groove. Ideal, um Dur- und Moll-Pentatonik zu mischen.' }
 };
@@ -2383,7 +2387,7 @@ function applyStyle(id) {
   setPos(st.pos);
   setTimeSig(st.sig); document.getElementById('timeSig').value = st.sig;
   setBpm(st.bpm);
-  setGroove(st.groove);
+  setDrumFeel(st.feel || (st.groove === 'shuffle' ? 'chicago' : 'straight'));
   document.getElementById('progInput').value = st.prog;
   applyProg();
   const info = document.getElementById('styleInfo');
@@ -4822,25 +4826,45 @@ function bassNote(midi, t, dur) {
   o.start(t); o.stop(t + dur + 0.05);
   o2.start(t); o2.stop(t + dur + 0.05);
 }
-// Groove-Muster je Taktart (0-indexierte Zählzeiten)
+// Cross-Stick / Rimshot – hölzerner „Tok" statt harter Snare (Slow-Blues, laid back)
+function rim(t) {
+  const ac = audio();
+  const o = ac.createOscillator(); o.type = 'triangle';
+  o.frequency.setValueAtTime(900, t); o.frequency.exponentialRampToValueAtTime(380, t + 0.03);
+  const g = ac.createGain(); g.gain.setValueAtTime(0.5, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+  o.connect(g); g.connect(trackGain.drums); o.start(t); o.stop(t + 0.06);
+  const src = ac.createBufferSource(); src.buffer = noiseBuf();
+  const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 2200; bp.Q.value = 1.2;
+  const g2 = ac.createGain(); g2.gain.setValueAtTime(0.18, t); g2.gain.exponentialRampToValueAtTime(0.0001, t + 0.03);
+  src.connect(bp); bp.connect(g2); g2.connect(trackGain.drums); src.start(t); src.stop(t + 0.04);
+}
+// Drum-Feels: blues-typische Grooves. kick/snare = Zählzeiten (0-indexiert, 4/4);
+// hat = Hi-Hat-Unterteilung; rim = Cross-Stick statt Snare; groove = Swing für Licks/Bass.
+const DRUM_FEELS = {
+  straight:   { name: 'Straight (Boogie)',        groove: 'straight', kick: [0, 2],       snare: [1, 3], hat: 'straight8', rim: false },
+  chicago:    { name: 'Chicago-Shuffle',          groove: 'shuffle',  kick: [0, 2],       snare: [1, 3], hat: 'shuffle',   rim: false },
+  texas:      { name: 'Texas-Shuffle (treibend)', groove: 'shuffle',  kick: [0, 1, 2, 3], snare: [1, 3], hat: 'shuffle',   rim: false },
+  slow12:     { name: 'Slow Blues 12/8',          groove: 'shuffle',  kick: [0, 2],       snare: [1, 3], hat: 'triplet',   rim: false },
+  crossstick: { name: 'Cross-Stick (soft)',       groove: 'shuffle',  kick: [0, 2],       snare: [1, 3], hat: 'shuffle',   rim: true  },
+  halftime:   { name: 'Half-Time (breit)',        groove: 'straight', kick: [0],          snare: [2],    hat: 'straight8', rim: false },
+};
+// Groove-Muster je Taktart (0-indexierte Zählzeiten) – Fallback außerhalb 4/4
 const KICK_BEATS  = { 2: [0], 3: [0], 4: [0, 2], 6: [0] };
 const SNARE_BEATS = { 2: [1], 3: [2], 4: [1, 3], 6: [3] };
 const FIFTH_BEATS = { 2: [],  3: [2], 4: [2],    6: [3] };
 function scheduleDrums(t, beat) {
   const spb = 60 / S.bpm;
-  if ((KICK_BEATS[S.beatsPerMeasure] || [0]).includes(beat)) kick(t);
-  if ((SNARE_BEATS[S.beatsPerMeasure] || []).includes(beat)) snare(t);
-  hihat(t, beat === 0 ? 1 : 0.8);
-  if (S.tripletFeel) {
-    // 12/8: alle drei Triolen-Achtel durchspielen – das typische Slow-Blues-Wiegen
-    hihat(t + spb / 3, 0.5);
-    hihat(t + 2 * spb / 3, 0.7);
-  } else {
-    // Offbeat-Achtel: gerade = Taktmitte, Shuffle = triolisch (2/3 des Beats).
-    // Im Shuffle ist das Offbeat fast so laut wie der Beat – das macht das Feel hörbar.
-    const shuffle = S.groove === 'shuffle';
-    hihat(t + spb * (shuffle ? 2 / 3 : 1 / 2), shuffle ? 0.9 : 0.45);
-  }
+  const f = DRUM_FEELS[S.drumFeel] || DRUM_FEELS.chicago;
+  const use4 = S.beatsPerMeasure === 4;                       // Feel-Muster gelten für 4/4 (Blues)
+  const kb = use4 ? f.kick  : (KICK_BEATS[S.beatsPerMeasure]  || [0]);
+  const sb = use4 ? f.snare : (SNARE_BEATS[S.beatsPerMeasure] || []);
+  if (kb.includes(beat)) kick(t);
+  if (sb.includes(beat)) (f.rim ? rim : snare)(t);
+  hihat(t, beat === 0 ? 1 : 0.8);                             // Hi-Hat auf jeder Zählzeit
+  if (S.tripletFeel || f.hat === 'triplet')                  // 12/8-Wiegen: alle drei Triolen-Achtel
+    { hihat(t + spb / 3, 0.5); hihat(t + 2 * spb / 3, 0.7); }
+  else if (f.hat === 'shuffle') hihat(t + spb * 2 / 3, 0.9);  // swingendes Offbeat (Long-short)
+  else hihat(t + spb / 2, 0.45);                             // gerade Achtel
 }
 // Akkord, der auf Zählzeit mm aktiv ist (letzter Start <= mm)
 function chordAtBeat(mm) {
@@ -4965,9 +4989,6 @@ function setTimeSig(v) {
   // 12/8 = 4 Hauptschläge mit Triolen-HiHat (Slow-Blues-Feel); sonst v Klicks pro Takt
   if (v === '12-8') { S.beatsPerMeasure = 4; S.tripletFeel = true; }
   else { S.beatsPerMeasure = +v; S.tripletFeel = false; }
-  // Groove-Schalter im 12/8 wirkungslos (Triolen sind fest) → ausgrauen
-  document.getElementById('grooveField').style.opacity = S.tripletFeel ? 0.4 : 1;
-  document.getElementById('grooveField').style.pointerEvents = S.tripletFeel ? 'none' : 'auto';
   renderBeatDots();
   if (S.metroOn) metro.sched = buildBeatSchedule();
   if (S.editing) renderEditor();       // Takt-Grenzen im Lick-Editor neu ziehen
@@ -4997,8 +5018,17 @@ function toggleBass() {
 }
 function setGroove(v) {
   S.groove = v;
-  document.getElementById('btn-grstraight').classList.toggle('active', v === 'straight');
-  document.getElementById('btn-grshuffle').classList.toggle('active', v === 'shuffle');
+  const a = document.getElementById('btn-grstraight'), b = document.getElementById('btn-grshuffle');
+  if (a) a.classList.toggle('active', v === 'straight');
+  if (b) b.classList.toggle('active', v === 'shuffle');
+}
+// Drum-Feel wählen: setzt Muster (für scheduleDrums) und den Swing (groove) passend.
+function setDrumFeel(id) {
+  if (!DRUM_FEELS[id]) return;
+  S.drumFeel = id;
+  setGroove(DRUM_FEELS[id].groove);            // Swing für Licks/Bass konsistent halten
+  const sel = document.getElementById('drumFeel'); if (sel) sel.value = id;
+  saveSettings();
 }
 function setVol(track, v) {
   S.vol[track] = v / 100;
@@ -5039,7 +5069,7 @@ function reparseProg() {
 const SETTINGS_KEY = 'gitarrenTraining.settings';
 const PERSIST = ['key','scale','pos','triad','set','label','blue','blueArrows','pair','approach',
   'superId','bpm','beatsPerMeasure','tripletFeel','measuresPerChord','countIn','click','drums',
-  'bass','groove','vol','boxMode','micBoost','lickLoop','sound','selectedLick',
+  'bass','groove','drumFeel','vol','boxMode','micBoost','lickLoop','sound','selectedLick',
   'presetTab','showLegend','cards','fbCompact','intervalMode','intervalRef',
   'lickShow','pathId','pathStep','lastBackupAt','drive','panels','settingsShow','outDevice','practice',
   'crBars','crRandom','crDemo','crThird',
@@ -5145,17 +5175,15 @@ function applySettingsUI() {
   document.getElementById('superSel').value = S.superId;
   document.getElementById('bpm').value = S.bpm;
   document.getElementById('timeSig').value = S.tripletFeel ? '12-8' : String(S.beatsPerMeasure);
-  const gf = document.getElementById('grooveField');
-  gf.style.opacity = S.tripletFeel ? 0.4 : 1;
-  gf.style.pointerEvents = S.tripletFeel ? 'none' : 'auto';
   document.getElementById('measPerChord').value = String(S.measuresPerChord);
   const cb = document.getElementById('clickBtn');
   cb.textContent = S.click ? '🔔 Klick' : '🔕 Klick'; cb.classList.toggle('active', S.click);
   document.getElementById('drumsBtn').classList.toggle('active', S.drums);
   document.getElementById('bassBtn').classList.toggle('active', S.bass);
   document.getElementById('countInBtn').classList.toggle('active', S.countIn);
-  document.getElementById('btn-grstraight').classList.toggle('active', S.groove === 'straight');
-  document.getElementById('btn-grshuffle').classList.toggle('active', S.groove === 'shuffle');
+  // Drum-Feel: für Bestandsnutzer ohne gespeicherten Feel aus Groove/12-8 ableiten
+  if (!DRUM_FEELS[S.drumFeel]) S.drumFeel = S.tripletFeel ? 'slow12' : S.groove === 'shuffle' ? 'chicago' : 'straight';
+  document.getElementById('drumFeel').value = S.drumFeel;
   ['strict', 'variety', 'ascend'].forEach(m =>
     document.getElementById('btn-box' + m).classList.toggle('active', S.boxMode === m));
   const order = ['click', 'drums', 'bass', 'guitar', 'lick'];
