@@ -202,6 +202,21 @@ body.play-mode #playBar { display: flex; }
 .lt-pick { width: 26px; text-align: center; }
 .lt-pick input { cursor: pointer; }
 .lt-prac { text-align: center; font-variant-numeric: tabular-nums; color: var(--scale-col); white-space: nowrap; }
+/* Drum-Step-Editor */
+#drumEditor { margin: 0 0 8px; padding: 9px 11px; background: var(--panel2); border: 1px solid var(--border); border-radius: 9px; }
+#drumEditor .de-hint { margin-bottom: 7px; }
+.de-grid { display: flex; flex-direction: column; gap: 4px; overflow-x: auto; }
+.de-row { display: flex; align-items: center; gap: 4px; }
+.de-row .de-label { width: 58px; flex: none; font-size: 0.72rem; color: var(--muted); text-align: right; }
+.de-cell { width: 26px; height: 22px; flex: none; border: 1px solid var(--border); border-radius: 4px; background: var(--panel); cursor: pointer; transition: background 0.1s; }
+.de-cell.beatstart { border-left: 2px solid var(--muted); }
+.de-cell.on { background: var(--scale-col); border-color: var(--scale-col); }
+.de-cell.on:hover { background: #2f6fe0; }
+.de-head .de-cell { border: none; background: none; color: var(--muted); font-size: 0.68rem; text-align: center; line-height: 22px; height: 22px; cursor: default; }
+.de-head .de-cell.beatstart { border-left: 2px solid transparent; color: var(--text); }
+.de-controls { display: flex; align-items: center; gap: 10px; margin-top: 9px; flex-wrap: wrap; font-size: 0.82rem; color: var(--muted); }
+.de-controls input[type=range] { width: 130px; accent-color: var(--scale-col); vertical-align: middle; }
+.de-controls select { font-size: 0.8rem; }
 #lickPickHead.has-sel { cursor: pointer; color: #ef4444; }
 #lickPickHead.has-sel:hover { color: #f87171; }
 .lf-clear { font-size: 0.74rem; padding: 3px 9px; border-color: rgba(239,68,68,0.5); color: #f87171; }
@@ -796,6 +811,7 @@ details.card > summary:hover { color: var(--text); }
           <option value="slow12">Slow Blues 12/8</option>
           <option value="crossstick">Cross-Stick (soft)</option>
           <option value="halftime">Half-Time (breit)</option>
+          <option value="custom">✎ Eigenes (Editor)</option>
         </select>
       </label>
       <label class="metro-field" title="Verzerrung der Lick-Spur (▶ Lick, Loop, Editor, Solo-Generator, Trading Fours) – Akkorde und Backing bleiben clean">Lick-Sound
@@ -805,6 +821,29 @@ details.card > summary:hover { color: var(--text); }
           <button data-drive="lead" onclick="setDrive('lead')" title="Singender Lead-Ton – mehr Sättigung und Sustain">Lead</button>
         </span>
       </label>
+    </div>
+    <!-- Drum-Step-Editor: erscheint bei Feel „✎ Eigenes" -->
+    <div id="drumEditor" style="display:none">
+      <div class="de-hint hint">Klicke die Achtel an. Der Swing-Regler verschiebt die Off-Achtel Richtung Shuffle.</div>
+      <div class="de-grid"></div>
+      <div class="de-controls">
+        <label>Swing <input type="range" id="customSwing" min="0" max="100" value="60" oninput="setCustomSwing(this.value)"></label>
+        <span id="customSwingLbl">60%</span>
+        <span class="tb-sep"></span>
+        <button onclick="previewCustom()" title="Einen Takt des Musters anhören">▶ Vorschau</button>
+        <button onclick="clearCustom()" title="Alle Schläge löschen">🗑 leeren</button>
+        <label>Vorlage
+          <select id="customSeed" onchange="seedCustomFromFeel(this.value); this.value=''" title="Ein bestehendes Feel als Startmuster laden">
+            <option value="">aus Feel laden …</option>
+            <option value="straight">Straight (Boogie)</option>
+            <option value="chicago">Chicago-Shuffle</option>
+            <option value="texas">Texas-Shuffle</option>
+            <option value="slow12">Slow Blues 12/8</option>
+            <option value="crossstick">Cross-Stick</option>
+            <option value="halftime">Half-Time</option>
+          </select>
+        </label>
+      </div>
     </div>
     <div class="rec-row" style="margin-bottom:8px">
       <div class="mixer" style="margin-left:0" title="Lautstärke-Balance der Spuren">
@@ -933,7 +972,7 @@ const S = { key: 9, scale: 'minor', pos: 1, triad: 'none', set: 'DGB', label: 'n
             sound: true, currentGrip: [], boxMode: 'strict', currentSet: 'DGB',
             bpm: 90, beatsPerMeasure: 4, measuresPerChord: 1, metroOn: false, countIn: true,
             exercise: null, bluesForm: null, click: true, drums: true, bass: true,
-            groove: 'straight', drumFeel: 'chicago', fills: true, tripletFeel: false, vol: { click: 1, drums: 1, bass: 1, guitar: 1, lick: 1 },
+            groove: 'straight', drumFeel: 'chicago', fills: true, customPattern: null, customSwing: 60, tripletFeel: false, vol: { click: 1, drums: 1, bass: 1, guitar: 1, lick: 1 },
             drive: 'clean',
             licks: [], lickRec: [], selectedLick: null, lickLoop: false,
             practice: {},                 // Übungs-Protokoll je Lick: { [id]: { count, last, days } }
@@ -4865,6 +4904,35 @@ const DRUM_FEELS = {
   crossstick: { name: 'Cross-Stick (soft)',       groove: 'shuffle',  kick: [0, 2],       snare: [1, 3], hat: 'shuffle',   rim: true  },
   halftime:   { name: 'Half-Time (breit)',        groove: 'straight', kick: [0],          snare: [2],    hat: 'straight8', rim: false },
 };
+// ─── Eigenes Drum-Muster (Step-Editor) ──────────────────────────────────────
+// 8 Achtel-Schritte pro 4/4-Takt je Instrument; Swing verschiebt die Off-Achtel.
+const CUSTOM_INSTR = [['hat', 'Hi-Hat'], ['snare', 'Snare'], ['rim', 'Rim'], ['tom', 'Tom'], ['kick', 'Kick']];
+const CUSTOM_SOUND = { hat: t => hihat(t, 0.8), snare: t => snare(t), rim: t => rim(t), tom: t => tom(t, 200), kick: t => kick(t) };
+// Feel → 8-Step-Muster umwandeln (Startvorlage für den Editor)
+function feelToPattern(id) {
+  const f = DRUM_FEELS[id] || DRUM_FEELS.chicago;
+  const p = { hat: Array(8).fill(0), snare: Array(8).fill(0), rim: Array(8).fill(0), tom: Array(8).fill(0), kick: Array(8).fill(0) };
+  f.kick.forEach(b => { if (b < 4) p.kick[b * 2] = 1; });
+  f.snare.forEach(b => { if (b < 4) (f.rim ? p.rim : p.snare)[b * 2] = 1; });
+  for (let s = 0; s < 8; s++) p.hat[s] = 1;                 // Hi-Hat auf allen Achteln (Swing macht das Feel)
+  return p;
+}
+function ensureCustomPattern() {
+  const p = S.customPattern;
+  if (!p || !p.hat || p.hat.length !== 8) S.customPattern = feelToPattern('chicago');
+}
+// Eine Zählzeit des eigenen Musters planen (zwei Achtel; Off-Achtel geswingt)
+function scheduleCustomBeat(t, beat, spb) {
+  ensureCustomPattern();
+  const p = S.customPattern;
+  const swOff = spb * (0.5 + (S.customSwing / 100) * (2 / 3 - 0.5));   // 0% gerade … 100% voller Shuffle
+  for (let sub = 0; sub < 2; sub++) {
+    const step = beat * 2 + sub;
+    if (step > 7) break;
+    const when = t + (sub === 0 ? 0 : swOff);
+    CUSTOM_INSTR.forEach(([k]) => { if (p[k] && p[k][step]) CUSTOM_SOUND[k](when); });
+  }
+}
 // Groove-Muster je Taktart (0-indexierte Zählzeiten) – Fallback außerhalb 4/4
 const KICK_BEATS  = { 2: [0], 3: [0], 4: [0, 2], 6: [0] };
 const SNARE_BEATS = { 2: [1], 3: [2], 4: [1, 3], 6: [3] };
@@ -4885,6 +4953,7 @@ function scheduleDrums(t, beat, mm = -1) {
     else { tom(t, 180); snare(t + off); }                    // letzte Achtel: Snare-Pickup in den Crash
     return;
   }
+  if (S.drumFeel === 'custom') { scheduleCustomBeat(t, beat, spb); return; }   // eigenes Muster
   const kb = use4 ? f.kick  : (KICK_BEATS[S.beatsPerMeasure]  || [0]);
   const sb = use4 ? f.snare : (SNARE_BEATS[S.beatsPerMeasure] || []);
   if (kb.includes(beat)) kick(t);
@@ -5058,11 +5127,63 @@ function setGroove(v) {
 }
 // Drum-Feel wählen: setzt Muster (für scheduleDrums) und den Swing (groove) passend.
 function setDrumFeel(id) {
-  if (!DRUM_FEELS[id]) return;
+  if (id !== 'custom' && !DRUM_FEELS[id]) return;
   S.drumFeel = id;
-  setGroove(DRUM_FEELS[id].groove);            // Swing für Licks/Bass konsistent halten
+  // Swing für Licks/Bass konsistent halten (bei „custom" aus dem Swing-Regler)
+  setGroove(id === 'custom' ? (S.customSwing >= 30 ? 'shuffle' : 'straight') : DRUM_FEELS[id].groove);
   const sel = document.getElementById('drumFeel'); if (sel) sel.value = id;
+  renderDrumEditor();
   saveSettings();
+}
+// ─── Step-Editor-Bedienung ───────────────────────────────────────────────────
+function renderDrumEditor() {
+  const box = document.getElementById('drumEditor');
+  if (!box) return;
+  const show = S.drumFeel === 'custom';
+  box.style.display = show ? 'block' : 'none';
+  if (!show) return;
+  ensureCustomPattern();
+  const grid = box.querySelector('.de-grid');
+  const head = '<div class="de-row de-head"><span class="de-label"></span>' +
+    [0, 1, 2, 3, 4, 5, 6, 7].map(s => `<span class="de-cell">${s % 2 === 0 ? (s / 2 + 1) : '&'}</span>`).join('') + '</div>';
+  const rows = CUSTOM_INSTR.map(([k, label]) => {
+    const cells = S.customPattern[k].map((v, s) =>
+      `<span class="de-cell ${v ? 'on' : ''} ${s % 2 === 0 ? 'beatstart' : ''}" onclick="toggleCustomCell('${k}',${s})"></span>`).join('');
+    return `<div class="de-row"><span class="de-label">${label}</span>${cells}</div>`;
+  }).join('');
+  grid.innerHTML = head + rows;
+  const sw = document.getElementById('customSwing'); if (sw) sw.value = S.customSwing;
+  const swl = document.getElementById('customSwingLbl'); if (swl) swl.textContent = S.customSwing + '%';
+}
+function toggleCustomCell(k, s) {
+  ensureCustomPattern();
+  S.customPattern[k][s] = S.customPattern[k][s] ? 0 : 1;
+  renderDrumEditor();
+  saveSettings();
+}
+function setCustomSwing(v) {
+  S.customSwing = Math.max(0, Math.min(100, +v || 0));
+  const swl = document.getElementById('customSwingLbl'); if (swl) swl.textContent = S.customSwing + '%';
+  if (S.drumFeel === 'custom') setGroove(S.customSwing >= 30 ? 'shuffle' : 'straight');
+  saveSettings();
+}
+function clearCustom() {
+  ensureCustomPattern();
+  CUSTOM_INSTR.forEach(([k]) => S.customPattern[k] = Array(8).fill(0));
+  renderDrumEditor();
+  saveSettings();
+}
+function seedCustomFromFeel(id) {
+  if (!DRUM_FEELS[id]) return;
+  S.customPattern = feelToPattern(id);
+  S.customSwing = (DRUM_FEELS[id].groove === 'shuffle' || DRUM_FEELS[id].hat === 'triplet') ? 60 : 0;
+  if (S.drumFeel === 'custom') setGroove(S.customSwing >= 30 ? 'shuffle' : 'straight');
+  renderDrumEditor();
+  saveSettings();
+}
+function previewCustom() {
+  const ac = audio(); const spb = 60 / S.bpm; const t0 = ac.currentTime + 0.06;
+  for (let beat = 0; beat < 4; beat++) scheduleCustomBeat(t0 + beat * spb, beat, spb);
 }
 function setVol(track, v) {
   S.vol[track] = v / 100;
@@ -5103,7 +5224,7 @@ function reparseProg() {
 const SETTINGS_KEY = 'gitarrenTraining.settings';
 const PERSIST = ['key','scale','pos','triad','set','label','blue','blueArrows','pair','approach',
   'superId','bpm','beatsPerMeasure','tripletFeel','measuresPerChord','countIn','click','drums',
-  'bass','groove','drumFeel','fills','vol','boxMode','micBoost','lickLoop','sound','selectedLick',
+  'bass','groove','drumFeel','fills','customPattern','customSwing','vol','boxMode','micBoost','lickLoop','sound','selectedLick',
   'presetTab','showLegend','cards','fbCompact','intervalMode','intervalRef',
   'lickShow','pathId','pathStep','lastBackupAt','drive','panels','settingsShow','outDevice','practice',
   'crBars','crRandom','crDemo','crThird',
@@ -5218,8 +5339,11 @@ function applySettingsUI() {
   document.getElementById('fillsBtn').classList.toggle('active', S.fills);
   document.getElementById('countInBtn').classList.toggle('active', S.countIn);
   // Drum-Feel: für Bestandsnutzer ohne gespeicherten Feel aus Groove/12-8 ableiten
-  if (!DRUM_FEELS[S.drumFeel]) S.drumFeel = S.tripletFeel ? 'slow12' : S.groove === 'shuffle' ? 'chicago' : 'straight';
+  if (S.drumFeel !== 'custom' && !DRUM_FEELS[S.drumFeel]) S.drumFeel = S.tripletFeel ? 'slow12' : S.groove === 'shuffle' ? 'chicago' : 'straight';
+  ensureCustomPattern();
+  if (typeof S.customSwing !== 'number') S.customSwing = 60;
   document.getElementById('drumFeel').value = S.drumFeel;
+  renderDrumEditor();
   ['strict', 'variety', 'ascend'].forEach(m =>
     document.getElementById('btn-box' + m).classList.toggle('active', S.boxMode === m));
   const order = ['click', 'drums', 'bass', 'guitar', 'lick'];
