@@ -11,6 +11,7 @@
   --panel2: #283141;
   --border: #374151;
   --accent: #2563eb;
+  --flow: #22c55e;              /* laufender Ablauf (Play, Loop, Parcours, Trainer, Jam-Modi) */
   --text: #f3f4f6;
   --muted: #9ca3af;
   --root-col: #f59e0b;
@@ -58,8 +59,9 @@ button {
   transition: background 0.15s, border-color 0.15s, color 0.15s; white-space: nowrap;
 }
 button:hover { background: #374151; }
+/* Konvention: aktive EINSTELLUNG = blau, laufender ABLAUF = grün (.flow) */
 button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
-button.active.tri { background: var(--triad-col); border-color: var(--triad-col); color: #000; }
+button.flow.active { background: var(--flow); border-color: var(--flow); color: #04231a; }
 select {
   background: var(--panel2); color: var(--text); border: 1px solid var(--border);
   padding: 7px 10px; border-radius: 7px; font-size: 0.8rem;
@@ -148,7 +150,6 @@ select {
 /* Metronom */
 .metro-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding-top: 4px; }
 #metroBtn { min-width: 88px; font-weight: 600; }
-#metroBtn.active { background: var(--triad-col); border-color: var(--triad-col); color: #04231a; }
 .metro-field { display: flex; align-items: center; gap: 6px; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); font-weight: 600; }
 .metro-field input[type=number] { width: 60px; background: var(--panel2); color: var(--text); border: 1px solid var(--border); padding: 6px 8px; border-radius: 7px; font-size: 0.9rem; text-transform: none; }
 .metro-field select { background: var(--panel2); color: var(--text); border: 1px solid var(--border); padding: 6px 8px; border-radius: 7px; font-size: 0.85rem; text-transform: none; }
@@ -165,8 +166,6 @@ select {
 }
 .lick-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .lick-head > label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); font-weight: 600; }
-#lickLoopBtn.active { background: #22d3ee; border-color: #22d3ee; color: #083344; }
-#trainerBar .lick-head button.active { background: var(--triad-col); border-color: var(--triad-col); color: #04231a; }
 .train-dot { width: 10px; height: 10px; border-radius: 50%; background: #22c55e; animation: recblink 1.2s infinite; flex-shrink: 0; }
 .mic-meter { width: 80px; height: 9px; background: var(--panel2); border: 1px solid var(--border); border-radius: 5px; overflow: hidden; flex-shrink: 0; }
 #micLevel { display: block; height: 100%; width: 0%; background: #6b7280; transition: width 0.06s; }
@@ -200,7 +199,6 @@ body.play-mode #playBar { display: flex; }
 #btn-playmode.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 /* Lick-Parcours */
 .parc-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 6px 0 8px; }
-#parcBtn.active { background: #22c55e; border-color: #22c55e; color: #04231a; }
 .lt-pick { width: 26px; text-align: center; }
 .lt-pick input { cursor: pointer; }
 .lt-prac { text-align: center; font-variant-numeric: tabular-nums; color: var(--scale-col); white-space: nowrap; }
@@ -336,7 +334,7 @@ details.card > summary:hover { color: var(--text); }
 #panelMenu button { padding: 4px 10px; font-size: 0.74rem; opacity: 0.55; }
 #panelMenu button.active { opacity: 1; background: var(--panel2); border-color: var(--muted); color: var(--text); }
 #panelMenu button:disabled { opacity: 0.4; cursor: default; }
-#panelMenu button#btn-editorPanel.active { background: var(--accent); border-color: var(--accent); color: #fff; opacity: 1; }
+#panelMenu button#btn-editorPanel.active { background: var(--flow); border-color: var(--flow); color: #04231a; opacity: 1; }
 /* „leuchtet auf", sobald ein Lick ausgewählt und damit bearbeitbar ist */
 #panelMenu button#btn-editorPanel:not(:disabled):not(.active) { opacity: 1; border-color: var(--accent); color: var(--text); }
 /* Bearbeiten-Aktion am Griffbrett: als deutliche Handlung hervorheben */
@@ -404,7 +402,7 @@ details.card > summary:hover { color: var(--text); }
       <button data-pos="5" onclick="setPos(5)">5</button>
     </span>
     <span class="tb-sep"></span>
-    <button id="metroBtn" onclick="toggleMetro()" title="Metronom/Backing starten und stoppen – spielt eine geladene Progression im Takt mit">▶ Play</button>
+    <button id="metroBtn" class="flow" onclick="toggleMetro()" title="Metronom/Backing starten und stoppen – spielt eine geladene Progression im Takt mit">▶ Play</button>
     <label class="tb-field">BPM
       <input type="number" id="bpm" min="40" max="240" value="90" onchange="setBpm(this.value)">
     </label>
@@ -475,9 +473,9 @@ details.card > summary:hover { color: var(--text); }
       <span class="tb-sep"></span>
       <button onclick="setStaffZoom(-1)" title="Noten kleiner">🔍−</button>
       <button onclick="setStaffZoom(1)" title="Noten größer">🔍+</button>
-      <button id="playBarLoop" onclick="toggleLickLoop()" title="Lick taktsynchron wiederholen">🔁 Loop</button>
+      <button id="playBarLoop" class="flow" onclick="toggleLickLoop()" title="Lick taktsynchron wiederholen">🔁 Loop</button>
       <span class="tb-sep"></span>
-      <button id="playBarParc" onclick="toggleParcours()" title="Lick-Parcours: die gewählten Licks laufen der Reihe nach über den Backing-Track">🎯 Parcours</button>
+      <button id="playBarParc" class="flow" onclick="toggleParcours()" title="Lick-Parcours: die gewählten Licks laufen der Reihe nach über den Backing-Track">🎯 Parcours</button>
       <span id="playBarInfo" class="pb-info"></span>
     </div>
     <div id="superInfo" class="hint" style="margin-top:6px"></div>
@@ -659,7 +657,7 @@ details.card > summary:hover { color: var(--text); }
     <div class="btn-row">
       <button onclick="beginNewLick()" title="Neuen Lick anlegen: öffnet den Editor – Töne am Griffbrett anklicken (alle Bünde), Notenwert und Artikulation direkt dazu einstellen">＋ Neuer Lick</button>
       <button onclick="playSelectedLick()" title="Ausgewählten Lick im BPM-Tempo abspielen (mit aufgenommenem Rhythmus)">▶ Lick</button>
-      <button id="lickLoopBtn" onclick="toggleLickLoop()" title="Lick taktsynchron zum Metronom/Backing wiederholen – startet mit ▶ Play">🔁 Loop</button>
+      <button id="lickLoopBtn" class="flow" onclick="toggleLickLoop()" title="Lick taktsynchron zum Metronom/Backing wiederholen – startet mit ▶ Play">🔁 Loop</button>
       <button onclick="stepLick(-1)" title="Einen Ton zurück">|◀</button>
       <button id="lickStepBtn" onclick="stepLick(1)" title="Lick Ton für Ton durchgehen: jeder Klick spielt den nächsten Ton, der aktuelle ist grün umrandet. Nach dem letzten Ton geht es von vorn los.">▶| Schritt</button>
     </div>
@@ -689,7 +687,7 @@ details.card > summary:hover { color: var(--text); }
   </div>
   <div class="parc-row" style="border-top:1px solid var(--border);padding-top:8px">
     <span class="rec-label">🎯 Lick-Parcours</span>
-    <button id="parcBtn" onclick="toggleParcours()" title="Startet das Backing und legt die angehakten Licks der Reihe nach darüber – jeder Lick bekommt so viele Takte, wie er lang ist. Du spielst sie mit.">▶ Parcours</button>
+    <button id="parcBtn" class="flow" onclick="toggleParcours()" title="Startet das Backing und legt die angehakten Licks der Reihe nach darüber – jeder Lick bekommt so viele Takte, wie er lang ist. Du spielst sie mit.">▶ Parcours</button>
     <button id="parcPlayBtn" onclick="toggleParcPlay()" title="Licks zusätzlich vorspielen lassen (zum Lernen) – aus: nur anzeigen, du spielst">🔊 vorspielen</button>
     <button id="parcFollowBtn" onclick="toggleParcFollow()" title="Licks auf den gerade klingenden Akkord transponieren (I–IV–V folgen) – aus: alles bleibt in der Tonart, wie im klassischen Blues">🎼 Akkord folgen</button>
     <button onclick="clearLickSet()" title="Auswahl leeren">✖ Auswahl leeren</button>
@@ -735,20 +733,20 @@ details.card > summary:hover { color: var(--text); }
   <div class="card-body" id="trainerBar">
   <div class="rec-row" style="margin-bottom:8px">
     <span class="rec-label">Griffbrett &amp; Gehör</span>
-    <button id="tr-box" onclick="startTrainerMode('box')" title="Die Pentatonik-Box Ton für Ton auf- und absteigend nachspielen – der Zielton ist grün umrandet (Mikrofon)">📦 Box auf & ab</button>
-    <button id="tr-arp" onclick="startTrainerMode('arp')" title="Die aktive Triade als Arpeggio spielen (tief → hoch); bei Progression schaltet jeder geschaffte Akkord weiter (Mikrofon)">🎶 Triaden-Arpeggio</button>
-    <button id="tr-find" onclick="startTrainerMode('find')" title="Griffbrett-Kenntnis: die App nennt einen Ton, du findest ihn – beliebige Lage und Oktave (Mikrofon)">🔎 Ton finden</button>
-    <button id="tr-call" onclick="startTrainerMode('call')" title="Gehörtraining: die App spielt eine kurze Phrase aus der Box vor, du spielst sie nach Gehör nach (Mikrofon)">👂 Call & Response</button>
-    <button id="tr-lick" onclick="startTrainerMode('lick')" title="Den ausgewählten Lick nachspielen – Ton für Ton abgehakt (Mikrofon)">🎵 Lick nachspielen</button>
+    <button id="tr-box" class="flow" onclick="startTrainerMode('box')" title="Die Pentatonik-Box Ton für Ton auf- und absteigend nachspielen – der Zielton ist grün umrandet (Mikrofon)">📦 Box auf & ab</button>
+    <button id="tr-arp" class="flow" onclick="startTrainerMode('arp')" title="Die aktive Triade als Arpeggio spielen (tief → hoch); bei Progression schaltet jeder geschaffte Akkord weiter (Mikrofon)">🎶 Triaden-Arpeggio</button>
+    <button id="tr-find" class="flow" onclick="startTrainerMode('find')" title="Griffbrett-Kenntnis: die App nennt einen Ton, du findest ihn – beliebige Lage und Oktave (Mikrofon)">🔎 Ton finden</button>
+    <button id="tr-call" class="flow" onclick="startTrainerMode('call')" title="Gehörtraining: die App spielt eine kurze Phrase aus der Box vor, du spielst sie nach Gehör nach (Mikrofon)">👂 Call & Response</button>
+    <button id="tr-lick" class="flow" onclick="startTrainerMode('lick')" title="Den ausgewählten Lick nachspielen – Ton für Ton abgehakt (Mikrofon)">🎵 Lick nachspielen</button>
     <button onclick="stopAllJam()" style="margin-left:auto" title="Alle Trainer- und Jam-Modi beenden, Mikrofon aus">■ Stop</button>
   </div>
   <div class="rec-row">
     <span class="rec-label">Improvisation</span>
-    <button id="tr-target" onclick="startTrainerMode('target')" title="Über dem Backing frei spielen (Blue Notes erlaubt), aber auf jede Eins einen Akkordton landen – die App prüft es per Mikrofon. Backing (▶ Play) muss laufen.">🎯 Akkordton auf die 1</button>
-    <button id="tr-third" onclick="startTrainerMode('third')" title="Wie „Akkordton auf die 1", aber das Ziel ist konkret die TERZ des Akkords – sie definiert seinen Klang und schärft das Hören der Changes am meisten. Die Terz-Positionen sind grün markiert (Mikrofon).">③ Terz auf die 1</button>
-    <button id="tradeBtn" onclick="toggleTrading()" title="Jam-Partner: die App spielt 4 Takte (frisch generiert, akkordbewusst), dann gehören 4 Takte dir – im Wechsel durch die Form. Kein Mikrofon nötig; kombinierbar mit 🎯/③.">🔁 Trading Fours</button>
-    <button id="motifBtn" onclick="toggleMotif()" title="Motiv-Entwicklung: der ausgewählte Lick (ideal: 3–5 Töne) wird pro Akkord der Progression transponiert angezeigt – trage ihn durch die Changes. Kein Mikrofon nötig.">🧬 Motiv-Reise</button>
-    <button id="crBtn" onclick="toggleCallResp()" title="12-Bar-Blues Frage &amp; Antwort: auf jeder Eins schlägt die App den Akkord an, dann sagt sie ein Lick an – du antwortest im Takt. Verinnerlicht die Form. Braucht ein Backing.">🗣 Akkord &amp; Lick</button>
+    <button id="tr-target" class="flow" onclick="startTrainerMode('target')" title="Über dem Backing frei spielen (Blue Notes erlaubt), aber auf jede Eins einen Akkordton landen – die App prüft es per Mikrofon. Backing (▶ Play) muss laufen.">🎯 Akkordton auf die 1</button>
+    <button id="tr-third" class="flow" onclick="startTrainerMode('third')" title="Wie „Akkordton auf die 1", aber das Ziel ist konkret die TERZ des Akkords – sie definiert seinen Klang und schärft das Hören der Changes am meisten. Die Terz-Positionen sind grün markiert (Mikrofon).">③ Terz auf die 1</button>
+    <button id="tradeBtn" class="flow" onclick="toggleTrading()" title="Jam-Partner: die App spielt 4 Takte (frisch generiert, akkordbewusst), dann gehören 4 Takte dir – im Wechsel durch die Form. Kein Mikrofon nötig; kombinierbar mit 🎯/③.">🔁 Trading Fours</button>
+    <button id="motifBtn" class="flow" onclick="toggleMotif()" title="Motiv-Entwicklung: der ausgewählte Lick (ideal: 3–5 Töne) wird pro Akkord der Progression transponiert angezeigt – trage ihn durch die Changes. Kein Mikrofon nötig.">🧬 Motiv-Reise</button>
+    <button id="crBtn" class="flow" onclick="toggleCallResp()" title="12-Bar-Blues Frage &amp; Antwort: auf jeder Eins schlägt die App den Akkord an, dann sagt sie ein Lick an – du antwortest im Takt. Verinnerlicht die Form. Braucht ein Backing.">🗣 Akkord &amp; Lick</button>
     <span class="tb-sep"></span>
     <span class="rec-label">Limitierung</span>
     <span class="btn-row" id="limitBtns">
@@ -2812,7 +2810,9 @@ function resetLickStep() {
 }
 function toggleLickLoop() {
   S.lickLoop = !S.lickLoop;
-  document.getElementById('lickLoopBtn').classList.toggle('active', S.lickLoop);
+  ['lickLoopBtn', 'playBarLoop'].forEach(id => {          // beide Loop-Knöpfe (Karte + Play-Leiste)
+    const b = document.getElementById(id); if (b) b.classList.toggle('active', S.lickLoop);
+  });
 }
 
 function exportLicks() {
@@ -5168,7 +5168,7 @@ function applySettingsUI() {
   if (boost) boost.value = S.micBoost;
   const sb = document.getElementById('btn-sound');
   sb.textContent = S.sound ? '🔊 An' : '🔇 Aus'; sb.classList.toggle('active', S.sound);
-  document.getElementById('lickLoopBtn').classList.toggle('active', S.lickLoop);
+  ['lickLoopBtn', 'playBarLoop'].forEach(id => { const b = document.getElementById(id); if (b) b.classList.toggle('active', S.lickLoop); });
   if (!findLick(S.selectedLick)) S.selectedLick = null;   // gelöschte Licks nicht wiederherstellen
   // Layout: Preset-Tab, Bereichs-Menü, Legende, Karten-Zustände
   setPresetTab(S.presetTab || 'vorlagen');
