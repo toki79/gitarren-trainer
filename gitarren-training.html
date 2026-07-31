@@ -209,6 +209,7 @@ body.play-mode #playBar { display: flex; }
 #gradeReport .gr-head { font-size: 1.05rem; margin-bottom: 3px; }
 #gradeReport .gr-head b { color: var(--scale-col); }
 #gradeReport .gr-sub { font-size: 0.82rem; color: var(--muted); margin-bottom: 8px; }
+#gradeReport .gr-tip { font-size: 0.8rem; color: var(--text); background: rgba(34,211,238,0.08); border-left: 3px solid var(--scale-col); border-radius: 6px; padding: 6px 9px; margin-bottom: 8px; }
 #gradeReport .gr-staff { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; background: #0d1117; margin-bottom: 8px; }
 #gradeReport .gr-staff svg { display: block; }
 #gradeReport #grHist svg { display: block; margin-bottom: 8px; }
@@ -767,6 +768,7 @@ details.card > summary:hover { color: var(--text); }
     <button id="tr-call" class="flow" onclick="startTrainerMode('call')" title="Gehörtraining: die App spielt eine kurze Phrase aus der Box vor, du spielst sie nach Gehör nach (Mikrofon)">👂 Call & Response</button>
     <button id="tr-lick" class="flow" onclick="startTrainerMode('lick')" title="Den ausgewählten Lick nachspielen – Ton für Ton abgehakt (Mikrofon)">🎵 Lick nachspielen</button>
     <button id="tr-grade" class="flow" onclick="startGrade()" title="Das ausgewählte Lick im Takt mitspielen – die App bewertet Tonhöhe und Timing gegen die notierten Noten und zeigt am Ende eine Auswertung (Mikrofon/Kemper-Eingang)">🎼 Lick bewerten</button>
+    <button id="tr-calib" class="flow" onclick="startCalibrate()" title="Timing kalibrieren: nach dem Einzähler auf jeden Klick einen Ton spielen – die App misst deine Eingangs-/Erkennungslatenz und rechnet sie beim Bewerten heraus. Einmal pro Setup nötig.">🎚 Kalibrieren</button>
     <button onclick="stopAllJam()" style="margin-left:auto" title="Alle Trainer- und Jam-Modi beenden, Mikrofon aus">■ Stop</button>
   </div>
   <div class="rec-row">
@@ -987,7 +989,7 @@ const S = { key: 9, scale: 'minor', pos: 1, triad: 'none', set: 'DGB', label: 'n
             sound: true, currentGrip: [], boxMode: 'strict', currentSet: 'DGB',
             bpm: 90, beatsPerMeasure: 4, measuresPerChord: 1, metroOn: false, countIn: true,
             exercise: null, bluesForm: null, click: true, drums: true, bass: true,
-            groove: 'straight', drumFeel: 'chicago', fills: true, customPattern: null, customSwing: 60, gradeDemo: true, tripletFeel: false, vol: { click: 1, drums: 1, bass: 1, guitar: 1, lick: 1 },
+            groove: 'straight', drumFeel: 'chicago', fills: true, customPattern: null, customSwing: 60, gradeDemo: true, micLatency: 0.035, micCalibrated: false, tripletFeel: false, vol: { click: 1, drums: 1, bass: 1, guitar: 1, lick: 1 },
             drive: 'clean',
             licks: [], lickRec: [], selectedLick: null, lickLoop: false,
             practice: {},                 // Übungs-Protokoll je Lick: { [id]: { count, last, days } }
@@ -4580,7 +4582,7 @@ function playPhrase(seq) {                        // Phrase vorspielen, Dauer in
 }
 
 function markTrainerBtns() {
-  ['box', 'arp', 'find', 'call', 'lick', 'target', 'third', 'grade'].forEach(m => {
+  ['box', 'arp', 'find', 'call', 'lick', 'target', 'third', 'grade', 'calib'].forEach(m => {
     const b = document.getElementById('tr-' + m);
     if (b) b.classList.toggle('active', !!S.trainer && S.trainer.mode === m);
   });
@@ -4652,10 +4654,16 @@ function setTrainerStatus(txt) {
 function trainerHearNote(midi, onsetT) {
   const tr = S.trainer;
   if (!tr) return;
-  // Lick-Bewertung: Anschläge während des Takes sammeln (Zeit relativ zum Take-Start)
+  // Kalibrierung: rohe Anschlagzeiten sammeln (Latenz = Abstand zum jeweiligen Klick)
+  if (tr.mode === 'calib') {
+    if (!tr.done) tr.onsets.push(onsetT ?? actx.currentTime);
+    return;
+  }
+  // Lick-Bewertung: Anschläge während des Takes sammeln (Zeit relativ zum Take-Start,
+  // gemessene Latenz herausgerechnet)
   if (tr.mode === 'grade') {
     if (tr.t0 != null && !tr.done) {
-      const dt = (onsetT ?? actx.currentTime) - GRADE_LATENCY - tr.t0;
+      const dt = (onsetT ?? actx.currentTime) - S.micLatency - tr.t0;
       if (dt > -0.4 && dt < tr.takeDur + 0.6) tr.played.push({ dt, midi });
     }
     return;
@@ -4754,10 +4762,42 @@ function trainerRoundDone(tr, tg) {
   }
 }
 
+// ─── Timing-Kalibrierung: System-/Erkennungslatenz messen und herausrechnen ──
+// Ohne das liest sich alles konstant „zu spät" (Eingangspuffer + USB/Interface).
+function startCalibrate() {
+  startMic().then(ok => {
+    if (!ok) return;
+    closeGradeReport();
+    S.trainer = { mode: 'calib', clicks: [], onsets: [], need: 8, done: false };
+    markTrainerBtns();
+    const row = document.getElementById('trainRow');
+    row.style.display = 'flex'; row.classList.add('grading');
+    setTrainerStatus('🎚 Kalibrieren: nach dem Einzähler auf JEDEN Klick genau EINEN Ton spielen (Tonhöhe egal).');
+    if (S.metroOn) stopMetro();
+    startMetro();
+    metro.countInBeats = S.beatsPerMeasure;
+  });
+}
+function finalizeCalibrate() {
+  const tr = S.trainer; if (!tr || tr.mode !== 'calib') return;
+  // jeden Anschlag dem nächstliegenden Klick zuordnen → Latenz = Median der Abstände
+  const errs = [];
+  tr.onsets.forEach(o => {
+    let best = Infinity;
+    tr.clicks.forEach(c => { const d = o - c; if (Math.abs(d) < Math.abs(best)) best = d; });
+    if (Math.abs(best) < 0.25) errs.push(best);
+  });
+  stopTrainer(); stopMetro();
+  if (errs.length < 3) {
+    alert('Kalibrierung: zu wenig erkannt. Boost/Eingang prüfen und erneut versuchen (auf jeden Klick einen Ton).');
+    return;
+  }
+  const lat = Math.max(0, Math.min(0.25, gradeMedian(errs)));
+  S.micLatency = lat; S.micCalibrated = true; saveSettings();
+  alert(`Kalibriert: ${Math.round(lat * 1000)} ms Latenz gemessen (aus ${errs.length} Anschlägen). Das wird beim Bewerten jetzt herausgerechnet.`);
+}
+
 // ─── Lick-Bewertung: Tonhöhe + Timing gegen die notierten Noten ──────────────
-// v1: nutzt die vorhandene Tonhöhenerkennung; das Timing ist damit näherungsweise
-// (Erkennungslatenz). Ein späterer AudioWorklet-Onset + Kalibrierung macht es eng.
-const GRADE_LATENCY = 0.035;    // grobe Kompensation der Analyse-Latenz (s)
 function startGrade() {
   const lk = findLick(S.selectedLick);
   if (!lk) { alert('Erst ein Lick in der Sammlung auswählen.'); return; }
@@ -4870,9 +4910,19 @@ function gradeNoteColors(res) {
   const colors = {};
   Object.entries(res.perNote).forEach(([idx, r]) => {
     colors[idx] = r.missed ? '#ef4444' : !r.pitchOk ? '#ef4444'
-      : Math.abs(r.errMs) <= 45 ? '#22c55e' : Math.abs(r.errMs) <= 90 ? '#eab308' : '#f59e0b';
+      : Math.abs(r.errMs) <= 55 ? '#22c55e' : Math.abs(r.errMs) <= 110 ? '#eab308' : '#f59e0b';
   });
   return colors;
+}
+// Kalibrier-Hinweis, wenn noch nicht kalibriert oder das Timing systematisch verschoben wirkt
+function gradeCalibHint(res) {
+  const n = res.errs.length;
+  const oneDir = n >= 3 && (res.errs.filter(e => e > 0).length >= n * 0.8 || res.errs.filter(e => e < 0).length >= n * 0.8);
+  const systematic = n >= 3 && Math.abs(res.medSigned) >= 45 && oneDir;
+  if (S.micCalibrated && !systematic) return '';
+  return `<div class="gr-tip">🎚 ${systematic ? '<b>Das sieht nach unkalibrierter Latenz aus</b> – fast alles in dieselbe Richtung verschoben. ' : ''}`
+    + `Tipp: einmal <b>Kalibrieren</b> (auf jeden Klick einen Ton), dann rechnet die App deine Eingangs-/USB-Latenz heraus und das Timing stimmt.`
+    + `${S.micCalibrated ? '' : ' <i>(Noch nicht kalibriert.)</i>'}</div>`;
 }
 function renderGradeReport(res) {
   const box = document.getElementById('gradeReport');
@@ -4885,11 +4935,13 @@ function renderGradeReport(res) {
     `<div class="gr-head">${grade} <b>${res.score}/100</b> · „${res.lick.name.replace(/</g, '&lt;')}"</div>
      <div class="gr-sub">Tonhöhe ${res.pitchPct}% (${res.hits} richtig${res.wrongPitch ? `, ${res.wrongPitch} falsch` : ''}${res.missed ? `, ${res.missed} ausgelassen` : ''}${res.extra ? `, ${res.extra} zusätzlich` : ''})
        · Timing ≈ ${res.meanAbs} ms Abweichung, ${rush}</div>
+     ${gradeCalibHint(res)}
      <div id="grStaff" class="gr-staff"></div>
      <div id="grHist"></div>
      <div class="gr-controls">
        <button class="flow" onclick="startGrade()" title="Denselben Lick noch einmal bewerten – gleicher Ablauf von vorn">🔁 Nochmal bewerten</button>
        <button id="gradeDemoBtn" class="${S.gradeDemo ? 'active' : ''}" onclick="toggleGradeDemo()" title="Vor jedem Versuch spielt die App das Lick einmal vor (zum Anhören). Aus: du spielst gleich nach dem Einzähler.">🔊 Erst vorspielen</button>
+       <button class="flow" onclick="startCalibrate()" title="Timing-Latenz messen und herausrechnen">🎚 Kalibrieren</button>
        <button onclick="closeGradeReport()">✕ Schließen</button>
        <span class="gr-legend"><span class="grl" style="color:#22c55e">■</span> in der Zeit ·
          <span class="grl" style="color:#eab308">■</span> knapp daneben ·
@@ -4915,7 +4967,7 @@ function renderGradeHist(errs) {
   svg.appendChild(el('line', { x1: mid, y1: 4, x2: mid, y2: H - 12, stroke: '#4a5264', 'stroke-width': 1 }));
   Object.entries(bins).forEach(([b, n]) => {
     const bx = mid + (+b) * px, h = (H - 18) * n / maxN;
-    const col = Math.abs(+b) <= 45 ? '#22c55e' : Math.abs(+b) <= 90 ? '#eab308' : '#f59e0b';
+    const col = Math.abs(+b) <= 55 ? '#22c55e' : Math.abs(+b) <= 110 ? '#eab308' : '#f59e0b';
     svg.appendChild(el('rect', { x: bx - 7, y: H - 12 - h, width: 14, height: h, fill: col, rx: 2 }));
   });
   svg.appendChild(el('text', { x: 6, y: H - 2, fill: '#8b93a7', 'font-size': 9 }, '← früher'));
@@ -5255,6 +5307,14 @@ function metroScheduler() {
           tr.t0 = t; tr.takeEnd = t + tr.takeDur; setPhase('record');
         }
       }
+      // Kalibrierung: jeden Klick-Zeitpunkt merken; nach genug Schlägen auswerten
+      if (S.trainer && S.trainer.mode === 'calib' && !S.trainer.done) {
+        const tr = S.trainer;
+        if (tr.clicks.length < tr.need) {
+          tr.clicks.push(t);
+          if (tr.clicks.length === tr.need) setTimeout(finalizeCalibrate, Math.max(0, aheadMs) + 500);
+        }
+      }
       // Zielton-Trainer (Akkordton/Terz auf die 1): auf jeder Eins ein Prüf-Fenster öffnen
       // (etwas vor dem Beat, damit ein knapp zu früh gespielter Ton noch zählt).
       if (S.trainer && ['target', 'third'].includes(S.trainer.mode) && beatInMeasure === 0 && mm >= 0) {
@@ -5448,7 +5508,7 @@ function reparseProg() {
 const SETTINGS_KEY = 'gitarrenTraining.settings';
 const PERSIST = ['key','scale','pos','triad','set','label','blue','blueArrows','pair','approach',
   'superId','bpm','beatsPerMeasure','tripletFeel','measuresPerChord','countIn','click','drums',
-  'bass','groove','drumFeel','fills','customPattern','customSwing','gradeDemo','vol','boxMode','micBoost','lickLoop','sound','selectedLick',
+  'bass','groove','drumFeel','fills','customPattern','customSwing','gradeDemo','micLatency','micCalibrated','vol','boxMode','micBoost','lickLoop','sound','selectedLick',
   'presetTab','showLegend','cards','fbCompact','intervalMode','intervalRef',
   'lickShow','pathId','pathStep','lastBackupAt','drive','panels','settingsShow','outDevice','practice',
   'crBars','crRandom','crDemo','crThird',
