@@ -202,7 +202,9 @@ body.play-mode #playBar { display: flex; }
 .lt-pick { width: 26px; text-align: center; }
 .lt-pick input { cursor: pointer; }
 .lt-prac { text-align: center; font-variant-numeric: tabular-nums; color: var(--scale-col); white-space: nowrap; }
-/* Lick-Bewertung: Report */
+/* Lick-Bewertung: Phasen-Ansage prominent, Report */
+#trainRow.grading #trainStatus { display: block; font-size: 0.98rem; font-weight: 600; color: var(--text); flex-basis: 100%; }
+#trainRow.grading .hint { display: none; }
 #gradeReport { margin-top: 8px; padding: 10px 12px; background: var(--panel2); border: 1px solid var(--border); border-radius: 10px; }
 #gradeReport .gr-head { font-size: 1.05rem; margin-bottom: 3px; }
 #gradeReport .gr-head b { color: var(--scale-col); }
@@ -985,7 +987,7 @@ const S = { key: 9, scale: 'minor', pos: 1, triad: 'none', set: 'DGB', label: 'n
             sound: true, currentGrip: [], boxMode: 'strict', currentSet: 'DGB',
             bpm: 90, beatsPerMeasure: 4, measuresPerChord: 1, metroOn: false, countIn: true,
             exercise: null, bluesForm: null, click: true, drums: true, bass: true,
-            groove: 'straight', drumFeel: 'chicago', fills: true, customPattern: null, customSwing: 60, tripletFeel: false, vol: { click: 1, drums: 1, bass: 1, guitar: 1, lick: 1 },
+            groove: 'straight', drumFeel: 'chicago', fills: true, customPattern: null, customSwing: 60, gradeDemo: true, tripletFeel: false, vol: { click: 1, drums: 1, bass: 1, guitar: 1, lick: 1 },
             drive: 'clean',
             licks: [], lickRec: [], selectedLick: null, lickLoop: false,
             practice: {},                 // Übungs-Protokoll je Lick: { [id]: { count, last, days } }
@@ -4640,7 +4642,7 @@ function stopTrainer() {
   stopMic();
   markTrainerBtns();
   const r = document.getElementById('trainRow');
-  if (r) r.style.display = 'none';
+  if (r) { r.style.display = 'none'; r.classList.remove('grading'); }
   render();
 }
 function setTrainerStatus(txt) {
@@ -4775,14 +4777,27 @@ function startGrade() {
     if (!exp.length) { alert('Der Lick hat keine spielbaren Töne.'); stopMic(); return; }
     const bars = lickBars(lk);
     S.trainer = { mode: 'grade', lick: lk, expected: exp, played: [], t0: null, takeEnd: null,
-                  takeDur: bars * S.beatsPerMeasure * spb, spb, done: false };
+                  takeDur: bars * S.beatsPerMeasure * spb, spb, lickBars: bars,
+                  demo: !!S.gradeDemo, phase: 'countin', demoPlayed: false, done: false };
+    if (S.selectedLick && !S.lickShow) toggleLickShow();     // Lick am Griffbrett zeigen
     markTrainerBtns();
-    document.getElementById('trainRow').style.display = 'flex';
-    setTrainerStatus('Bereit … Einzähler läuft, dann spiel das Lick im Takt mit.');
+    const row = document.getElementById('trainRow');
+    row.style.display = 'flex'; row.classList.add('grading');
+    gradeStatus(S.trainer);
     if (S.metroOn) stopMetro();
-    startMetro();                 // sauberer Neustart mit Einzähler ab Takt 1
+    startMetro();
+    metro.countInBeats = S.beatsPerMeasure;                  // fester Einzähler, auch ohne Backing
     render();
   });
+}
+// Klare Phasen-Ansage für die Lick-Bewertung
+function gradeStatus(tr) {
+  const msg = tr.phase === 'demo' ? '🔊 HÖR ZU – die App spielt das Lick vor. Noch nicht mitspielen!'
+    : tr.phase === 'ready' ? '🎸 GLEICH DU – noch ein Takt, dann spielst du mit.'
+    : tr.phase === 'record' ? '🎸 JETZT DU – spiel das Lick MIT dem Klick (gleichzeitig, im Takt)!'
+    : (tr.demo ? '🥁 Einzähler … zuerst spielt die App vor, dann bist du dran.'
+               : '🥁 Einzähler … dann spielst du das Lick mit dem Klick.');
+  setTrainerStatus(msg);
 }
 function gradeMedian(arr) {
   if (!arr.length) return 0;
@@ -4873,7 +4888,8 @@ function renderGradeReport(res) {
      <div id="grStaff" class="gr-staff"></div>
      <div id="grHist"></div>
      <div class="gr-controls">
-       <button class="flow" onclick="startGrade()" title="Noch einmal spielen">🔁 Nochmal</button>
+       <button class="flow" onclick="startGrade()" title="Denselben Lick noch einmal bewerten – gleicher Ablauf von vorn">🔁 Nochmal bewerten</button>
+       <button id="gradeDemoBtn" class="${S.gradeDemo ? 'active' : ''}" onclick="toggleGradeDemo()" title="Vor jedem Versuch spielt die App das Lick einmal vor (zum Anhören). Aus: du spielst gleich nach dem Einzähler.">🔊 Erst vorspielen</button>
        <button onclick="closeGradeReport()">✕ Schließen</button>
        <span class="gr-legend"><span class="grl" style="color:#22c55e">■</span> in der Zeit ·
          <span class="grl" style="color:#eab308">■</span> knapp daneben ·
@@ -4910,6 +4926,11 @@ function renderGradeHist(errs) {
 function closeGradeReport() {
   const box = document.getElementById('gradeReport');
   if (box) { box.style.display = 'none'; box.innerHTML = ''; }
+}
+function toggleGradeDemo() {
+  S.gradeDemo = !S.gradeDemo;
+  const b = document.getElementById('gradeDemoBtn'); if (b) b.classList.toggle('active', S.gradeDemo);
+  saveSettings();
 }
 
 function clearProg() {
@@ -5219,11 +5240,20 @@ function metroScheduler() {
           }
         }
       }
-      // Lick-Bewertung: an der ersten Eins nach dem Einzähler den Take verankern
-      if (S.trainer && S.trainer.mode === 'grade' && S.trainer.t0 == null && beatInMeasure === 0) {
-        S.trainer.t0 = t;
-        S.trainer.takeEnd = t + S.trainer.takeDur;
-        setTimeout(() => { if (S.trainer && S.trainer.mode === 'grade') setTrainerStatus('▶ Los – spiel das Lick im Takt!'); }, Math.max(0, aheadMs));
+      // Lick-Bewertung: Phasen an Takt-Grenzen (Einzähler → Vorspielen → gleich du → JETZT du)
+      if (S.trainer && S.trainer.mode === 'grade' && beatInMeasure === 0) {
+        const tr = S.trainer;
+        const barIdx = Math.round(m / S.beatsPerMeasure);     // 0 = erster echter Takt nach dem Einzähler
+        const recBar = tr.demo ? tr.lickBars + 1 : 0;         // bei Demo: 1 Takt Atempause dazwischen
+        const setPhase = ph => { tr.phase = ph; setTimeout(() => { if (S.trainer === tr) gradeStatus(tr); }, Math.max(0, aheadMs)); };
+        if (tr.demo && barIdx === 0 && !tr.demoPlayed) {
+          tr.demoPlayed = true; playLickAt(tr.lick, t - ac.currentTime, true);   // vorspielen (Mikro nimmt nicht auf)
+          setPhase('demo');
+        } else if (tr.demo && barIdx === tr.lickBars && tr.t0 == null) {
+          setPhase('ready');
+        } else if (barIdx === recBar && tr.t0 == null) {
+          tr.t0 = t; tr.takeEnd = t + tr.takeDur; setPhase('record');
+        }
       }
       // Zielton-Trainer (Akkordton/Terz auf die 1): auf jeder Eins ein Prüf-Fenster öffnen
       // (etwas vor dem Beat, damit ein knapp zu früh gespielter Ton noch zählt).
@@ -5418,7 +5448,7 @@ function reparseProg() {
 const SETTINGS_KEY = 'gitarrenTraining.settings';
 const PERSIST = ['key','scale','pos','triad','set','label','blue','blueArrows','pair','approach',
   'superId','bpm','beatsPerMeasure','tripletFeel','measuresPerChord','countIn','click','drums',
-  'bass','groove','drumFeel','fills','customPattern','customSwing','vol','boxMode','micBoost','lickLoop','sound','selectedLick',
+  'bass','groove','drumFeel','fills','customPattern','customSwing','gradeDemo','vol','boxMode','micBoost','lickLoop','sound','selectedLick',
   'presetTab','showLegend','cards','fbCompact','intervalMode','intervalRef',
   'lickShow','pathId','pathStep','lastBackupAt','drive','panels','settingsShow','outDevice','practice',
   'crBars','crRandom','crDemo','crThird',
