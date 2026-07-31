@@ -378,6 +378,14 @@ details.card > summary:hover { color: var(--text); }
 #lickBar .lb-stars .st { color: #f59e0b; cursor: pointer; }
 #lickBar .lb-stars .st.off { color: var(--border); }
 #lickBar #lickBarCount { margin-left: auto; }
+/* Geführter Durchlauf – grün getönt (laufender Ablauf) */
+#walkBar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; padding: 6px 10px;
+  background: rgba(34,197,94,0.10); border: 1px solid #22c55e; border-radius: 9px; }
+#walkBar .wb-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 1px; color: #22c55e; font-weight: 700; }
+#walkBar .wb-pos { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 0.8rem; }
+#walkBar .wb-name { font-weight: 600; }
+#walkBar button { font-size: 0.8rem; padding: 4px 9px; }
+#walkBar .tb-sep { align-self: stretch; }
 /* Breite Bildschirme: Lick-Liste als angedockte rechte Spalte neben dem Griffbrett –
    beide gleichzeitig voll bedienbar. Auf schmalen Fenstern automatisch gestapelt. */
 @media (min-width: 1280px) {
@@ -494,6 +502,17 @@ details.card > summary:hover { color: var(--text); }
       <button id="lickBarEdit" onclick="editSelectedLick()" title="Ausgewähltes Lick bearbeiten">✎</button>
       <span id="lickBarPrac" class="hint" title="Wie oft geübt"></span>
       <span id="lickBarCount" class="hint"></span>
+    </div>
+    <!-- Geführter Durchlauf durch die angehakten Licks: vorspielen → nachspielen → Nächstes -->
+    <div id="walkBar" style="display:none">
+      <span class="wb-label">🎧 Durchlauf</span>
+      <span id="walkPos" class="wb-pos"></span>
+      <span id="walkName" class="wb-name"></span>
+      <span class="tb-sep"></span>
+      <button onclick="walkDemo()" title="Aktuelles Lick (nochmal) vorspielen">🔊 Vorspielen</button>
+      <button onclick="walkStep(-1)" title="Voriges Lick">◀</button>
+      <button class="flow" onclick="walkStep(1)" title="Nächstes Lick – wird gleich vorgespielt">▶ Nächstes</button>
+      <button onclick="walkStop()" title="Durchlauf beenden">✕</button>
     </div>
     <div id="playBar">
       <button onclick="playSelectedLick()" title="Ausgewählten Lick abspielen">▶ Lick</button>
@@ -716,6 +735,7 @@ details.card > summary:hover { color: var(--text); }
   </div>
   <div class="parc-row" style="border-top:1px solid var(--border);padding-top:8px">
     <span class="rec-label">🎯 Lick-Parcours</span>
+    <button id="walkBtn" class="flow" onclick="startWalk()" title="Geführter Durchlauf durch die angehakten Licks: jedes wird vorgespielt, du spielst es nach, per „▶ Nächstes“ kommt das nächste. Selbst getaktet, kein Backing nötig.">🎧 Durchlauf</button>
     <button id="parcBtn" class="flow" onclick="toggleParcours()" title="Startet das Backing und legt die angehakten Licks der Reihe nach darüber – jeder Lick bekommt so viele Takte, wie er lang ist. Du spielst sie mit.">▶ Parcours</button>
     <button id="parcPlayBtn" onclick="toggleParcPlay()" title="Licks zusätzlich vorspielen lassen (zum Lernen) – aus: nur anzeigen, du spielst">🔊 vorspielen</button>
     <button id="parcFollowBtn" onclick="toggleParcFollow()" title="Licks auf den gerade klingenden Akkord transponieren (I–IV–V folgen) – aus: alles bleibt in der Tonart, wie im klassischen Blues">🎼 Akkord folgen</button>
@@ -1971,6 +1991,7 @@ function render() {
   updateInfo(grip);
   renderFbStaff();         // Noten/TAB unter dem Griffbrett mitziehen
   updateEditAffordances(); // ✎-Knöpfe an die aktuelle Auswahl anpassen
+  renderWalkBar();         // Durchlauf-Leiste (versteckt sich beim Editieren)
   saveSettings();          // letzte Einstellungen merken (Neustart stellt sie wieder her)
 }
 
@@ -3237,6 +3258,46 @@ function stepSelLick(dir) {
   idx = idx < 0 ? (dir > 0 ? 0 : rows.length - 1) : (idx + dir + rows.length) % rows.length;
   const id = rows[idx].l.id;
   if (id !== S.selectedLick) selectLick(id);
+}
+// ─── Geführter Durchlauf durch die angehakten Licks (vorspielen → nachspielen) ─
+let walk = null;   // { ids:[...], idx }
+function startWalk() {
+  if (!S.lickSet.length) { alert('Erst Licks in der Tabelle mit 🎯 anhaken – die werden dann der Reihe nach durchgespielt.'); return; }
+  if (S.parcours) toggleParcours();                 // Auto-Parcours würde dazwischenfunken
+  walk = { ids: S.lickSet.slice(), idx: 0 };
+  document.getElementById('walkBtn').classList.add('active');
+  walkGo(0, false);                                 // erstes Lick zeigen + vorspielen
+}
+function walkStop() {
+  walk = null;
+  const bar = document.getElementById('walkBar'); if (bar) bar.style.display = 'none';
+  const b = document.getElementById('walkBtn'); if (b) b.classList.remove('active');
+}
+function walkGo(idx, logPrev) {
+  if (!walk || !walk.ids.length) return;
+  if (logPrev) logPractice(walk.ids[walk.idx]);     // vorheriges Lick als geübt zählen
+  walk.idx = (idx + walk.ids.length) % walk.ids.length;
+  const id = walk.ids[walk.idx];
+  if (!findLick(id)) { walk.ids.splice(walk.idx, 1); if (!walk.ids.length) { walkStop(); return; } return walkGo(walk.idx, false); }
+  S.selectedLick = id;
+  if (!S.lickShow) toggleLickShow();
+  render(); renderLickBar(); renderWalkBar();
+  walkDemo();                                       // neues Lick gleich vorspielen
+}
+function walkStep(dir) { if (walk) walkGo(walk.idx + dir, dir > 0); }   // vorwärts zählt das vorige als geübt
+function walkDemo() {
+  if (!walk) return;
+  const lk = findLick(walk.ids[walk.idx]);
+  if (lk) playLickAt(lk, nextBarDelay(), true);     // läuft ein Backing, startet es taktsynchron; sonst sofort
+}
+function renderWalkBar() {
+  const bar = document.getElementById('walkBar');
+  if (!bar) return;
+  if (!walk || S.editing) { bar.style.display = 'none'; return; }
+  bar.style.display = 'flex';
+  const lk = findLick(walk.ids[walk.idx]);
+  document.getElementById('walkPos').textContent = `${walk.idx + 1}/${walk.ids.length}`;
+  document.getElementById('walkName').textContent = lk ? lk.name : '–';
 }
 function copyLibLick(id) {
   const src = BUILTIN_LICKS.find(l => l.id === id);
