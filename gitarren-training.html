@@ -202,6 +202,17 @@ body.play-mode #playBar { display: flex; }
 .lt-pick { width: 26px; text-align: center; }
 .lt-pick input { cursor: pointer; }
 .lt-prac { text-align: center; font-variant-numeric: tabular-nums; color: var(--scale-col); white-space: nowrap; }
+/* Lick-Bewertung: Report */
+#gradeReport { margin-top: 8px; padding: 10px 12px; background: var(--panel2); border: 1px solid var(--border); border-radius: 10px; }
+#gradeReport .gr-head { font-size: 1.05rem; margin-bottom: 3px; }
+#gradeReport .gr-head b { color: var(--scale-col); }
+#gradeReport .gr-sub { font-size: 0.82rem; color: var(--muted); margin-bottom: 8px; }
+#gradeReport .gr-staff { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; background: #0d1117; margin-bottom: 8px; }
+#gradeReport .gr-staff svg { display: block; }
+#gradeReport #grHist svg { display: block; margin-bottom: 8px; }
+#gradeReport .gr-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+#gradeReport .gr-legend { font-size: 0.74rem; color: var(--muted); }
+#gradeReport .gr-legend .grl { font-size: 0.9rem; }
 /* Drum-Step-Editor */
 #drumEditor { margin: 0 0 8px; padding: 9px 11px; background: var(--panel2); border: 1px solid var(--border); border-radius: 9px; }
 #drumEditor .de-hint { margin-bottom: 7px; }
@@ -753,6 +764,7 @@ details.card > summary:hover { color: var(--text); }
     <button id="tr-find" class="flow" onclick="startTrainerMode('find')" title="Griffbrett-Kenntnis: die App nennt einen Ton, du findest ihn – beliebige Lage und Oktave (Mikrofon)">🔎 Ton finden</button>
     <button id="tr-call" class="flow" onclick="startTrainerMode('call')" title="Gehörtraining: die App spielt eine kurze Phrase aus der Box vor, du spielst sie nach Gehör nach (Mikrofon)">👂 Call & Response</button>
     <button id="tr-lick" class="flow" onclick="startTrainerMode('lick')" title="Den ausgewählten Lick nachspielen – Ton für Ton abgehakt (Mikrofon)">🎵 Lick nachspielen</button>
+    <button id="tr-grade" class="flow" onclick="startGrade()" title="Das ausgewählte Lick im Takt mitspielen – die App bewertet Tonhöhe und Timing gegen die notierten Noten und zeigt am Ende eine Auswertung (Mikrofon/Kemper-Eingang)">🎼 Lick bewerten</button>
     <button onclick="stopAllJam()" style="margin-left:auto" title="Alle Trainer- und Jam-Modi beenden, Mikrofon aus">■ Stop</button>
   </div>
   <div class="rec-row">
@@ -787,8 +799,9 @@ details.card > summary:hover { color: var(--text); }
     <span style="font-size:0.85rem">Gehört: <b id="micNote">–</b></span>
     <span class="hint">(Eingabegerät &amp; Pegel: Panel „🎚 Ton")</span>
     <span id="trainStatus" class="hint" style="flex:1 1 200px"></span>
-    <span class="hint">💡 Einzeltöne sauber anschlagen · Backing über Kopfhörer</span>
+    <span class="hint">💡 Einzeltöne sauber anschlagen · direktes Signal (Kemper/Interface) ist am genauesten</span>
   </div>
+  <div id="gradeReport" style="display:none"></div>
   </div>
 </details>
 
@@ -3688,7 +3701,7 @@ const STAFF_DIA = { C: 0, D: 1, E: 2, F: 3, G: 4, A: 5, B: 6 };
 // Zeichnet Noten + TAB eines Notenarrays in einen Container.
 // opts: { key, sel, selColor, zoom, onClick } – sel = hervorgehobener Index.
 function renderStaff(box, recNotes, opts = {}) {
-  const { key: sKey = S.key, sel = -1, selColor = '#f59e0b', zoom = 1, onClick = null, view = S.staffView } = opts;
+  const { key: sKey = S.key, sel = -1, selColor = '#f59e0b', zoom = 1, onClick = null, view = S.staffView, colors = null } = opts;
   const PXE = 26, MLx = 46, E = S.beatsPerMeasure * 2;
   const total = lickLen(recNotes);                            // Vorschläge zählen nicht mit
   const W2 = MLx + total * PXE + 24;
@@ -3798,7 +3811,7 @@ function renderStaff(box, recNotes, opts = {}) {
   items.forEach(it => {
     const { n, i, x, g } = it;
     const isSel = i === sel;
-    const col = isSel ? selColor : '#dfe6f3';
+    const col = (colors && colors[i]) || (isSel ? selColor : '#dfe6f3');
     if (it.rest) {                                            // Pause: Block auf der Mittellinie
       const ry = tabOnly ? tTop + 2 * tGap - 2 : nTop + 1.5 * nGap;
       svg.appendChild(el('rect', { x: x - 4, y: ry, width: 9, height: 5, rx: 1.5, fill: isSel ? selColor : '#6b7280' }));
@@ -4507,11 +4520,12 @@ function pollPitch() {
   }
   heard.silent = 0;
   const midi = Math.round(69 + 12 * Math.log2(f / 440));
+  if (midi !== heard.midi) heard.onsetT = actx.currentTime;   // erster Frame einer neuen Tonhöhe ≈ Anschlag
   heard.frames = (midi === heard.midi) ? heard.frames + 1 : 1;
   heard.midi = midi;
   if (heard.frames >= 2 && heard.lastFired !== midi) {  // 2 stabile Frames = Noten-Event
     heard.lastFired = midi;
-    trainerHearNote(midi);
+    trainerHearNote(midi, heard.onsetT);
   }
   updateMicNote(midi);
 }
@@ -4564,7 +4578,7 @@ function playPhrase(seq) {                        // Phrase vorspielen, Dauer in
 }
 
 function markTrainerBtns() {
-  ['box', 'arp', 'find', 'call', 'lick', 'target', 'third'].forEach(m => {
+  ['box', 'arp', 'find', 'call', 'lick', 'target', 'third', 'grade'].forEach(m => {
     const b = document.getElementById('tr-' + m);
     if (b) b.classList.toggle('active', !!S.trainer && S.trainer.mode === m);
   });
@@ -4633,9 +4647,17 @@ function setTrainerStatus(txt) {
   const el = document.getElementById('trainStatus');
   if (el) el.textContent = txt;
 }
-function trainerHearNote(midi) {
+function trainerHearNote(midi, onsetT) {
   const tr = S.trainer;
   if (!tr) return;
+  // Lick-Bewertung: Anschläge während des Takes sammeln (Zeit relativ zum Take-Start)
+  if (tr.mode === 'grade') {
+    if (tr.t0 != null && !tr.done) {
+      const dt = (onsetT ?? actx.currentTime) - GRADE_LATENCY - tr.t0;
+      if (dt > -0.4 && dt < tr.takeDur + 0.6) tr.played.push({ dt, midi });
+    }
+    return;
+  }
   if (tr.muteUntil && performance.now() < tr.muteUntil) return;   // App spielt gerade selbst vor
   // Modi "Akkordton/Terz auf die 1": nur im Fenster um die Eins wird geprüft; dazwischen frei
   if (tr.mode === 'target' || tr.mode === 'third') {
@@ -4728,6 +4750,166 @@ function trainerRoundDone(tr, tg) {
     setTrainerStatus(`✔ Geschafft – ${stats}. Nochmal von vorn!`);
     tr.idx = 0; tr.hits = 0; tr.misses = 0;
   }
+}
+
+// ─── Lick-Bewertung: Tonhöhe + Timing gegen die notierten Noten ──────────────
+// v1: nutzt die vorhandene Tonhöhenerkennung; das Timing ist damit näherungsweise
+// (Erkennungslatenz). Ein späterer AudioWorklet-Onset + Kalibrierung macht es eng.
+const GRADE_LATENCY = 0.035;    // grobe Kompensation der Analyse-Latenz (s)
+function startGrade() {
+  const lk = findLick(S.selectedLick);
+  if (!lk) { alert('Erst ein Lick in der Sammlung auswählen.'); return; }
+  const tn = transposeLick(lk);
+  if (!tn) { alert('Lick passt in dieser Tonart nicht aufs Griffbrett.'); return; }
+  closeGradeReport();
+  startMic().then(ok => {
+    if (!ok) return;
+    const spb = 60 / S.bpm;
+    // Soll-Zeitleiste: klingende Töne (Pausen/gebundene überspringen) mit Onset in Sekunden
+    const exp = []; let off = 0;
+    lk.notes.forEach((src, i) => {
+      const d = src.d || 1;
+      if (!src.rest && !src.tie) { const n = tn[i]; exp.push({ dt: eighthTime(off, spb), midi: OPEN_MIDI[n.s] + n.fret, s: n.s, fret: n.fret, srcIdx: i }); }
+      off += d;
+    });
+    if (!exp.length) { alert('Der Lick hat keine spielbaren Töne.'); stopMic(); return; }
+    const bars = lickBars(lk);
+    S.trainer = { mode: 'grade', lick: lk, expected: exp, played: [], t0: null, takeEnd: null,
+                  takeDur: bars * S.beatsPerMeasure * spb, spb, done: false };
+    markTrainerBtns();
+    document.getElementById('trainRow').style.display = 'flex';
+    setTrainerStatus('Bereit … Einzähler läuft, dann spiel das Lick im Takt mit.');
+    if (S.metroOn) stopMetro();
+    startMetro();                 // sauberer Neustart mit Einzähler ab Takt 1
+    render();
+  });
+}
+function gradeMedian(arr) {
+  if (!arr.length) return 0;
+  const s = [...arr].sort((a, b) => a - b), m = s.length >> 1;
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
+// Monotone DP-Ausrichtung: Treffer / ausgelassen (miss) / zusätzlich (extra)
+function gradeAlign(expected, played, spb) {
+  const n = expected.length, m = played.length, SKIP = 2.6;
+  const cost = (e, p) => {
+    const exact = e.midi === p.midi || Math.abs(e.midi - p.midi) === 12;
+    const pcOk = mod12(e.midi) === mod12(p.midi);
+    const pitch = exact ? 0 : pcOk ? 1.5 : 4;
+    const tc = Math.min(4, 2 * Math.abs(e.dt - p.dt) / spb);   // Zeitabstand (Beats), steil → weit weg lieber trennen
+    return pitch + tc;
+  };
+  const D = Array.from({ length: n + 1 }, () => Array(m + 1).fill(0));
+  const B = Array.from({ length: n + 1 }, () => Array(m + 1).fill(''));
+  for (let i = 1; i <= n; i++) { D[i][0] = i * SKIP; B[i][0] = 'miss'; }
+  for (let j = 1; j <= m; j++) { D[0][j] = j * SKIP; B[0][j] = 'extra'; }
+  for (let i = 1; i <= n; i++) for (let j = 1; j <= m; j++) {
+    const mt = D[i - 1][j - 1] + cost(expected[i - 1], played[j - 1]);
+    const ms = D[i - 1][j] + SKIP;
+    const ex = D[i][j - 1] + SKIP;
+    let best = mt, op = 'match';
+    if (ms < best) { best = ms; op = 'miss'; }
+    if (ex < best) { best = ex; op = 'extra'; }
+    D[i][j] = best; B[i][j] = op;
+  }
+  const out = []; let i = n, j = m;
+  while (i > 0 || j > 0) {
+    const op = B[i][j];
+    if (op === 'match') { out.push({ kind: 'match', exp: expected[i - 1], play: played[j - 1] }); i--; j--; }
+    else if (op === 'miss') { out.push({ kind: 'miss', exp: expected[i - 1] }); i--; }
+    else { out.push({ kind: 'extra', play: played[j - 1] }); j--; }
+  }
+  return out.reverse();
+}
+function gradeScore(alignment) {
+  let hits = 0, wrongPitch = 0, missed = 0, extra = 0; const errs = []; const perNote = {};
+  alignment.forEach(a => {
+    if (a.kind === 'match') {
+      const pitchOk = a.exp.midi === a.play.midi || Math.abs(a.exp.midi - a.play.midi) === 12;
+      const errMs = (a.play.dt - a.exp.dt) * 1000;
+      if (pitchOk) { hits++; errs.push(errMs); } else wrongPitch++;
+      perNote[a.exp.srcIdx] = { pitchOk, errMs };
+    } else if (a.kind === 'miss') { missed++; perNote[a.exp.srcIdx] = { missed: true }; }
+    else extra++;
+  });
+  const totalExp = hits + wrongPitch + missed;
+  const pitchPct = Math.round(100 * hits / Math.max(1, totalExp));
+  const absErrs = errs.map(Math.abs);
+  const meanAbs = absErrs.length ? Math.round(absErrs.reduce((a, b) => a + b, 0) / absErrs.length) : 0;
+  const medSigned = Math.round(gradeMedian(errs));
+  const timeQ = errs.length ? Math.max(0, 1 - meanAbs / 120) : 0;     // 0 ms perfekt … 120 ms = 0
+  const score = Math.round(70 * hits / Math.max(1, totalExp) + 30 * timeQ);
+  return { pitchPct, hits, wrongPitch, missed, extra, meanAbs, medSigned, errs, perNote, score, totalExp };
+}
+function finishGrade() {
+  const tr = S.trainer; if (!tr || tr.mode !== 'grade') return;
+  const al = gradeAlign(tr.expected, tr.played, tr.spb);
+  const res = gradeScore(al);
+  res.lick = tr.lick;
+  stopTrainer();                 // Mikro aus, Trainer-Zeile weg
+  stopMetro();
+  renderGradeReport(res);
+}
+// Farbe je Note: grün = richtig & in der Zeit, gelb = richtig, aber daneben, rot = falsch/fehlt
+function gradeNoteColors(res) {
+  const colors = {};
+  Object.entries(res.perNote).forEach(([idx, r]) => {
+    colors[idx] = r.missed ? '#ef4444' : !r.pitchOk ? '#ef4444'
+      : Math.abs(r.errMs) <= 45 ? '#22c55e' : Math.abs(r.errMs) <= 90 ? '#eab308' : '#f59e0b';
+  });
+  return colors;
+}
+function renderGradeReport(res) {
+  const box = document.getElementById('gradeReport');
+  if (!box) return;
+  const rush = res.medSigned < -12 ? `im Schnitt ${-res.medSigned} ms zu früh (eilst leicht)`
+    : res.medSigned > 12 ? `im Schnitt ${res.medSigned} ms zu spät (schleppst leicht)`
+    : 'gut in der Zeit';
+  const grade = res.score >= 90 ? '🏆' : res.score >= 75 ? '👍' : res.score >= 55 ? '🙂' : '💪';
+  box.innerHTML =
+    `<div class="gr-head">${grade} <b>${res.score}/100</b> · „${res.lick.name.replace(/</g, '&lt;')}"</div>
+     <div class="gr-sub">Tonhöhe ${res.pitchPct}% (${res.hits} richtig${res.wrongPitch ? `, ${res.wrongPitch} falsch` : ''}${res.missed ? `, ${res.missed} ausgelassen` : ''}${res.extra ? `, ${res.extra} zusätzlich` : ''})
+       · Timing ≈ ${res.meanAbs} ms Abweichung, ${rush}</div>
+     <div id="grStaff" class="gr-staff"></div>
+     <div id="grHist"></div>
+     <div class="gr-controls">
+       <button class="flow" onclick="startGrade()" title="Noch einmal spielen">🔁 Nochmal</button>
+       <button onclick="closeGradeReport()">✕ Schließen</button>
+       <span class="gr-legend"><span class="grl" style="color:#22c55e">■</span> in der Zeit ·
+         <span class="grl" style="color:#eab308">■</span> knapp daneben ·
+         <span class="grl" style="color:#f59e0b">■</span> deutlich daneben ·
+         <span class="grl" style="color:#ef4444">■</span> falsch/ausgelassen</span>
+     </div>`;
+  box.style.display = 'block';
+  const notes = transposeLick(res.lick) || res.lick.notes;    // so wie gespielt (aktuelle Tonart)
+  renderStaff(document.getElementById('grStaff'), notes, { key: S.key, colors: gradeNoteColors(res), zoom: 1.3 });
+  renderGradeHist(res.errs);
+  box.scrollIntoView({ block: 'nearest' });
+}
+// kleines Timing-Histogramm: eilst links, schleppst rechts, Mittellinie = auf dem Punkt
+function renderGradeHist(errs) {
+  const box = document.getElementById('grHist');
+  if (!box) return;
+  if (!errs.length) { box.innerHTML = ''; return; }
+  const W = 320, H = 60, mid = W / 2, cap = 150, px = mid / cap;   // ±150 ms Skala
+  const bins = {}; errs.forEach(e => { const b = Math.round(Math.max(-cap, Math.min(cap, e)) / 20) * 20; bins[b] = (bins[b] || 0) + 1; });
+  const maxN = Math.max(...Object.values(bins));
+  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, width: W, height: H });
+  svg.appendChild(el('rect', { x: 0, y: 0, width: W, height: H, fill: '#0d1117' }));
+  svg.appendChild(el('line', { x1: mid, y1: 4, x2: mid, y2: H - 12, stroke: '#4a5264', 'stroke-width': 1 }));
+  Object.entries(bins).forEach(([b, n]) => {
+    const bx = mid + (+b) * px, h = (H - 18) * n / maxN;
+    const col = Math.abs(+b) <= 45 ? '#22c55e' : Math.abs(+b) <= 90 ? '#eab308' : '#f59e0b';
+    svg.appendChild(el('rect', { x: bx - 7, y: H - 12 - h, width: 14, height: h, fill: col, rx: 2 }));
+  });
+  svg.appendChild(el('text', { x: 6, y: H - 2, fill: '#8b93a7', 'font-size': 9 }, '← früher'));
+  svg.appendChild(el('text', { x: W - 6, y: H - 2, fill: '#8b93a7', 'font-size': 9, 'text-anchor': 'end' }, 'später →'));
+  svg.appendChild(el('text', { x: mid, y: H - 2, fill: '#8b93a7', 'font-size': 9, 'text-anchor': 'middle' }, 'auf dem Punkt'));
+  box.innerHTML = ''; box.appendChild(svg);
+}
+function closeGradeReport() {
+  const box = document.getElementById('gradeReport');
+  if (box) { box.style.display = 'none'; box.innerHTML = ''; }
 }
 
 function clearProg() {
@@ -4984,6 +5166,12 @@ function scheduleBass(t, beat, mm) {
 // Lookahead-Scheduler: plant Klicks und (bei geladener Progression) Akkordwechsel auf der Eins
 function metroScheduler() {
   const ac = audio();
+  // Lick-Bewertung: Take vorbei → auswerten (Zeit-basiert, unabhängig vom Lookahead)
+  if (S.trainer && S.trainer.mode === 'grade' && S.trainer.t0 != null && !S.trainer.done && ac.currentTime > S.trainer.takeEnd + 0.35) {
+    S.trainer.done = true;
+    finishGrade();
+    return;
+  }
   while (metro.nextNote < ac.currentTime + 0.12) {
     const t = metro.nextNote;
     const beatInMeasure = metro.beat % S.beatsPerMeasure;
@@ -5030,6 +5218,12 @@ function metroScheduler() {
             setTimeout(() => jamInfo('🎸 Deine 4 Takte – antworte auf das, was du gehört hast!'), Math.max(0, aheadMs));
           }
         }
+      }
+      // Lick-Bewertung: an der ersten Eins nach dem Einzähler den Take verankern
+      if (S.trainer && S.trainer.mode === 'grade' && S.trainer.t0 == null && beatInMeasure === 0) {
+        S.trainer.t0 = t;
+        S.trainer.takeEnd = t + S.trainer.takeDur;
+        setTimeout(() => { if (S.trainer && S.trainer.mode === 'grade') setTrainerStatus('▶ Los – spiel das Lick im Takt!'); }, Math.max(0, aheadMs));
       }
       // Zielton-Trainer (Akkordton/Terz auf die 1): auf jeder Eins ein Prüf-Fenster öffnen
       // (etwas vor dem Beat, damit ein knapp zu früh gespielter Ton noch zählt).
