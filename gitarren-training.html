@@ -739,6 +739,7 @@ details.card > summary:hover { color: var(--text); }
     <button id="parcBtn" class="flow" onclick="toggleParcours()" title="Startet das Backing und legt die angehakten Licks der Reihe nach darüber – jeder Lick bekommt so viele Takte, wie er lang ist. Du spielst sie mit.">▶ Parcours</button>
     <button id="parcPlayBtn" onclick="toggleParcPlay()" title="Licks zusätzlich vorspielen lassen (zum Lernen) – aus: nur anzeigen, du spielst">🔊 vorspielen</button>
     <button id="parcFollowBtn" onclick="toggleParcFollow()" title="Licks auf den gerade klingenden Akkord transponieren (I–IV–V folgen) – aus: alles bleibt in der Tonart, wie im klassischen Blues">🎼 Akkord folgen</button>
+    <button id="parcGapBtn" onclick="cycleParcGap()" title="Pause zwischen den Licks (Takte zum Durchatmen/Nachspielen), bevor das nächste kommt – klicken schaltet 0 / 1 / 2 durch">⏸ Pause: 1 Takt</button>
     <button onclick="clearLickSet()" title="Auswahl leeren">✖ Auswahl leeren</button>
     <span id="parcInfo" class="hint"></span>
   </div>
@@ -1015,7 +1016,7 @@ const S = { key: 9, scale: 'minor', pos: 1, triad: 'none', set: 'DGB', label: 'n
             practice: {},                 // Übungs-Protokoll je Lick: { [id]: { count, last, days } }
             lickShow: true,
             staffShow: true, staffZoom: 1.4, staffView: 'both', playMode: false,
-            lickSet: [], parcours: false, parcPlay: false, parcFollow: false,
+            lickSet: [], parcours: false, parcPlay: false, parcFollow: false, parcGap: 1,
             callResp: false, crBars: 1, crRandom: false, crDemo: false, crThird: false,   // Akkord-&-Lick-Übung
             editing: null, editSel: -1, editKey: null, editBox: 0, stackNext: false, soloDraft: null, lickStep: -1,
             trading: false, motif: false, limit: null, limitNotes: [], limitFrets: [0, 3],
@@ -3551,6 +3552,17 @@ function toggleParcFollow() {
   document.getElementById('parcFollowBtn').classList.toggle('active', S.parcFollow);
   render(); saveSettings();
 }
+function cycleParcGap() {
+  S.parcGap = ((S.parcGap || 0) + 1) % 3;   // 0 → 1 → 2 → 0
+  applyParcGap();
+  saveSettings();
+}
+function applyParcGap() {
+  const b = document.getElementById('parcGapBtn');
+  if (!b) return;
+  b.textContent = S.parcGap ? `⏸ Pause: ${S.parcGap} Takt${S.parcGap === 1 ? '' : 'e'}` : '⏸ Pause: aus';
+  b.classList.toggle('active', S.parcGap > 0);
+}
 // Lick-Länge in ganzen Takten (mind. 1)
 function lickBars(lk) {
   return Math.max(1, Math.ceil(lickLen(lk.notes) / (S.beatsPerMeasure * 2) - 1e-4));
@@ -5328,10 +5340,13 @@ function metroScheduler() {
           metro.lickNextBeat = m + meas * S.beatsPerMeasure;
         }
       }
-      // Lick-Parcours: auf der Eins den nächsten Lick einblenden, sobald der vorige durch ist
+      // Lick-Parcours: auf der Eins den nächsten Lick einblenden, sobald der vorige (+ Pause) durch ist
       if (S.parcours && S.lickSet.length && beatInMeasure === 0 && m >= metro.parcNextBeat) {
         const bars = parcoursAdvance(t - ac.currentTime);
-        metro.parcNextBeat = m + bars * S.beatsPerMeasure;
+        metro.parcNextBeat = m + (bars + (S.parcGap || 0)) * S.beatsPerMeasure;   // + Pause-Takte zum Durchatmen
+      } else if (S.parcours && S.lickSet.length && beatInMeasure === 0 && S.parcGap &&
+                 m === metro.parcNextBeat - S.parcGap * S.beatsPerMeasure) {
+        setTimeout(() => { if (S.parcours) updateParcInfo(`⏸ Pause (${S.parcGap} Takt${S.parcGap === 1 ? '' : 'e'}) – gleich geht's weiter …`); }, Math.max(0, aheadMs));
       }
       // Akkord & Lick: auf der Eins alle crBars Takte den Akkord anschlagen und ein Lick ansagen
       if (S.callResp && S.prog.length && beatInMeasure === 0 && mm >= 0 && m >= metro.crNextBeat) {
@@ -5573,7 +5588,7 @@ const PERSIST = ['key','scale','pos','triad','set','label','blue','blueArrows','
   'presetTab','showLegend','cards','fbCompact','intervalMode','intervalRef',
   'lickShow','pathId','pathStep','lastBackupAt','drive','panels','settingsShow','outDevice','practice',
   'crBars','crRandom','crDemo','crThird',
-  'staffShow','staffZoom','staffView','playMode','lickSet','parcPlay','parcFollow'];
+  'staffShow','staffZoom','staffView','playMode','lickSet','parcPlay','parcFollow','parcGap'];
 function saveSettings() {
   try {
     const o = {};
@@ -5671,6 +5686,7 @@ function applySettingsUI() {
   if (!S.practice || typeof S.practice !== 'object') S.practice = {};
   document.getElementById('parcPlayBtn').classList.toggle('active', S.parcPlay);
   document.getElementById('parcFollowBtn').classList.toggle('active', S.parcFollow);
+  applyParcGap();
   applyPlayMode();
   document.getElementById('superSel').value = S.superId;
   document.getElementById('bpm').value = S.bpm;
