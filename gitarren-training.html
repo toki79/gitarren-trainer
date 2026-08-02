@@ -399,6 +399,14 @@ details.card > summary:hover { color: var(--text); }
   body.licks-side.editing #card-licks { display: none !important; }
 }
 #panelMenu .tb-sep { align-self: stretch; }
+/* Übungs-Szenario-Wähler: hervorgehoben (blaue Einstellung, startet einen Ablauf) */
+#scenarioSel { background: var(--panel2); color: var(--text); border: 1px solid var(--accent);
+  padding: 4px 8px; border-radius: 8px; font-size: 0.76rem; font-weight: 600; cursor: pointer; }
+#panelMenu label.tb-label[for="scenarioSel"] { color: var(--accent); font-weight: 700; }
+/* Kurzanleitung zum gestarteten Szenario, direkt unter der Bereiche-Leiste */
+#scenHint { margin: -2px 0 8px; padding: 7px 12px; font-size: 0.82rem; line-height: 1.4;
+  background: rgba(96,165,250,0.10); border: 1px solid var(--accent); border-radius: 9px; color: var(--text); }
+#scenHint b { color: var(--accent); }
 </style>
 </head>
 <body>
@@ -408,6 +416,18 @@ details.card > summary:hover { color: var(--text); }
 <div id="stickyTop">
   <!-- Dauerleiste ganz oben: immer sichtbar, blendet alle Bereiche ein/aus -->
   <div id="panelMenu" title="Bereiche ein-/ausblenden – ausgeblendete Bereiche behalten ihre Einstellungen">
+    <label class="tb-label" for="scenarioSel">🎯 Übung</label>
+    <select id="scenarioSel" onchange="enterScenario(this.value); this.value='';" title="Fertiges Übungs-Szenario starten – richtet die passenden Bereiche automatisch ein">
+      <option value="" selected>wählen …</option>
+      <option value="backing">🎸 Blues-Backing (frei solieren)</option>
+      <option value="callresp">🗣 Akkord &amp; Lick (Frage &amp; Antwort)</option>
+      <option value="walk">🎧 Licks-Durchlauf (vor-/nachspielen)</option>
+      <option value="parcours">🎯 Lick-Parcours (über Backing)</option>
+      <option value="grade">🎼 Lick bewerten (Ton &amp; Timing)</option>
+      <option value="trainer">🎤 Trainer (Ton finden / Boxen)</option>
+      <option value="free">🎛 Frei (alles einblenden)</option>
+    </select>
+    <span class="tb-sep"></span>
     <span class="tb-label">Bereiche</span>
     <button data-panel="fb" class="active" onclick="togglePanel('fb')" title="Griffbrett ein-/ausblenden">▦ Griffbrett</button>
     <button id="btn-editorPanel" onclick="editorBarBtn()" disabled title="Erst ein Lick auswählen, dann hier bearbeiten">✎ Editor</button>
@@ -420,6 +440,7 @@ details.card > summary:hover { color: var(--text); }
     <span class="tb-sep"></span>
     <button id="btn-settings" class="active" onclick="toggleSettings()" title="Einstellungszeile (Tonart, Box, Tempo …) ein-/ausblenden">⚙ Einstellungen</button>
   </div>
+  <div id="scenHint" style="display:none"></div>
   <div id="topBar">
     <label class="tb-field">Tonart
       <select id="keySelect" onchange="setKey(+this.value)"></select>
@@ -3513,6 +3534,48 @@ function stopAllJam() {
   if (S.motif) toggleMotif();
   if (S.parcours) toggleParcours();
   if (S.limit) setLimit('off');
+}
+
+// ─── Übungs-Szenarien: ein Klick richtet die zusammengehörigen Teile ein ─────
+const ALL_PANELS = ['fb', 'path', 'triad', 'prog', 'licks', 'trainer', 'ton'];
+function stopAllModes() {                       // sauberes Teardown vor jedem Szenario
+  stopAllJam();                                 // Trainer, Trading, Motiv, Parcours, Limit, Mikro
+  if (S.callResp) toggleCallResp();
+  if (S.lickLoop) toggleLickLoop();
+  if (walk) walkStop();
+  closeGradeReport();
+  if (S.metroOn) stopMetro();                   // jedes Szenario startet mit stillem Audio
+}
+function ensureBacking() { if (!S.prog.length) blues12(); }   // vorhandenes Backing behalten
+function scenMsg(t) {
+  const el = document.getElementById('scenHint');
+  if (el) { el.innerHTML = t || ''; el.style.display = t ? 'block' : 'none'; }
+}
+function openCard(k) { const c = document.getElementById('card-' + k); if (c) c.open = true; }
+const SCENARIOS = {
+  backing:  { panels: ['fb', 'prog', 'licks', 'ton'],
+    go() { ensureBacking(); if (!S.metroOn) startMetro(); scenMsg('🎸 <b>Blues-Backing läuft</b> – solier drüber. Tempo, Drum-Feel &amp; Fills im Bereich <b>Ton</b>, die Form im Bereich <b>Progression</b>.'); } },
+  walk:     { panels: ['fb', 'licks'],
+    go() { openCard('licks'); if (S.lickSet.length) { startWalk(); scenMsg('🎧 <b>Durchlauf</b> – jedes Lick wird vorgespielt, du spielst nach, „▶ Nächstes" für das nächste.'); } else scenMsg('🎧 <b>Licks-Durchlauf</b>: In der Tabelle Licks mit <b>🎯</b> anhaken, dann startet der Durchlauf automatisch.'); } },
+  parcours: { panels: ['fb', 'prog', 'licks'],
+    go() { ensureBacking(); if (S.lickSet.length) { toggleParcours(); scenMsg('🎯 <b>Parcours läuft</b> – die angehakten Licks kommen der Reihe nach übers Backing.'); } else scenMsg('🎯 <b>Lick-Parcours</b>: Licks in der Tabelle mit <b>🎯</b> anhaken, dann „▶ Parcours" drücken.'); } },
+  grade:    { panels: ['fb', 'licks', 'trainer'],
+    go() { if (S.selectedLick && findLick(S.selectedLick)) startGrade(); else scenMsg('🎼 <b>Lick bewerten</b>: erst ein Lick auswählen (Tabelle/Leiste), dann „🎼 Lick bewerten" im Bereich <b>Trainer</b>. Tipp: einmal <b>🎚 Kalibrieren</b>.'); } },
+  callresp: { panels: ['fb', 'prog', 'licks', 'trainer'],
+    go() { ensureBacking(); toggleCallResp(); scenMsg('🗣 <b>Akkord &amp; Lick</b> – auf jeder Eins kommt der Akkord, dann bist du dran. Schalter im Bereich <b>Trainer</b>.'); } },
+  trainer:  { panels: ['fb', 'trainer'],
+    go() { openCard('trainer'); scenMsg('🎤 <b>Trainer</b>: wähle oben eine Übung – Box auf &amp; ab, Ton finden, Akkordton/Terz auf die 1 … (Mikrofon/Kemper-Eingang).'); } },
+  free:     { panels: ALL_PANELS, go() { scenMsg(''); } },
+};
+function enterScenario(id) {
+  const sc = SCENARIOS[id];
+  if (!sc) return;
+  stopAllModes();
+  ALL_PANELS.forEach(p => S.panels[p] = sc.panels.includes(p));
+  applyPanels();
+  window.scrollTo(0, 0);
+  sc.go();
+  saveSettings();
 }
 
 // ─── Lick-Parcours: ausgewählte Licks der Reihe nach über das Backing ────────
