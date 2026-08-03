@@ -403,6 +403,9 @@ details.card > summary:hover { color: var(--text); }
 #scenarioSel { background: var(--panel2); color: var(--text); border: 1px solid var(--accent);
   padding: 4px 8px; border-radius: 8px; font-size: 0.76rem; font-weight: 600; cursor: pointer; }
 #panelMenu label.tb-label[for="scenarioSel"] { color: var(--accent); font-weight: 700; }
+/* Transport (Play/Stop) dauerhaft in der Leiste – nie in einem ausgeblendeten Panel versteckt */
+#panelMenu button#metroBtnTop { opacity: 1; min-width: 78px; font-weight: 600; }
+#panelMenu button#metroBtnTop.active { background: var(--flow); border-color: var(--flow); color: #04231a; }
 /* Kurzanleitung zum gestarteten Szenario, direkt unter der Bereiche-Leiste */
 #scenHint { margin: -2px 0 8px; padding: 7px 12px; font-size: 0.82rem; line-height: 1.4;
   background: rgba(96,165,250,0.10); border: 1px solid var(--accent); border-radius: 9px; color: var(--text); }
@@ -427,6 +430,7 @@ details.card > summary:hover { color: var(--text); }
       <option value="trainer">🎤 Trainer (Ton finden / Boxen)</option>
       <option value="free">🎛 Frei (alles einblenden)</option>
     </select>
+    <button id="metroBtnTop" class="flow" onclick="toggleMetro()" title="Backing/Metronom starten und stoppen – immer erreichbar">▶ Play</button>
     <span class="tb-sep"></span>
     <span class="tb-label">Bereiche</span>
     <button data-panel="fb" class="active" onclick="togglePanel('fb')" title="Griffbrett ein-/ausblenden">▦ Griffbrett</button>
@@ -5490,17 +5494,22 @@ function startMetro() {
   metro.crIdx = 0; metro.crNextBeat = 0;                                      // Akkord-&-Lick-Übung neu starten
   metro.nextNote = audio().currentTime + 0.12;
   if (S.prog.length) { S.progIdx = 0; renderChips(); render(); }
-  const b = document.getElementById('metroBtn');
-  b.textContent = '◼ Stop'; b.classList.add('active');
+  setMetroBtns(true);
   metroTimer = setInterval(metroScheduler, 25);
 }
 function stopMetro() {
   S.metroOn = false;
   if (metroTimer) clearInterval(metroTimer);
   metroTimer = null;
-  const b = document.getElementById('metroBtn');
-  if (b) { b.textContent = '▶ Play'; b.classList.remove('active'); }
+  setMetroBtns(false);
   litBeat(-1);
+}
+// Play/Stop steht doppelt in der Oberfläche (Dauerleiste + Einstellungszeile) – beide synchron halten
+function setMetroBtns(running) {
+  ['metroBtn', 'metroBtnTop'].forEach(id => {
+    const b = document.getElementById(id);
+    if (b) { b.textContent = running ? '◼ Stop' : '▶ Play'; b.classList.toggle('active', running); }
+  });
 }
 function setBpm(v) {
   S.bpm = Math.min(240, Math.max(40, +v || 90));
