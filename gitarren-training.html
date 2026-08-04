@@ -72,9 +72,9 @@ select {
   background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
   padding: 16px; margin-bottom: 16px; overflow-x: auto;
 }
-#fb { display: block; min-width: 860px; }
+#fb { display: block; width: 100%; min-width: 1000px; }   /* ganzer 22-Bund-Hals passt auf Desktop; sehr schmale Screens scrollen */
 .fretboard-wrap.compact { padding: 8px 12px; }
-.fretboard-wrap.compact #fb { min-width: 0; max-width: 480px; margin: 0 auto; }
+.fretboard-wrap.compact #fb { min-width: 0; max-width: 680px; margin: 0 auto; }
 .bottom-row { display: grid; grid-template-columns: auto 1fr; gap: 16px; align-items: start; }
 .legend {
   background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
@@ -512,7 +512,7 @@ details.card > summary:hover { color: var(--text); }
       <button id="btn-fbsize" onclick="toggleFbSize()" title="Griffbrett kompakt/groß schalten – kompakt beim Konfigurieren, groß beim Spielen">⤡ Kompakt</button>
       <button id="btn-legend" onclick="toggleLegend()" title="Legende ein-/ausblenden">？ Legende</button>
     </div>
-    <svg id="fb" viewBox="0 0 920 235"></svg>
+    <svg id="fb" viewBox="0 0 1318 235"></svg>
     <div id="fbProg" style="display:none" title="Laufende Progression – Klick springt zum Akkord"></div>
     <!-- Kompakte Lick-Auswahl: bleibt mit dem Griffbrett oben, damit man Licks
          wechseln kann, ohne zur großen Tabelle zu scrollen -->
@@ -1609,13 +1609,13 @@ function el(tag, attrs, text) {
   return e;
 }
 
-const W = 920, H = 235;
+const FRETS = 22;                       // echte E-Gitarre (ES-355/Strat) statt bisher 15
 const ML = 50, MR = 18, MT = 24, MB = 36;
-const FRETS = 15;
-const FW = (W - ML - MR) / FRETS;
+const FW = 56.8;                        // Bundbreite konstant halten – Griffbrett wächst in die Breite
+const W = Math.round(ML + FRETS * FW + MR), H = 235;
 const SH = (H - MT - MB) / 5;
 const DR = 11.5;
-const MARKERS = [3,5,7,9,12,15];
+const MARKERS = [3,5,7,9,12,15,17,19,21];
 
 const fx = fret => fret === 0 ? ML - DR - 5 : ML + (fret - 0.5) * FW;
 const sy = s => MT + s * SH;
@@ -1623,6 +1623,7 @@ const sy = s => MT + s * SH;
 function render() {
   const svg = document.getElementById('fb');
   svg.innerHTML = '';
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);   // Bundzahl/Breite konfigurierbar halten
   const { key, scale, pos, triad, set, label } = S;
   const k = mod12(key);
   computePath();
