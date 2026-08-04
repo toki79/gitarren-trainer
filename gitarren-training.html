@@ -4168,7 +4168,25 @@ function toggleSelTrip() {
 }
 const cycleOn = (cur, list) => list[(list.indexOf(cur) + 1) % list.length];
 function cycleSelBend() { const n = selNote(); if (n && !n.rest) setNoteBend(S.editSel, cycleOn(n.bend || 0, BEND_CYCLE)); }
-function cycleSelSlide() { const n = selNote(); if (n && !n.rest) setNoteSlide(S.editSel, cycleOn(n.slide || 0, [0, 1, 2, -1, -2])); }
+// Nächste klingende Note (kein Rest) nach Index i
+function nextSoundingNote(i) {
+  for (let j = i + 1; j < S.lickRec.length; j++) { const m = S.lickRec[j]; if (m && !m.rest) return m; }
+  return null;
+}
+// Slide „zur nächsten Note": Richtung & Distanz automatisch aus der Folgenote auf
+// derselben Saite (auf ODER ab, beliebige Distanz). Kein Ziel dort → Standard-Slide
+// (Ganzton hoch, z. B. Slide-off). Nochmal drücken → Slide aus.
+function smartSlide(i) {
+  const n = S.lickRec[i];
+  if (!n || n.rest) return;
+  if (n.slide) { setNoteSlide(i, 0); return; }
+  const nx = nextSoundingNote(i);
+  if (nx && nx.s === n.s && nx.fret !== n.fret) setNoteSlide(i, nx.fret - n.fret);
+  else setNoteSlide(i, 2);
+}
+function cycleSelSlide() { if (S.editSel >= 0) smartSlide(S.editSel); }
+// Slide-Label: Pfeil + Ziel-Bund (z. B. ↗8 / ↘3)
+const slideLabel = n => n.slide ? (n.slide > 0 ? '↗' : '↘') + (n.fret + n.slide) : '';
 function cycleSelSlideIn() { const n = selNote(); if (n && !n.rest) setNoteSlideIn(S.editSel, cycleOn(n.slideIn || 0, [0, -2, 2])); }
 function cycleSelAcc() { const n = selNote(); if (n && !n.rest) setNoteAcc(S.editSel, cycleOn(n.acc || 0, [0, 1, -1])); }
 // „＋ Doppelgriff" scharf stellen: der nächste Griffbrett-Klick legt einen zweiten
@@ -4204,7 +4222,7 @@ function renderEditTools() {
      </span>
      <span class="et-lbl">Artikulation</span><span class="et-art">
       ${artBtn('cycleSelBend()', 'Bend ' + (snd && n.bend ? bendLabel(n.bend) : '–'), snd && !!n.bend, 'Bend: – / ¼ (Smear) / ½ / full / 1½ (Taste b)')}
-      ${artBtn('cycleSelSlide()', 'Slide ' + (snd && n.slide ? (n.slide > 0 ? '+' : '−') + (Math.abs(n.slide) === 2 ? '1' : '½') : '–'), snd && !!n.slide, 'Slide zum Folgeton: – / +½ / +1 / −½ / −1 (Taste s)')}
+      ${artBtn('cycleSelSlide()', 'Slide ' + (snd && n.slide ? slideLabel(n) : '→') , snd && !!n.slide, 'Slide zur nächsten Note auf derselben Saite – Richtung & Distanz automatisch. Nochmal drücken = aus (Taste s)')}
       ${artBtn('cycleSelSlideIn()', 'Einschleifer ' + (snd && n.slideIn ? (n.slideIn < 0 ? '↗' : '↘') : '–'), snd && !!n.slideIn, 'Slide IN den Ton hinein – von unten ↗ oder von oben ↘ (Taste i)')}
       ${artBtn('toggleNoteLeg(S.editSel)', '⌒', snd && !!n.leg, 'Legato: Hammer-on/Pull-off (Taste h)')}
       ${artBtn('toggleNoteTie(S.editSel)', '⌣ binden', snd && !!n.tie,
@@ -4252,7 +4270,7 @@ function renderEditor() {
     n.add && n.add.length ? 'Doppelgriff (' + n.add.map(a => STR_LABELS[a.s] + ' ' + a.fret).join(', ') + ')' : '',
     S.stackNext ? '＋ zweite Saite anklicken …' : '',
     n.bend ? 'Bend ' + bendLabel(n.bend) : '',
-    n.slide ? 'Slide ' + (n.slide > 0 ? '+' : '−') + (Math.abs(n.slide) === 2 ? '1' : '½') : '',
+    n.slide ? 'Slide ' + slideLabel(n) + '. Bund' : '',
     n.slideIn ? 'Einschleifer ' + (n.slideIn < 0 ? 'von unten ↗' : 'von oben ↘') : '',
     n.tie ? 'gebunden ⌣' : '',
     n.leg ? 'Legato ⌒' : '', n.vib ? 'Vibrato ∿' : '', n.stacc ? 'Staccato •' : '',
@@ -4374,9 +4392,9 @@ function editorKeydown(e) {
   } else if (k === 'b') {                                      // Bend – / ½ / full
     if (!n || n.rest) return;
     setNoteBend(i, BEND_CYCLE[(BEND_CYCLE.indexOf(n.bend || 0) + 1) % BEND_CYCLE.length]);
-  } else if (k === 's') {                                      // Slide – / +½ / +1 / −½ / −1
+  } else if (k === 's') {                                      // Slide zur nächsten Note (auto), nochmal = aus
     if (!n || n.rest) return;
-    const c = [0, 1, 2, -1, -2]; setNoteSlide(i, c[(c.indexOf(n.slide || 0) + 1) % c.length]);
+    smartSlide(i);
   } else if (k === 'i') {                                      // Einschleifer – / von unten / von oben
     if (!n || n.rest) return;
     const c = [0, -2, 2]; setNoteSlideIn(i, c[(c.indexOf(n.slideIn || 0) + 1) % c.length]);
