@@ -1163,7 +1163,7 @@ const midiToFreq = m => 440 * Math.pow(2, (m - 69) / 12);
 // Gezupfter, gitarrenähnlicher Ton: Grundton + Obertöne, Tiefpass mit Decay.
 // bendSemi = Bend in Halbtönen, vib = Vibrato (leierndes Tonhöhen-Wobbeln)
 // inSemi = Einschleifer: der Ton startet inSemi Halbtöne daneben und gleitet hinein
-function pluck(midi, when = 0, dur = 1.1, gainMul = 1, bendSemi = 0, vib = false, track = 'guitar', slideSemi = 0, inSemi = 0) {
+function pluck(midi, when = 0, dur = 1.1, gainMul = 1, bendSemi = 0, vib = false, track = 'guitar', slideSemi = 0, inSemi = 0, legato = false) {
   const ac = audio();
   const t0 = ac.currentTime + when;
   const freq = midiToFreq(midi);
@@ -1171,12 +1171,14 @@ function pluck(midi, when = 0, dur = 1.1, gainMul = 1, bendSemi = 0, vib = false
   const slideFreq = midiToFreq(midi + slideSemi);
   const out = ac.createGain();
   out.connect(trackGain[track] || trackGain.guitar);
+  // Legato (gebundener Ton: Hammer-on/Pull-off, Slide-Ziel): kein harter Pick-Transient,
+  // sondern weiches Einschwellen – so klingt der Ton wie „ohne Neuanschlag" angebunden.
   out.gain.setValueAtTime(0.0001, t0);
-  out.gain.exponentialRampToValueAtTime(0.25 * gainMul, t0 + 0.006);
+  out.gain.exponentialRampToValueAtTime(0.25 * gainMul, t0 + (legato ? 0.055 : 0.006));
   out.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
   const lp = ac.createBiquadFilter();
   lp.type = 'lowpass';
-  lp.frequency.setValueAtTime(4200, t0);
+  lp.frequency.setValueAtTime(legato ? 2400 : 4200, t0);    // gebunden = weniger Pick-Biss
   lp.frequency.exponentialRampToValueAtTime(700, t0 + dur * 0.85);
   lp.connect(out);
   let vibGain = null;                               // Vibrato-LFO (moduliert die Verstimmung)
@@ -2836,9 +2838,15 @@ function playLickAt(lick, delaySec, quiet) {
     const dTot = d + tieExt(i);                                     // Haltebogen verlängert den Ton
     let dur = Math.max((eighthTime(off + dTot, spb) - eighthTime(off, spb)) * 1.05, 0.18);
     if (src.stacc) dur = Math.min(dur, 0.16);                       // Staccato: kurz
+    // Gebunden angespielt (kein Neuanschlag): eigenes Legato (Hammer-on/Pull-off) ODER
+    // Ziel eines Slides der Vornote auf derselben Saite → durchgezogener Slide.
+    const pv = notes[i - 1], pvSrc = i > 0 ? lick.notes[i - 1] : null;
+    const slideInto = !!(pv && pvSrc && !pvSrc.rest && !pvSrc.tie && pv.slide
+                         && pv.s === n.s && (pv.fret + pv.slide) === n.fret);
+    const legInto = !!src.leg || slideInto;
     const g = 0.95 * (src.acc === 1 ? 1.5 : src.acc === -1 ? 0.45 : 1)    // Betonung: Akzent / Ghost
-                   * (src.leg ? 0.55 : 1);                                // Legato (H/P): kein Anschlag
-    pluck(OPEN_MIDI[n.s] + n.fret, start, dur, g, n.bend || 0, !!src.vib, 'lick', n.slide || 0, n.slideIn || 0);
+                   * (legInto ? 0.6 : 1);                                 // gebunden: leiser, kein Pick
+    pluck(OPEN_MIDI[n.s] + n.fret, start, dur, g, n.bend || 0, !!src.vib, 'lick', n.slide || 0, n.slideIn || 0, legInto);
     playAdds(dur, g, false);
     flashAt(n.s, n.fret, start * 1000, n.bend ? '#f59e0b' : '#22d3ee');
     off += d;
@@ -2903,8 +2911,8 @@ function stepLick(dir) {
   const n = notes[S.lickStep];
   if (n.mute) pluckDead(OPEN_MIDI[n.s] + n.fret, 0, 0.9, 'lick');
   else {
-    const g = 0.95 * (n.acc === 1 ? 1.5 : n.acc === -1 ? 0.45 : 1) * (n.leg ? 0.55 : 1) * (n.grace ? 0.85 : 1);
-    pluck(OPEN_MIDI[n.s] + n.fret, 0, n.grace ? 0.13 : (n.stacc ? 0.16 : 1.1), g, n.bend || 0, !!n.vib, 'lick', n.slide || 0, n.slideIn || 0);
+    const g = 0.95 * (n.acc === 1 ? 1.5 : n.acc === -1 ? 0.45 : 1) * (n.leg ? 0.6 : 1) * (n.grace ? 0.85 : 1);
+    pluck(OPEN_MIDI[n.s] + n.fret, 0, n.grace ? 0.13 : (n.stacc ? 0.16 : 1.1), g, n.bend || 0, !!n.vib, 'lick', n.slide || 0, n.slideIn || 0, !!n.leg);
     if (n.add) n.add.forEach(a => { if (a.mute) pluckDead(OPEN_MIDI[a.s] + a.fret, 0, 0.9, 'lick'); else { pluck(OPEN_MIDI[a.s] + a.fret, 0, n.stacc ? 0.16 : 1.1, g, a.bend || 0, !!n.vib, 'lick', 0, 0); flashAt(a.s, a.fret, 0, '#22c55e'); } });
   }
   flashAt(n.s, n.fret, 0, '#22c55e');
