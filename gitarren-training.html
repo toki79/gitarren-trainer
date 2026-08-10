@@ -223,6 +223,16 @@ body.play-mode #playBar { display: flex; }
 #gradeReport .so-card .so-d { font-size: 0.74rem; color: var(--muted); }
 #gradeReport .so-out { font-size: 0.82rem; margin-bottom: 6px; }
 #gradeReport .so-hint { font-size: 0.76rem; color: var(--muted); background: rgba(96,165,250,0.08); border-left: 3px solid var(--accent); border-radius: 6px; padding: 6px 9px; margin-bottom: 8px; }
+/* Solo-Analyse: Schritt-für-Schritt-Durchgang */
+#gradeReport .so-review { border-top: 1px solid var(--border); padding-top: 8px; margin-bottom: 8px; }
+#gradeReport .so-rev-head { font-size: 0.9rem; margin-bottom: 6px; }
+#gradeReport .so-chips { display: flex; gap: 4px; flex-wrap: nowrap; overflow-x: auto; padding: 4px 2px 6px; }
+#gradeReport .so-chip { flex: 0 0 auto; padding: 3px 7px; font-size: 0.76rem; background: var(--panel);
+  border: 1.5px solid var(--border); border-radius: 6px; color: var(--text); cursor: pointer; line-height: 1.3; }
+#gradeReport .so-chip sup { font-size: 0.62rem; margin-left: 1px; }
+#gradeReport .so-chip.cur { background: var(--panel2); box-shadow: 0 0 0 2px var(--accent); font-weight: 700; }
+#gradeReport .so-rev-ctrl { display: flex; align-items: center; gap: 6px; margin: 4px 0; }
+#gradeReport .so-detail { font-size: 0.84rem; padding: 6px 9px; background: var(--panel); border: 1px solid var(--border); border-radius: 7px; }
 #gradeReport .gr-legend .grl { font-size: 0.9rem; }
 /* Drum-Step-Editor */
 #drumEditor { margin: 0 0 8px; padding: 9px 11px; background: var(--panel2); border: 1px solid var(--border); border-radius: 9px; }
@@ -5204,6 +5214,8 @@ function stopSolo() {
   const res = analyzeSolo(tr);
   stopTrainer();                                  // Mikro aus, Trainer-Zeile weg, S.trainer = null
   stopMetro();
+  S.soloTake = res;                               // Aufnahme merken (Vorspielen + Schritt-für-Schritt)
+  S.soloStep = -1;
   renderSoloReport(res);
 }
 function renderSoloBtn() {
@@ -5237,35 +5249,46 @@ function analyzeSolo(tr) {
   const bars = span > 0 ? span / barSec : 0;
   const perBar = bars > 0.25 ? total / bars : total;
   // Timing: Abstand zum nächstgelegenen 8tel- ODER Triolen-Raster (straight oder shuffle gilt)
-  const errsMs = [];
-  if (grid.length) {
-    const g0 = grid[0].t, u8 = spb / 2, u3 = spb / 3, gEnd = grid[grid.length - 1].t + spb;
-    notes.forEach(n => {
-      if (n.t < g0 - 0.05 || n.t > gEnd) return;
-      const rel = n.t - g0;
-      const e8 = rel - Math.round(rel / u8) * u8, e3 = rel - Math.round(rel / u3) * u3;
-      errsMs.push(Math.round((Math.abs(e8) <= Math.abs(e3) ? e8 : e3) * 1000));
-    });
-  }
+  const t0 = notes[0].t;
+  const gInfo = grid.length ? { g0: grid[0].t, u8: spb / 2, u3: spb / 3, gEnd: grid[grid.length - 1].t + spb } : null;
+  const noteErr = t => {
+    if (!gInfo || t < gInfo.g0 - 0.05 || t > gInfo.gEnd) return null;
+    const rel = t - gInfo.g0;
+    const e8 = rel - Math.round(rel / gInfo.u8) * gInfo.u8, e3 = rel - Math.round(rel / gInfo.u3) * gInfo.u3;
+    return Math.round((Math.abs(e8) <= Math.abs(e3) ? e8 : e3) * 1000);
+  };
+  const errsMs = notes.map(n => noteErr(n.t)).filter(e => e != null);
   const meanAbs = errsMs.length ? Math.round(errsMs.reduce((a, e) => a + Math.abs(e), 0) / errsMs.length) : null;
   const medSigned = errsMs.length ? Math.round(gradeMedian(errsMs)) : 0;
-  // Akkordton auf der Eins: auf jeder Takt-Eins mit Akkord den nächsten Ton im Fenster prüfen
+  // Pro-Ton-Bewertung (für „Vorspielen" und „Schritt für Schritt")
+  const per = notes.map(n => {
+    const pc = mod12(n.midi);
+    const cls = pc === bluePc ? 'blue' : scale.includes(pc) ? 'in' : 'out';
+    return { rel: n.t - t0, midi: n.midi, pc, cls, errMs: noteErr(n.t), name: midiName(n.midi), onOne: null };
+  });
+  // Akkordton auf der Eins: nächsten Ton je Takt-Eins prüfen und direkt am Ton markieren
   let chordHits = 0, chordN = 0, empties = 0;
   if (S.prog.length && grid.length) {
     const W = Math.min(0.22, spb * 0.4);
     grid.filter(g => g.beat0 && g.chord).forEach(g => {
       chordN++;
-      let best = null, bd = Infinity;
-      notes.forEach(n => { const d = Math.abs(n.t - g.t); if (d < bd) { bd = d; best = n; } });
-      if (best && bd <= W) { if (g.chord.pcs.includes(mod12(best.midi))) chordHits++; }
-      else empties++;
+      let bi = -1, bd = Infinity;
+      notes.forEach((n, i) => { const d = Math.abs(n.t - g.t); if (d < bd) { bd = d; bi = i; } });
+      if (bi >= 0 && bd <= W) {
+        const ok = g.chord.pcs.includes(mod12(notes[bi].midi));
+        if (ok) chordHits++;
+        per[bi].onOne = { name: g.chord.name, ok };
+      } else empties++;
     });
   }
   const played1 = chordN - empties;
   const chordPct = played1 > 0 ? Math.round(100 * chordHits / played1) : null;
+  // Klick-Track fürs Vorspielen: Beat-Zeiten relativ zum ersten Ton
+  const clicks = grid.map(g => ({ rel: g.t - t0, accent: !!g.beat0 })).filter(c => c.rel >= -0.1);
   return { total, scalePct, blue, out, topOut, rangeSemi: hi - lo, loName: midiName(lo), hiName: midiName(hi),
     perBar: Math.round(perBar * 10) / 10, bars: Math.round(bars * 10) / 10,
-    meanAbs, medSigned, timedN: errsMs.length, chordHits, chordN, empties, chordPct, hasProg: !!S.prog.length };
+    meanAbs, medSigned, timedN: errsMs.length, chordHits, chordN, empties, chordPct, hasProg: !!S.prog.length,
+    per, clicks, spb };
 }
 function renderSoloReport(res) {
   const box = document.getElementById('gradeReport');
@@ -5293,12 +5316,80 @@ function renderSoloReport(res) {
      </div>
      ${res.out ? `<div class="so-out">Außerhalb der Skala: <b>${res.topOut}</b></div>` : ''}
      <div class="so-hint">Freies Solieren hat keine Vorlage – bewertet werden nur objektive Kriterien. „Außerhalb" ≠ falsch: gezielte Spannungstöne sind erwünscht. Timing misst die Nähe zu einem sauberen 8tel-/Shuffle-Raster (Triolen/Synkopen lesen sich als „daneben").</div>
+     <div class="so-review">
+       <div class="so-rev-head">🔎 <b>Schritt für Schritt</b> <span class="hint">– klick einen Ton, „◀ ▶" oder spiel das ganze Solo</span></div>
+       <div id="soloChips" class="so-chips"></div>
+       <div class="so-rev-ctrl">
+         <button onclick="soloStep(-1)" title="Voriger Ton">◀</button>
+         <button onclick="soloStep(1)" title="Nächster Ton">▶</button>
+         <button class="flow" onclick="playSoloTake()" title="Das aufgenommene Solo mit Klick-Track abspielen">🔊 Ganzes Solo vorspielen</button>
+       </div>
+       <div id="soloDetail" class="so-detail">Klick einen Ton oder „▶" für die Bewertung Ton für Ton.</div>
+     </div>
      <div class="gr-controls">
        <button class="flow" onclick="startSolo()" title="Neues Solo aufnehmen">🔁 Nochmal aufnehmen</button>
        <button onclick="closeGradeReport()">✕ Schließen</button>
      </div>`;
   box.style.display = 'block';
+  renderSoloChips();
   box.scrollIntoView({ block: 'nearest' });
+}
+// Farbe je Ton für Chips/Detail: rot = außerhalb, blau = Blue Note, grün = in der Skala
+const soloNoteColor = p => p.cls === 'out' ? '#ef4444' : p.cls === 'blue' ? '#38bdf8' : '#22c55e';
+function renderSoloChips() {
+  const box = document.getElementById('soloChips');
+  const take = S.soloTake;
+  if (!box || !take || !take.per) return;
+  box.innerHTML = take.per.map((p, i) =>
+    `<button class="so-chip${i === S.soloStep ? ' cur' : ''}" style="border-color:${soloNoteColor(p)}"
+        onclick="soloStepTo(${i})" title="Ton ${i + 1}: ${p.name}">${p.name}${p.onOne ? (p.onOne.ok ? '<sup>✓1</sup>' : '<sup>✗1</sup>') : ''}</button>`
+  ).join('');
+}
+function renderSoloDetail() {
+  const box = document.getElementById('soloDetail');
+  const take = S.soloTake;
+  if (!box || !take) return;
+  const p = take.per[S.soloStep];
+  if (!p) { box.textContent = 'Klick einen Ton oder „▶" für die Bewertung Ton für Ton.'; return; }
+  const scaleTxt = p.cls === 'out' ? '<span style="color:#ef4444">✗ außerhalb der Skala</span>'
+    : p.cls === 'blue' ? `<span style="color:#38bdf8">◆ Blue Note ${blueNoteLabel()}</span>`
+    : '<span style="color:#22c55e">✓ in der Skala</span>';
+  const timeTxt = p.errMs == null ? 'kein Raster'
+    : Math.abs(p.errMs) <= 55 ? '<span style="color:#22c55e">auf dem Punkt</span>'
+    : `<span style="color:${Math.abs(p.errMs) <= 110 ? '#eab308' : '#f59e0b'}">${p.errMs > 0 ? '+' : ''}${p.errMs} ms ${p.errMs > 0 ? 'zu spät' : 'zu früh'}</span>`;
+  const oneTxt = p.onOne ? ` · ${p.onOne.ok ? `<span style="color:#22c55e">✓ Akkordton auf der 1 (${p.onOne.name})</span>`
+    : `<span style="color:#f59e0b">✗ kein Akkordton auf der 1 (${p.onOne.name})</span>`}` : '';
+  box.innerHTML = `<b>Ton ${S.soloStep + 1}/${take.total}</b> · ${p.name} · ${scaleTxt} · Timing ${timeTxt}${oneTxt}`;
+}
+function soloStepTo(i) {
+  const take = S.soloTake;
+  if (!take || !take.per.length) return;
+  S.soloStep = Math.max(0, Math.min(take.per.length - 1, i));
+  const p = take.per[S.soloStep];
+  pluck(p.midi, 0, 0.9, 0.9, 0, false, 'lick');     // den Ton hören
+  renderSoloChips();
+  renderSoloDetail();
+  const chip = document.querySelectorAll('#soloChips .so-chip')[S.soloStep];
+  if (chip) chip.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+}
+function soloStep(dir) {
+  const take = S.soloTake;
+  if (!take || !take.per.length) return;
+  soloStepTo(S.soloStep < 0 ? (dir > 0 ? 0 : take.per.length - 1) : S.soloStep + dir);
+}
+// Das aufgenommene Solo (nur die Onsets → geschätzte Dauern) mit Klick-Track abspielen
+function playSoloTake() {
+  const take = S.soloTake;
+  if (!take || !take.per.length) return;
+  const ac = audio();
+  const per = take.per, base = ac.currentTime + 0.15;
+  per.forEach((p, i) => {
+    const gap = per[i + 1] ? per[i + 1].rel - p.rel : 0.5;
+    const dur = Math.min(Math.max(gap * 0.95, 0.12), 1.3);
+    pluck(p.midi, (base - ac.currentTime) + p.rel, dur, 0.95, 0, false, 'lick');
+    setTimeout(() => { if (S.soloTake === take) { S.soloStep = i; renderSoloChips(); renderSoloDetail(); } }, (base - ac.currentTime + p.rel) * 1000);
+  });
+  (take.clicks || []).forEach(c => clickSound(base + c.rel, c.accent));   // leiser Klick-Track als Zeitraster
 }
 
 function clearProg() {
@@ -5631,7 +5722,7 @@ function metroScheduler() {
         let chord = null;
         const ci = chordIdxAtMM(mm);
         if (ci >= 0) { const ch = S.prog[ci];
-          chord = { ci, pcs: [mod12(ch.rootPc), mod12(ch.rootPc + ch.third), mod12(ch.rootPc + ch.fifth)] }; }
+          chord = { ci, name: ch.name, pcs: [mod12(ch.rootPc), mod12(ch.rootPc + ch.third), mod12(ch.rootPc + ch.fifth)] }; }
         S.trainer.grid.push({ t, m, beat0: beatInMeasure === 0, chord });
       }
       // Kalibrierung: jeden Klick-Zeitpunkt merken; nach genug Schlägen auswerten
