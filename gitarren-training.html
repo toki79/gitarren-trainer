@@ -215,6 +215,14 @@ body.play-mode #playBar { display: flex; }
 #gradeReport #grHist svg { display: block; margin-bottom: 8px; }
 #gradeReport .gr-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 #gradeReport .gr-legend { font-size: 0.74rem; color: var(--muted); }
+/* Solo-Analyse: Kennzahl-Karten */
+#gradeReport .so-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin-bottom: 8px; }
+#gradeReport .so-card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }
+#gradeReport .so-card .so-k { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); }
+#gradeReport .so-card .so-v { font-size: 1.35rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.2; }
+#gradeReport .so-card .so-d { font-size: 0.74rem; color: var(--muted); }
+#gradeReport .so-out { font-size: 0.82rem; margin-bottom: 6px; }
+#gradeReport .so-hint { font-size: 0.76rem; color: var(--muted); background: rgba(96,165,250,0.08); border-left: 3px solid var(--accent); border-radius: 6px; padding: 6px 9px; margin-bottom: 8px; }
 #gradeReport .gr-legend .grl { font-size: 0.9rem; }
 /* Drum-Step-Editor */
 #drumEditor { margin: 0 0 8px; padding: 9px 11px; background: var(--panel2); border: 1px solid var(--border); border-radius: 9px; }
@@ -424,6 +432,7 @@ details.card > summary:hover { color: var(--text); }
       <option value="" selected>wählen …</option>
       <option value="backing">🎸 Blues-Backing (frei solieren)</option>
       <option value="callresp">🗣 Akkord &amp; Lick (Frage &amp; Antwort)</option>
+      <option value="solo">🎧 Solo aufnehmen &amp; auswerten</option>
       <option value="walk">🎧 Licks-Durchlauf (vor-/nachspielen)</option>
       <option value="parcours">🎯 Lick-Parcours (über Backing)</option>
       <option value="grade">🎼 Lick bewerten (Ton &amp; Timing)</option>
@@ -824,6 +833,7 @@ details.card > summary:hover { color: var(--text); }
     <button id="tradeBtn" class="flow" onclick="toggleTrading()" title="Jam-Partner: die App spielt 4 Takte (frisch generiert, akkordbewusst), dann gehören 4 Takte dir – im Wechsel durch die Form. Kein Mikrofon nötig; kombinierbar mit 🎯/③.">🔁 Trading Fours</button>
     <button id="motifBtn" class="flow" onclick="toggleMotif()" title="Motiv-Entwicklung: der ausgewählte Lick (ideal: 3–5 Töne) wird pro Akkord der Progression transponiert angezeigt – trage ihn durch die Changes. Kein Mikrofon nötig.">🧬 Motiv-Reise</button>
     <button id="crBtn" class="flow" onclick="toggleCallResp()" title="12-Bar-Blues Frage &amp; Antwort: auf jeder Eins schlägt die App den Akkord an, dann sagt sie ein Lick an – du antwortest im Takt. Verinnerlicht die Form. Braucht ein Backing.">🗣 Akkord &amp; Lick</button>
+    <button id="tr-solo" class="flow" onclick="soloToggle()" title="Frei über das Backing solieren – die App nimmt per Mikrofon auf und wertet danach objektiv aus: Skalen-Treue, Timing zum Beat, Akkordton auf der Eins, Tonumfang &amp; Dichte. Keine subjektive Note.">⏺ Solo aufnehmen</button>
     <span class="tb-sep"></span>
     <span class="rec-label">Limitierung</span>
     <span class="btn-row" id="limitBtns">
@@ -1600,6 +1610,13 @@ function buildBeatSchedule() {
   let beat = 0;
   S.prog.forEach((ch, ci) => { starts[beat] = ci; beat += chordBeats(ch); });
   return { starts, total: beat };
+}
+// Welcher Akkord-Index ist bei Position mm (Beat in der Form) aktiv? (für die Solo-Analyse)
+function chordIdxAtMM(mm) {
+  if (!metro.sched || mm < 0) return -1;
+  let ci = -1, best = -1;
+  for (const b in metro.sched.starts) { const bi = +b; if (bi <= mm && bi > best) { best = bi; ci = metro.sched.starts[b]; } }
+  return ci;
 }
 
 // ─── SVG ──────────────────────────────────────────────────────────────────────
@@ -3578,6 +3595,8 @@ const SCENARIOS = {
     go() { ensureBacking(); toggleCallResp(); scenMsg('🗣 <b>Akkord &amp; Lick</b> – auf jeder Eins kommt der Akkord, dann bist du dran. Schalter im Bereich <b>Trainer</b>.'); } },
   trainer:  { panels: ['fb', 'trainer'],
     go() { openCard('trainer'); scenMsg('🎤 <b>Trainer</b>: wähle oben eine Übung – Box auf &amp; ab, Ton finden, Akkordton/Terz auf die 1 … (Mikrofon/Kemper-Eingang).'); } },
+  solo:     { panels: ['fb', 'prog', 'trainer', 'ton'],
+    go() { ensureBacking(); openCard('trainer'); scenMsg('🎧 <b>Solo aufnehmen</b>: im Bereich <b>Trainer</b> auf <b>⏺ Solo aufnehmen</b>, frei übers Backing spielen, dann <b>⏹ stoppen</b> – danach kommt die objektive Auswertung (Skala, Timing, Akkordtöne, Umfang).'); } },
   free:     { panels: ALL_PANELS, go() { scenMsg(''); } },
 };
 function enterScenario(id) {
@@ -4753,6 +4772,7 @@ function markTrainerBtns() {
     const b = document.getElementById('tr-' + m);
     if (b) b.classList.toggle('active', !!S.trainer && S.trainer.mode === m);
   });
+  renderSoloBtn();
 }
 function startTrainerMode(mode) {
   if (mode === 'lick' && !S.selectedLick) { alert('Erst einen Lick in der Sammlung auswählen.'); return; }
@@ -4824,6 +4844,11 @@ function trainerHearNote(midi, onsetT) {
   // Kalibrierung: rohe Anschlagzeiten sammeln (Latenz = Abstand zum jeweiligen Klick)
   if (tr.mode === 'calib') {
     if (!tr.done) tr.onsets.push(onsetT ?? actx.currentTime);
+    return;
+  }
+  // Solo-Analyse: jeden Anschlag mit (latenzbereinigtem) Zeitstempel mitschreiben
+  if (tr.mode === 'solo') {
+    if (tr.recording) tr.notes.push({ t: (onsetT ?? actx.currentTime) - S.micLatency, midi });
     return;
   }
   // Lick-Bewertung: Anschläge während des Takes sammeln (Zeit relativ zum Take-Start,
@@ -5152,6 +5177,130 @@ function toggleGradeDemo() {
   saveSettings();
 }
 
+// ─── Solo-Analyse: frei über das Backing spielen, danach objektiv auswerten ───
+// Keine Sollmelodie → keine subjektive Note, sondern messbare Kriterien:
+// Skalen-Treue, Timing zum Beat-Raster, Akkordton auf der Eins, Umfang & Dichte.
+function soloToggle() {
+  if (S.trainer && S.trainer.mode === 'solo') stopSolo();
+  else startSolo();
+}
+function startSolo() {
+  closeGradeReport();
+  startMic().then(ok => {
+    if (!ok) return;
+    if (!S.metroOn) startMetro();                 // Beat-Raster + (falls Progression geladen) Backing
+    S.trainer = { mode: 'solo', recording: true, notes: [], grid: [], spb: 60 / S.bpm, t0: audio().currentTime };
+    markTrainerBtns();
+    const row = document.getElementById('trainRow');
+    if (row) { row.style.display = 'flex'; row.classList.add('grading'); }
+    setTrainerStatus('⏺ Aufnahme läuft – solier frei über das Backing. Fertig? Noch einmal auf „⏹ Solo stoppen & auswerten".');
+    render();
+  });
+}
+function stopSolo() {
+  const tr = S.trainer;
+  if (!tr || tr.mode !== 'solo') return;
+  tr.recording = false;
+  const res = analyzeSolo(tr);
+  stopTrainer();                                  // Mikro aus, Trainer-Zeile weg, S.trainer = null
+  stopMetro();
+  renderSoloReport(res);
+}
+function renderSoloBtn() {
+  const b = document.getElementById('tr-solo');
+  if (!b) return;
+  const on = !!(S.trainer && S.trainer.mode === 'solo');
+  b.textContent = on ? '⏹ Solo stoppen & auswerten' : '⏺ Solo aufnehmen';
+  b.classList.toggle('active', on);
+}
+function analyzeSolo(tr) {
+  const notes = (tr.notes || []).slice().sort((a, b) => a.t - b.t);
+  const total = notes.length;
+  if (total < 3) return { empty: true, total };
+  const spb = tr.spb || 60 / S.bpm;
+  const grid = (tr.grid || []).filter(g => g.t != null);
+  // Skalen-Treue: Pentatonik + Blue Note gelten als „drin"
+  const scale = scaleSet(S.key, S.scale), bluePc = blueNotePc();
+  let inScale = 0, blue = 0, out = 0; const outCount = {};
+  notes.forEach(n => { const pc = mod12(n.midi);
+    if (pc === bluePc) blue++;
+    else if (scale.includes(pc)) inScale++;
+    else { out++; outCount[pc] = (outCount[pc] || 0) + 1; } });
+  const scalePct = Math.round(100 * (inScale + blue) / total);
+  const topOut = Object.entries(outCount).sort((a, b) => b[1] - a[1]).slice(0, 4)
+    .map(([pc, c]) => `${nn(+pc, S.key)}${c > 1 ? ` ×${c}` : ''}`).join(' · ');
+  // Umfang & Dichte
+  const midis = notes.map(n => n.midi);
+  const lo = Math.min(...midis), hi = Math.max(...midis);
+  const midiName = m => nn(mod12(m), S.key) + (Math.floor(m / 12) - 1);
+  const span = notes[total - 1].t - notes[0].t, barSec = S.beatsPerMeasure * spb;
+  const bars = span > 0 ? span / barSec : 0;
+  const perBar = bars > 0.25 ? total / bars : total;
+  // Timing: Abstand zum nächstgelegenen 8tel- ODER Triolen-Raster (straight oder shuffle gilt)
+  const errsMs = [];
+  if (grid.length) {
+    const g0 = grid[0].t, u8 = spb / 2, u3 = spb / 3, gEnd = grid[grid.length - 1].t + spb;
+    notes.forEach(n => {
+      if (n.t < g0 - 0.05 || n.t > gEnd) return;
+      const rel = n.t - g0;
+      const e8 = rel - Math.round(rel / u8) * u8, e3 = rel - Math.round(rel / u3) * u3;
+      errsMs.push(Math.round((Math.abs(e8) <= Math.abs(e3) ? e8 : e3) * 1000));
+    });
+  }
+  const meanAbs = errsMs.length ? Math.round(errsMs.reduce((a, e) => a + Math.abs(e), 0) / errsMs.length) : null;
+  const medSigned = errsMs.length ? Math.round(gradeMedian(errsMs)) : 0;
+  // Akkordton auf der Eins: auf jeder Takt-Eins mit Akkord den nächsten Ton im Fenster prüfen
+  let chordHits = 0, chordN = 0, empties = 0;
+  if (S.prog.length && grid.length) {
+    const W = Math.min(0.22, spb * 0.4);
+    grid.filter(g => g.beat0 && g.chord).forEach(g => {
+      chordN++;
+      let best = null, bd = Infinity;
+      notes.forEach(n => { const d = Math.abs(n.t - g.t); if (d < bd) { bd = d; best = n; } });
+      if (best && bd <= W) { if (g.chord.pcs.includes(mod12(best.midi))) chordHits++; }
+      else empties++;
+    });
+  }
+  const played1 = chordN - empties;
+  const chordPct = played1 > 0 ? Math.round(100 * chordHits / played1) : null;
+  return { total, scalePct, blue, out, topOut, rangeSemi: hi - lo, loName: midiName(lo), hiName: midiName(hi),
+    perBar: Math.round(perBar * 10) / 10, bars: Math.round(bars * 10) / 10,
+    meanAbs, medSigned, timedN: errsMs.length, chordHits, chordN, empties, chordPct, hasProg: !!S.prog.length };
+}
+function renderSoloReport(res) {
+  const box = document.getElementById('gradeReport');
+  if (!box) return;
+  if (res.empty) {
+    box.innerHTML = `<div class="gr-head">🎧 <b>Solo-Analyse</b></div>
+      <div class="gr-sub">Zu wenig erkannt (${res.total || 0} Töne). Direktes Signal (Kemper/Interface) und sauber angeschlagene Einzeltöne helfen der Erkennung.</div>
+      <div class="gr-controls"><button class="flow" onclick="startSolo()">🔁 Nochmal aufnehmen</button><button onclick="closeGradeReport()">✕ Schließen</button></div>`;
+    box.style.display = 'block'; box.scrollIntoView({ block: 'nearest' }); return;
+  }
+  const band = ms => ms == null ? 'var(--muted)' : ms <= 55 ? '#22c55e' : ms <= 110 ? '#eab308' : '#f59e0b';
+  const rush = res.meanAbs == null ? 'kein Backing/Metronom lief'
+    : res.medSigned < -12 ? `${-res.medSigned} ms zu früh (eilst)`
+    : res.medSigned > 12 ? `${res.medSigned} ms zu spät (schleppst)` : 'gut auf dem Punkt';
+  const card = (k, v, d, col) => `<div class="so-card"><div class="so-k">${k}</div><div class="so-v" style="color:${col || 'var(--text)'}">${v}</div><div class="so-d">${d}</div></div>`;
+  const scaleCol = res.scalePct >= 85 ? '#22c55e' : res.scalePct >= 65 ? '#eab308' : '#f59e0b';
+  const chordCol = res.chordPct == null ? 'var(--muted)' : res.chordPct >= 70 ? '#22c55e' : res.chordPct >= 45 ? '#eab308' : '#f59e0b';
+  box.innerHTML =
+    `<div class="gr-head">🎧 <b>Solo-Analyse</b> · ${res.total} Töne über ~${res.bars} Takte</div>
+     <div class="so-cards">
+       ${card('Skala', res.scalePct + '%', `in Pentatonik/Blues${res.blue ? ` · ${res.blue}× Blue Note ${blueNoteLabel()}` : ''}${res.out ? ` · ${res.out} außerhalb` : ''}`, scaleCol)}
+       ${card('Timing', res.meanAbs == null ? '–' : res.meanAbs + ' ms', `${rush}${res.timedN ? ' · 8tel/Shuffle-Raster' : ''}`, band(res.meanAbs))}
+       ${card('Akkordton auf der 1', res.chordPct == null ? '–' : res.chordPct + '%', res.hasProg ? `${res.chordHits}/${res.chordN - res.empties} Einsen${res.empties ? ` · ${res.empties} ohne Ton` : ''}` : 'kein Backing geladen', chordCol)}
+       ${card('Umfang & Dichte', res.rangeSemi + ' HT', `${res.perBar} Töne/Takt · ${res.loName}–${res.hiName}`)}
+     </div>
+     ${res.out ? `<div class="so-out">Außerhalb der Skala: <b>${res.topOut}</b></div>` : ''}
+     <div class="so-hint">Freies Solieren hat keine Vorlage – bewertet werden nur objektive Kriterien. „Außerhalb" ≠ falsch: gezielte Spannungstöne sind erwünscht. Timing misst die Nähe zu einem sauberen 8tel-/Shuffle-Raster (Triolen/Synkopen lesen sich als „daneben").</div>
+     <div class="gr-controls">
+       <button class="flow" onclick="startSolo()" title="Neues Solo aufnehmen">🔁 Nochmal aufnehmen</button>
+       <button onclick="closeGradeReport()">✕ Schließen</button>
+     </div>`;
+  box.style.display = 'block';
+  box.scrollIntoView({ block: 'nearest' });
+}
+
 function clearProg() {
   stopMetro();
   document.getElementById('progInput').value = '';
@@ -5476,6 +5625,14 @@ function metroScheduler() {
         } else if (barIdx === recBar && tr.t0 == null) {
           tr.t0 = t; tr.takeEnd = t + tr.takeDur; setPhase('record');
         }
+      }
+      // Solo-Analyse: Beat-Raster mitschreiben (Zeitpunkt + aktiver Akkord auf jeder Zählzeit)
+      if (S.trainer && S.trainer.mode === 'solo' && S.trainer.recording) {
+        let chord = null;
+        const ci = chordIdxAtMM(mm);
+        if (ci >= 0) { const ch = S.prog[ci];
+          chord = { ci, pcs: [mod12(ch.rootPc), mod12(ch.rootPc + ch.third), mod12(ch.rootPc + ch.fifth)] }; }
+        S.trainer.grid.push({ t, m, beat0: beatInMeasure === 0, chord });
       }
       // Kalibrierung: jeden Klick-Zeitpunkt merken; nach genug Schlägen auswerten
       if (S.trainer && S.trainer.mode === 'calib' && !S.trainer.done) {
