@@ -509,6 +509,7 @@ details.card > summary:hover { color: var(--text); }
       <span class="tb-sep"></span>
       <button id="btn-blue" onclick="toggleBlue()" title="Blues-Skala: ♭5 (Moll) bzw. ♭3 (Dur) zusätzlich zur Pentatonik anzeigen – die Spannungstöne zum Ausbrechen aus den Triaden">♦ Blues-Skala</button>
       <button id="btn-bluearr" onclick="toggleBlueArrows()" title="Auflösungs-Pfeile: zeigen, wohin sich der Blue Note auflöst (½ Ton hoch/runter zum stabilen Ton)">→ Auflösung</button>
+      <button id="btn-third3" onclick="toggleThird3()" title="Terz-Flirt: kleine Terz (♭3) und große Terz (♮3) als Paar mit Bend-Bogen dazwischen – der klassische Blues-Move: von der ♭3 in die große Terz biegen/flirten. In A: C ↔ C#.">③ Terz-Flirt</button>
       <button id="btn-pair" onclick="togglePair()" title="Triaden-Paar (Hexatonik): eigener Dreiklang + Dur-Dreiklang einen Ganzton darunter – zwei simple Griffe, moderner 6-Ton-Klang">⚭ Paar</button>
       <button id="btn-approach" onclick="toggleApproach()" title="½-Anlauf: den Triaden-Griff aus einem Halbton darunter in den Zielakkord rutschen – Spannung mit sauberer Auflösung">↦ ½-Anlauf</button>
       <button id="btn-lickshow" class="active" onclick="toggleLickShow()" title="Ausgewählten Lick auf dem Griffbrett ein-/ausblenden – die Auswahl bleibt erhalten (▶ Lick, Loop und Trainer funktionieren weiter)">🎵 Lick</button>
@@ -1065,7 +1066,7 @@ const S = { key: 9, scale: 'minor', pos: 1, triad: 'none', set: 'DGB', label: 'n
             callResp: false, crBars: 1, crRandom: false, crDemo: false, crThird: false,   // Akkord-&-Lick-Übung
             editing: null, editSel: -1, editKey: null, editBox: 0, stackNext: false, soloDraft: null, lickStep: -1,
             trading: false, motif: false, limit: null, limitNotes: [], limitFrets: [0, 3],
-            trainer: null, micGate: 0.004, micBoost: 8, blue: false, blueArrows: false,
+            trainer: null, micGate: 0.004, micBoost: 8, blue: false, blueArrows: false, third3: false,
             lickFilter: { text: '', box: 0, scale: 'all', sort: '', sortKey: '' },
             superId: 'none', pair: false, approach: false,
             presetTab: 'vorlagen', showLegend: false, fbCompact: false, outDevice: '',
@@ -1361,6 +1362,7 @@ function superTriad() {
 // Triaden-Paar (Hexatonik): eigener Dreiklang + Dur-Dreiklang einen Ganzton darunter (♭VII).
 // Dur/Dominant: A + G = Mixolydisch-Hexatonik · Moll: Am + G = Moll-Hexatonik (ohne ♭6).
 const PAIR1_COL = '#14b8a6', PAIR2_COL = '#a3e635';
+const THIRD_COL = '#a855f7';                  // Terz-Flirt (♭3 ↔ ♮3)
 function pairTriads() {
   if (!S.pair) return null;
   const base = currentChordRootPc();
@@ -1790,6 +1792,22 @@ function render() {
     svg.appendChild(el('line', { x1:sx, y1:y, x2:ex, y2:y, stroke:'rgba(236,72,153,0.75)', 'stroke-width':2 }));
     svg.appendChild(el('polygon', { points:`${ex},${y} ${ex - dir*5},${y-3} ${ex - dir*5},${y+3}`, fill:'rgba(236,72,153,0.95)' }));
   }
+  // Terz-Flirt: ♭3 (gefüllt) bzw. ♮3 (hohl) in Violett, klick- und einfügbar
+  function thirdMarker(x, y, midi, s, fret, filled, txt) {
+    const c = el('circle', { cx:x, cy:y, r:DR-1,
+      fill: filled ? THIRD_COL : 'rgba(168,85,247,0.16)', stroke: THIRD_COL, 'stroke-width': filled ? 1.5 : 2.2 });
+    c.style.cursor = 'pointer';
+    c.addEventListener('click', e => { if (capturing()) recordNote(s, fret, e.shiftKey); else playNote(midi, s, fret, THIRD_COL); });
+    svg.appendChild(c);
+    svg.appendChild(el('text', { x, y, fill: filled ? '#0b0f14' : '#e9d5ff', 'font-size': txt.length > 1 ? 8 : 9.5, 'font-weight':'bold',
+      'text-anchor':'middle', 'dominant-baseline':'middle', style:'user-select:none;pointer-events:none' }, txt));
+  }
+  // „Flirt"-Bogen von der ♭3 hoch zur großen Terz (½ Ton, gleiche Saite) – die Bend-Geste
+  function flirtArrow(fromFret, toFret, s) {
+    const y = sy(s), x1 = fx(fromFret) + (DR - 1), x2 = fx(toFret) - (DR - 1), cx = (x1 + x2) / 2, my = y - 14;
+    svg.appendChild(el('path', { d:`M ${x1} ${y} Q ${cx} ${my} ${x2} ${y}`, fill:'none', stroke:THIRD_COL, 'stroke-width':2 }));
+    svg.appendChild(el('polygon', { points:`${x2 + 2},${y} ${x2 - 5},${y - 5} ${x2 - 5},${y + 1}`, fill:THIRD_COL }));
+  }
   // Ton eines Triaden-Paars: Kreis in Paar-Farbe mit Notenname
   function pairMarker(x, y, midi, s, fret, colFill, txt) {
     const c = el('circle', { cx:x, cy:y, r:DR-1, fill:colFill, stroke:'rgba(0,0,0,0.35)', 'stroke-width':1.5 });
@@ -1862,6 +1880,24 @@ function render() {
         'text-anchor':'middle', 'dominant-baseline':'middle', style:'user-select:none;pointer-events:none'
       }, txt));
     }
+  }
+
+  // Terz-Flirt: ♭3 und ♮3 als Paar + Bend-Bogen dazwischen (der Blues-Move: von der
+  // kleinen in die große Terz „flirten"). ♭3 gefüllt (Startton), ♮3 hohl (Ziel).
+  if (S.third3) {
+    const b3 = mod12(k + 3);                                            // kleine Terz (Start des Flirts)
+    const win = boxWindowNow();
+    const lo = win ? win[0] : 0, hi = win ? win[1] : FRETS;
+    for (let s = 0; s < 6; s++)
+      for (let f = lo; f <= hi; f++) {
+        if (mod12(OPEN_PC[s] + f) !== b3) continue;
+        const nf = f + 1;                                               // große Terz = ½ Ton höher, gleiche Saite
+        if (nf <= FRETS) {                                              // Partner + Bogen (auch knapp außerhalb der Box)
+          flirtArrow(f, nf, s);
+          thirdMarker(fx(nf), sy(s), OPEN_MIDI[s] + nf, s, nf, false, '3');
+        }
+        thirdMarker(fx(f), sy(s), OPEN_MIDI[s] + f, s, f, true, '♭3');  // ♭3 zuletzt (oben drauf)
+      }
   }
 
   // Triaden-Tricks: Obere Struktur (orange Quadrate) und Triaden-Paar (teal/lime Kreise)
@@ -2217,6 +2253,12 @@ function toggleBlueArrows() {
   S.blueArrows = !S.blueArrows;
   if (S.blueArrows && !S.blue) toggleBlue();       // Pfeile brauchen die Blue Notes
   document.getElementById('btn-bluearr').classList.toggle('active', S.blueArrows);
+  render();
+}
+function toggleThird3() {
+  S.third3 = !S.third3;
+  document.getElementById('btn-third3').classList.toggle('active', S.third3);
+  saveSettings();
   render();
 }
 function setSuper(v) { S.superId = v; render(); }
@@ -5929,7 +5971,7 @@ function reparseProg() {
 
 // ─── Einstellungen merken (localStorage) ─────────────────────────────────────
 const SETTINGS_KEY = 'gitarrenTraining.settings';
-const PERSIST = ['key','scale','pos','triad','set','label','blue','blueArrows','pair','approach',
+const PERSIST = ['key','scale','pos','triad','set','label','blue','blueArrows','third3','pair','approach',
   'superId','bpm','beatsPerMeasure','tripletFeel','measuresPerChord','countIn','click','drums',
   'bass','groove','drumFeel','fills','customPattern','customSwing','gradeDemo','micLatency','micCalibrated','vol','boxMode','micBoost','lickLoop','sound','selectedLick',
   'presetTab','showLegend','cards','fbCompact','intervalMode','intervalRef',
