@@ -129,6 +129,11 @@ select {
 .fbp-chip.cur { background: var(--accent); border-color: #a9c7ff; color: #fff; font-weight: 750;
   font-size: 2rem; box-shadow: 0 0 0 2px #a9c7ff40; }
 .fbp-sep { width: 2px; height: 36px; background: var(--border); margin: 0 2px; }
+.chord-coach { display:flex; flex-wrap:wrap; align-items:center; gap:12px 24px; padding:14px; margin-top:8px;
+  background:var(--panel2); border:1px solid var(--border); border-radius:12px; }
+.chord-coach strong { font-size:1.7rem; color:#c4dbff; margin-left:10px; }
+.chord-coach .countdown { font-size:1rem; font-variant-numeric:tabular-nums; }
+.chord-coach .target-hint { flex-basis:100%; font-size:0.8rem; color:var(--muted); }
 .chord-chip {
   background: var(--panel2); border: 1.5px solid var(--border); border-radius: 9px;
   padding: 7px 13px; cursor: pointer; text-align: center; min-width: 58px;
@@ -629,6 +634,12 @@ body.play-mode #topBar #metroBtn { display: inline-block; }
     <svg id="fb" viewBox="0 0 1318 235" role="img" aria-label="Interaktives Gitarrengriffbrett"></svg>
     </div>
     <div id="fbProg" style="display:none" role="group" aria-label="Akkordfolge – aktueller Akkord hervorgehoben" title="Klick springt zum Akkord · Leertaste: Start / Stop (außer in Eingabefeldern und im Lick-Editor)"></div>
+    <div id="chordCoach" class="chord-coach" style="display:none">
+      <div><span id="nextChordLabel" class="tb-label">Als Nächstes</span><strong id="nextChordName"></strong></div>
+      <span id="chordCountdown" class="countdown" role="timer" aria-live="off"></span>
+      <button id="btn-targetNotes" type="button" onclick="toggleTargetNotes()" aria-pressed="false">◎ Zieltöne</button>
+      <span id="targetNotesHint" class="target-hint" style="display:none"></span>
+    </div>
     <!-- Kompakte Lick-Auswahl: bleibt mit dem Griffbrett oben, damit man Licks
          wechseln kann, ohne zur großen Tabelle zu scrollen -->
     <div id="lickBar" style="display:none">
@@ -1157,7 +1168,7 @@ const ROLE_TXT  = { R:'#fff',    '3':'#04231a', '5':'#fff' };
 // ─── State ────────────────────────────────────────────────────────────────────
 const S = { key: 9, scale: 'minor', pos: 1, triad: 'none', set: 'DGB', label: 'names',
             prog: [], progIdx: -1, anchor: null,
-            sound: true, currentGrip: [], boxMode: 'strict', currentSet: 'DGB',
+            sound: true, currentGrip: [], boxMode: 'strict', currentSet: 'DGB', targetNotes: false,
             bpm: 90, beatsPerMeasure: 4, measuresPerChord: 1, metroOn: false, countIn: true,
             exercise: null, bluesForm: null, click: true, drums: true, bass: true,
             groove: 'straight', drumFeel: 'chicago', fills: true, customPattern: null, customSwing: 60, gradeDemo: true, micLatency: 0.035, micCalibrated: false, tripletFeel: false, vol: { click: 1, drums: 1, bass: 1, guitar: 1, lick: 1 },
@@ -1835,6 +1846,7 @@ function render() {
     document.getElementById('info').innerHTML =
       `<h3>Intervall-Ansicht</h3><div class="hint">Bezugston: <b>${nn(refPc, refPc)}</b>${ref ? '' : ' (Grundton der Tonart)'} · jede Position zeigt ihr Intervall dazu. Klicke eine Position, um sie zum neuen Bezugston zu machen.<br>R · Terz (♭3/3, grün) · Quinte (5, lila) · Septime (♭7/7, blau) sind hervorgehoben.</div>`;
     S.currentGrip = [];
+    renderChordCoach();
     saveSettings();
     return;
   }
@@ -2184,6 +2196,8 @@ function render() {
   }
 
   S.currentGrip = grip;
+  renderTargetNotes(svg);
+  renderChordCoach();
   updateInfo(grip);
   renderFbStaff();         // Noten/TAB unter dem Griffbrett mitziehen
   updateEditAffordances(); // ✎-Knöpfe an die aktuelle Auswahl anpassen
@@ -5554,7 +5568,82 @@ function clearProg() {
   render();
 }
 const INV_SHORT = { root:'Grundst.', inv1:'1. Umk.', inv2:'2. Umk.' };
+// UI follows the audible beat, never the scheduler's lookahead position.
+let coachBeat = null;
+let transportGeneration = 0;
+function upcomingChord() {
+  if (!S.prog.length) return null;
+  const countIn = S.metroOn && coachBeat && coachBeat.countIn;
+  const idx = countIn || S.progIdx < 0 ? 0 : (S.progIdx + 1) % S.prog.length;
+  return S.prog[idx];
+}
+function toggleTargetNotes() {
+  S.targetNotes = !S.targetNotes;
+  render();
+  saveSettings();
+}
+function renderChordCoach() {
+  const box = document.getElementById('chordCoach');
+  const next = upcomingChord();
+  box.style.display = next ? 'flex' : 'none';
+  if (!next) return;
+  const countIn = S.metroOn && coachBeat && coachBeat.countIn;
+  document.getElementById('nextChordLabel').textContent = countIn ? 'Start mit' : 'Als Nächstes';
+  document.getElementById('nextChordName').textContent = next.name;
+  const remaining = coachBeat && (countIn || coachBeat.idx === S.progIdx) ? coachBeat.remaining : null;
+  document.getElementById('chordCountdown').textContent = !S.metroOn ? 'Bereit · Leertaste zum Starten'
+    : remaining == null ? 'Warte auf die nächste Zählzeit …'
+    : `${countIn ? 'Einzähler · Start' : S.prog.length === 1 ? 'Neue Runde' : 'Wechsel'} in ${remaining} ${remaining === 1 ? 'Schlag' : 'Schlägen'}`;
+  const btn = document.getElementById('btn-targetNotes');
+  btn.classList.toggle('active', !!S.targetNotes);
+  btn.setAttribute('aria-pressed', String(!!S.targetNotes));
+  const hint = document.getElementById('targetNotesHint');
+  hint.style.display = S.targetNotes ? '' : 'none';
+  hint.textContent = S.intervalMode || capturing() ? 'Zieltöne pausieren in der Intervall-Ansicht und im Editor.'
+    : `Ziel für ${next.name}: R = ${nn(mod12(next.rootPc), S.key)} · ${next.third === 3 ? '♭3' : '3'} = ${nn(mod12(next.rootPc + next.third), S.key)}. Je ein naher Griffpunkt, gestrichelt markiert – auch außerhalb der Pentatonik.`;
+}
+function targetPositions(ch) {
+  if (!ch) return [];
+  const win = boxWindowNow();
+  const anchors = S.currentGrip.length ? S.currentGrip : [{s:2.5, fret:win ? (win[0] + win[1]) / 2 : 5}];
+  return [0, ch.third].map((interval, i) => {
+    const pc = mod12(ch.rootPc + interval);
+    let best = null, score = Infinity;
+    for (let s = 0; s < 6; s++) for (let fret = 0; fret <= FRETS; fret++) {
+      if (mod12(OPEN_PC[s] + fret) !== pc) continue;
+      const distance = Math.min(...anchors.map(a => Math.abs(fret - a.fret) + Math.abs(s - a.s) * 0.6));
+      if (distance < score) { score = distance; best = {s, fret, pc, role:i ? (ch.third === 3 ? '♭3' : '3') : 'R'}; }
+    }
+    return best;
+  });
+}
+function renderTargetNotes(svg) {
+  if (!S.targetNotes || S.intervalMode || capturing()) return;
+  targetPositions(upcomingChord()).forEach(n => {
+    const x = fx(n.fret), y = sy(n.s);
+    const g = el('g', {class:'next-target', 'data-role':n.role, 'data-pc':n.pc});
+    g.appendChild(el('circle', {cx:x, cy:y, r:DR+5, fill:'none', stroke:'#f8fafc', 'stroke-width':2.5, 'stroke-dasharray':'3 2', 'pointer-events':'none'}));
+    g.appendChild(el('text', {x:x+17, y:y-10, fill:'#fff', stroke:'#10151e', 'stroke-width':3, 'paint-order':'stroke', 'font-size':10, 'font-weight':'bold', 'pointer-events':'none'}, n.role));
+    // Unfilled positions still offer the same note preview as the fretboard.
+    const hit = el('circle', {cx:x, cy:y, r:DR+5, fill:'transparent', style:'cursor:pointer'});
+    hit.appendChild(el('title', {}, `Ziel ${n.role}: ${nn(n.pc, S.key)} für ${upcomingChord().name}`));
+    hit.addEventListener('click', () => playNote(OPEN_MIDI[n.s]+n.fret, n.s, n.fret, '#fff'));
+    g.appendChild(hit);
+    svg.appendChild(g);
+  });
+}
+function updateCoachBeat(mm, m, schedule) {
+  if (m < 0) coachBeat = {countIn:true, remaining:-m};
+  else if (schedule && schedule.total && S.prog.length) {
+    const starts = Object.keys(schedule.starts).map(Number).sort((a,b) => a-b);
+    const start = starts.filter(b => b <= mm).pop();
+    const end = starts.find(b => b > mm) ?? schedule.total;
+    coachBeat = {idx:schedule.starts[start], remaining:end-mm, countIn:false};
+  } else coachBeat = null;
+  renderChordCoach();
+}
 function renderChips() {
+  renderChordCoach();
   const box = document.getElementById('progChips');
   const transport = document.getElementById('progTransport');
   const strip = document.getElementById('fbProg');
@@ -5903,9 +5992,19 @@ function metroScheduler() {
       const ch = S.prog[idx];
       if (S.sound && ch.voice)
         strumGripAt(voicingToGrip(ch.voice, ch.rootPc, ch.third, ch.voice.set), t - ac.currentTime);
-      setTimeout(() => { S.progIdx = idx; renderChips(); render(); }, aheadMs);
+      const generation = transportGeneration, schedule = metro.sched;
+      setTimeout(() => {
+        if (!S.metroOn || generation !== transportGeneration || schedule !== metro.sched) return;
+        updateCoachBeat(mm, m, schedule);
+        S.progIdx = idx; renderChips(); render();
+      }, aheadMs);
     }
-    setTimeout(() => litBeat(beatInMeasure, isCountIn), aheadMs);
+    const generation = transportGeneration, schedule = metro.sched;
+    setTimeout(() => {
+      if (!S.metroOn || generation !== transportGeneration || schedule !== metro.sched) return;
+      litBeat(beatInMeasure, isCountIn);
+      updateCoachBeat(mm, m, schedule);
+    }, aheadMs);
     metro.nextNote += 60 / S.bpm;
     metro.beat++;
   }
@@ -5922,9 +6021,11 @@ document.addEventListener('keydown', function transportKeydown(e) {
 });
 function startMetro() {
   audio();
+  transportGeneration++;
   S.metroOn = true;
   metro.beat = 0;
   metro.countInBeats = (S.countIn && S.prog.length) ? S.beatsPerMeasure : 0;  // ein Takt Vorzähler
+  coachBeat = metro.countInBeats ? {countIn:true, remaining:metro.countInBeats} : null;
   metro.sched = S.prog.length ? buildBeatSchedule() : null;
   metro.lickNextBeat = 0;                                                     // Lick-Loop neu starten
   metro.tradeSeg = -1;                                                        // Trading Fours neu starten
@@ -5936,11 +6037,14 @@ function startMetro() {
   metroTimer = setInterval(metroScheduler, 25);
 }
 function stopMetro() {
+  transportGeneration++;
+  coachBeat = null;
   S.metroOn = false;
   if (metroTimer) clearInterval(metroTimer);
   metroTimer = null;
   setMetroBtns(false);
   litBeat(-1);
+  render(); // Reset count-in targets and preview together with the stopped transport.
 }
 // Play/Stop steht doppelt in der Oberfläche (Dauerleiste + Einstellungszeile) – beide synchron halten
 function setMetroBtns(running) {
@@ -6092,7 +6196,7 @@ function reparseProg() {
 
 // ─── Einstellungen merken (localStorage) ─────────────────────────────────────
 const SETTINGS_KEY = 'gitarrenTraining.settings';
-const PERSIST = ['key','scale','pos','triad','set','label','blue','blueArrows','third3','pair','approach',
+const PERSIST = ['targetNotes','key','scale','pos','triad','set','label','blue','blueArrows','third3','pair','approach',
   'superId','bpm','beatsPerMeasure','tripletFeel','measuresPerChord','countIn','click','drums',
   'bass','groove','drumFeel','fills','customPattern','customSwing','gradeDemo','micLatency','micCalibrated','vol','boxMode','micBoost','lickLoop','sound','selectedLick',
   'presetTab','showLegend','cards','fbCompact','intervalMode','intervalRef',
