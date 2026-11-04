@@ -519,6 +519,43 @@ body.play-mode #topBar #metroBtn { display: inline-block; }
   .practice-nav .tb-label { width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
+/* Full chord grips stay independent from the triad/progression training state. */
+.chord-lab { margin:16px 0; padding:20px; border:1px solid #6386b1; border-radius:14px; background:#121d2b; }
+.chord-lab [hidden] { display:none !important; }
+.cl-heading, .cl-chord-heading { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }
+.cl-heading h2 { font-size:1.2rem; }
+.cl-controls { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin:14px 0; }
+.cl-controls label { display:flex; flex-wrap:wrap; align-items:center; gap:8px; font-size:0.82rem; color:var(--muted); }
+.cl-chord-heading { justify-content:flex-start; margin-top:20px; }
+#clTitle { font-size:2.6rem; line-height:1.15; letter-spacing:-0.03em; color:#fbbf24; }
+#clVariant { color:var(--muted); }
+.cl-solution { display:grid; grid-template-columns:minmax(180px,280px) minmax(0,1fr); gap:28px; align-items:start; padding:16px 0; }
+.cl-solution figure { margin:0; }
+#clDiagram { display:block; width:100%; max-width:270px; margin:0 auto; }
+.cl-solution figcaption { text-align:center; color:var(--muted); font-size:0.72rem; line-height:1.6; }
+.cl-details { min-width:0; }
+.cl-frets { margin:6px 0 10px; font-size:1.5rem; font-family:ui-monospace,monospace; letter-spacing:0.04em; overflow-wrap:anywhere; }
+.cl-table { width:100%; border-collapse:collapse; margin-top:18px; font-size:0.82rem; }
+.cl-table caption { text-align:left; color:var(--muted); padding-bottom:8px; }
+.cl-table th,.cl-table td { text-align:left; padding:8px 5px; border-bottom:1px solid var(--border); }
+.cl-table th { color:var(--muted); font-size:0.73rem; }
+.cl-map-wrap { overflow-x:auto; padding:8px 0; margin:10px 0; border:1px solid var(--border); border-radius:9px; }
+#clMap { display:block; width:100%; min-width:740px; }
+#clCaged h3 { margin-top:20px; margin-bottom:6px; }
+.cl-theory { margin-top:16px; padding:14px; border-left:3px solid #73cdb8; background:#73cdb809; border-radius:6px; }
+#clFormula { font-size:0.9rem; margin-bottom:7px; }
+.cl-help { margin-top:18px; font-size:0.8rem; color:var(--muted); }
+.cl-help summary { cursor:pointer; color:var(--text); padding:8px 0; }
+.cl-help p { margin-top:10px; }
+.cl-recall { padding:32px 16px; text-align:center; color:#c5d9f6; border:1px dashed var(--border); border-radius:10px; }
+@media (max-width:700px) {
+  .chord-lab { padding:14px 10px; }
+  .cl-solution { grid-template-columns:1fr; gap:20px; }
+  .cl-controls label { max-width:100%; }
+  .cl-controls select { min-width:0; max-width:100%; }
+  .cl-heading { align-items:flex-start; }
+}
+
 </style>
 </head>
 <body>
@@ -607,7 +644,8 @@ body.play-mode #topBar #metroBtn { display: inline-block; }
         <button id="btn-hideLick" type="button" onclick="toggleLickShow()">Lick ausblenden</button>
         <button id="btn-clearLick" type="button" onclick="selectLick(S.selectedLick)" title="Lick-Auswahl aufheben">✕ Auswahl aufheben</button>
       </span>
-      <button id="btn-voicingPractice" type="button" onclick="toggleVoicingPractice()" aria-expanded="false" aria-controls="voicingPractice">Voicings üben</button>
+      <button id="btn-chordLab" type="button" onclick="toggleChordLab()" aria-expanded="false" aria-controls="chordLab">Akkordgriffe &amp; CAGED</button>
+      <button id="btn-voicingPractice" type="button" onclick="toggleVoicingPractice()" aria-expanded="false" aria-controls="voicingPractice">Triaden-Voicings</button>
     </div>
     <div id="voicingPractice" class="voicing-practice" style="display:none">
       <strong id="voicingPracticeTitle"></strong>
@@ -621,6 +659,63 @@ body.play-mode #topBar #metroBtn { display: inline-block; }
       <span id="voicingPracticeDetail" class="hint"></span>
       <span class="hint">Anhören → nachgreifen → nächste Variante. Grundstellung und beide Umkehrungen laufen von tiefen zu hohen Lagen. Wähle einen Akkord in der Progression oder ändere Tonart und Dur/Moll.</span>
     </div>
+    <section id="chordLab" class="chord-lab" aria-labelledby="clHeading" hidden>
+      <div class="cl-heading"><div><p class="eyebrow">VOM AKKORD ZUM GRIFF</p><h2 id="clHeading">Akkordgriffe &amp; CAGED</h2></div>
+        <button type="button" onclick="toggleChordLab()" aria-label="Akkordgriff-Bereich schließen">✕ Schließen</button></div>
+      <p class="hint">Offene Griffe, Barrés und Blues-/Jazz-Voicings auf vier bis sechs Saiten. Diese Auswahl verändert deine Progression nicht.</p>
+      <div class="cl-controls">
+        <label>Grundton <select id="clRoot" onchange="setChordLab('root',this.value)"></select></label>
+        <label>Akkordtyp <select id="clQuality" onchange="setChordLab('quality',this.value)"></select></label>
+        <button type="button" onclick="useCurrentChordLab()">Aktuellen Akkord übernehmen</button>
+      </div>
+      <div class="cl-controls" role="group" aria-label="Akkordgriff-Ansicht">
+        <button id="clGripsMode" type="button" onclick="setChordLab('mode','grips')" aria-pressed="true">Typische Griffe</button>
+        <button id="clCagedMode" type="button" onclick="setChordLab('mode','caged')" aria-pressed="false">CAGED · Dur</button>
+        <span class="hint">CAGED wählt die Dur-Formen des eingestellten Grundtons.</span>
+      </div>
+      <p id="clNotice" class="hint" role="status"></p>
+      <div class="cl-chord-heading"><strong id="clTitle"></strong><span id="clVariant" role="status"></span></div>
+      <div class="cl-controls">
+        <button id="clPrev" type="button" onclick="stepChordLab(-1)">‹ Vorheriger Griff</button>
+        <button id="clPlay" type="button" onclick="playChordLab()">♪ Akkord hören</button>
+        <button id="clArpeggio" type="button" onclick="playChordLab(true)">♪ Saite für Saite</button>
+        <button id="clNext" type="button" onclick="stepChordLab(1)">Nächster Griff ›</button>
+        <button id="clReveal" type="button" onclick="toggleChordLabReveal()" aria-controls="clSolution clMapWrap" aria-expanded="true">Griff verdecken</button>
+      </div>
+      <p id="clRecall" class="cl-recall" hidden>Greife den Akkord aus dem Gedächtnis. Höre bei Bedarf vor und klicke dann auf „Griff anzeigen“, um zu vergleichen.</p>
+      <div id="clSolution" class="cl-solution">
+        <figure><svg id="clDiagram" role="img" aria-label="Akkordgriff mit Fingersatz"></svg>
+          <figcaption>Gold = Grundton · Zahlen = Finger<br>1 Zeige-, 2 Mittel-, 3 Ring-, 4 kleiner Finger<br>○ offene Saite · × nicht anschlagen · Balken = Barré</figcaption></figure>
+        <div class="cl-details">
+          <p class="tb-label">Saiten tief → hoch · E A D G B e</p><p id="clFrets" class="cl-frets"></p>
+          <p id="clGripHint" class="hint"></p>
+          <table class="cl-table"><caption>Griff im Detail</caption><thead><tr><th>Saite</th><th>Bund</th><th>Finger</th><th>Ton</th><th>Intervall</th></tr></thead><tbody id="clStrings"></tbody></table>
+        </div>
+      </div>
+      <div id="clCaged" hidden>
+        <h3>Ein Akkord, fünf Formen</h3>
+        <p class="hint">C–A–G–E–D benennt die Griffvorbilder, nicht fünf verschiedene Akkorde. Die Formen überlappen sich auf dem Hals. Vollständige C- und G-Barréformen sind anspruchsvoll; unter „Typische Griffe“ findest du auch einen G-Teilgriff.</p>
+        <div id="clForms" class="cl-controls" role="group" aria-label="CAGED-Form wählen">
+          <button type="button" data-form="C" onclick="setChordLab('form','C')">C-Form</button>
+          <button type="button" data-form="A" onclick="setChordLab('form','A')">A-Form</button>
+          <button type="button" data-form="G" onclick="setChordLab('form','G')">G-Form</button>
+          <button type="button" data-form="E" onclick="setChordLab('form','E')">E-Form</button>
+          <button type="button" data-form="D" onclick="setChordLab('form','D')">D-Form</button>
+          <label>Zusätzlich zeigen <select id="clOverlay" onchange="setChordLab('overlay',this.value)">
+            <option value="none">Nur gewählter Griff</option><option value="triad">Dreiklangstöne R · 3 · 5</option><option value="penta">Dur-Pentatonik</option>
+          </select></label>
+        </div>
+        <div id="clMapWrap" class="cl-map-wrap" tabindex="0" role="region" aria-label="CAGED-Griffbrett, horizontal scrollbar"><svg id="clMap" role="img" aria-label="CAGED-Formen auf dem Gitarrenhals"></svg></div>
+        <p class="hint">Große Punkte = gewählter Griff · kleine Punkte = zusätzlich eingeblendete Töne · Gold = Grundton.</p>
+      </div>
+      <div class="cl-theory"><p id="clFormula"></p><p id="clTheory" class="hint"></p></div>
+      <details class="cl-help"><summary>So übst du · Begriffe &amp; Hintergrund</summary>
+        <p>Wähle einen Akkord, höre die Saiten einzeln und greife nach. Verdecke den Griff und versuche ihn aus dem Gedächtnis. Wechsle anschließend zur nächsten Lage und vergleiche den Klang.</p>
+        <p>Die Fingersätze sind Vorschläge. × bedeutet nicht anschlagen oder abdämpfen – besonders bei Jazz-Griffen werden Saiten zwischen klingenden Tönen ausgelassen. Nicht jeder Akkord muss über alle sechs Saiten gespielt werden. B bezeichnet hier international den deutschen Ton H; Bb entspricht deutschem B.</p>
+        <p>Hintergrund: <a href="https://www.justinguitar.com/modules/caged-system" target="_blank" rel="noopener noreferrer">CAGED bei JustinGuitar</a> · <a href="https://www.fender.com/articles/chords/learn-to-play-cadd9-guitar-chord" target="_blank" rel="noopener noreferrer">Cadd9 bei Fender</a>.</p>
+      </details>
+    </section>
+
     <details class="fretboard-tools"><summary>Anzeige &amp; Klangfarben <span>Noten, Blues-Skala, Triaden und mehr</span></summary>
     <div class="fb-toolbar">
       <span class="btn-row">
@@ -2479,7 +2574,7 @@ function renderPracticeControls() {
   const practice = currentVoicingPractice();
   const button = document.getElementById('btn-voicingPractice');
   button.disabled = !!S.editing;
-  button.textContent = practice ? 'Voicing-Übung beenden' : 'Voicings üben';
+  button.textContent = practice ? 'Voicing-Übung beenden' : 'Triaden-Voicings';
   button.setAttribute('aria-expanded', String(!!practice));
   document.getElementById('voicingPractice').style.display = practice ? 'flex' : 'none';
   if (practice) {
@@ -6294,7 +6389,7 @@ function reparseProg() {
 
 // ─── Einstellungen merken (localStorage) ─────────────────────────────────────
 const SETTINGS_KEY = 'gitarrenTraining.settings';
-const PERSIST = ['targetNotes','key','scale','pos','triad','set','label','blue','blueArrows','third3','pair','approach',
+const PERSIST = ['chordLab','targetNotes','key','scale','pos','triad','set','label','blue','blueArrows','third3','pair','approach',
   'superId','bpm','beatsPerMeasure','tripletFeel','measuresPerChord','countIn','click','drums',
   'bass','groove','drumFeel','fills','customPattern','customSwing','gradeDemo','micLatency','micCalibrated','vol','boxMode','micBoost','lickLoop','sound','selectedLick',
   'presetTab','showLegend','cards','fbCompact','intervalMode','intervalRef',
@@ -6457,6 +6552,257 @@ function applySettingsUI() {
   updateExerciseLabel();
 }
 
+// ─── Akkordgriffe & CAGED ────────────────────────────────────────────────────
+// Curated, transposable grips, not an unconstrained combinatorial fingering search.
+// Every template uses [E,A,D,G,B,e], null = do not play. Frets/fingers/barres
+// are separate so open shapes and their movable versions have honest fingerings.
+const CL_ROOTS = ['C','Db','D','Eb','E','F','F#','G','Ab','A','Bb','B'];
+const CL_QUALITIES = {
+  major:{label:'Dur', suffix:'', tones:[0,4,7], roles:['R','3','5'], essential:[0,4,7], tip:'Grundton, große Terz und Quinte. CAGED verbindet fünf Dur-Grundformen desselben Akkords.'},
+  minor:{label:'Moll', suffix:'m', tones:[0,3,7], roles:['R','♭3','5'], essential:[0,3,7], tip:'Die kleine Terz macht den Unterschied zu Dur.'},
+  '7':{label:'Dominant 7', suffix:'7', tones:[0,4,7,10], roles:['R','3','5','♭7'], essential:[0,4,10], tip:'Dur-Dreiklang plus kleine Septime: der klassische Blues-Akkord.'},
+  maj7:{label:'Major 7', suffix:'maj7', tones:[0,4,7,11], roles:['R','3','5','7'], essential:[0,4,11], tip:'Dur mit großer Septime. Nicht mit Dominant 7 verwechseln.'},
+  m7:{label:'Moll 7', suffix:'m7', tones:[0,3,7,10], roles:['R','♭3','5','♭7'], essential:[0,3,10], tip:'Moll-Dreiklang plus kleine Septime – häufig in Soul, Funk und Jazz.'},
+  '9':{label:'Dominant 9', suffix:'9', tones:[0,4,7,10,2], roles:['R','3','5','♭7','9'], essential:[0,4,10,2], tip:'9 enthält die kleine Septime. Bei add9 fehlt sie. Die Quinte darf im praktischen Griff fehlen.'},
+  m9:{label:'Moll 9', suffix:'m9', tones:[0,3,7,10,2], roles:['R','♭3','5','♭7','9'], essential:[0,3,10,2], tip:'Moll 7 plus None. Ein weicher Klang; vier bis sechs klingende Saiten reichen aus.'},
+  '13':{label:'Dominant 13', suffix:'13', tones:[0,4,7,10,2,5,9], roles:['R','3','5','♭7','9','11','13'], essential:[0,4,10,9], tip:'Die Griffe enthalten 3, ♭7 und 13. Die natürliche 11 wird hier weggelassen, weil sie mit der großen Terz reibt; oft fehlt auch die Quinte.'},
+  '7#9':{label:'Dominant 7♯9', suffix:'7♯9', tones:[0,4,7,10,3], roles:['R','3','5','♭7','♯9'], essential:[0,4,10,3], tip:'Große Terz und erhöhte None zusammen: ein spannungsreicher Blues-/Rock-Klang. Die Quinte fehlt in diesen Griffen.'},
+  sus4:{label:'Sus 4', suffix:'sus4', tones:[0,5,7], roles:['R','4','5'], essential:[0,5,7], tip:'Die Quarte ersetzt die Terz. Zum Vergleich danach Dur wählen und die Auflösung hören.'},
+  sus2:{label:'Sus 2', suffix:'sus2', tones:[0,2,7], roles:['R','2','5'], essential:[0,2,7], tip:'Die Sekunde ersetzt die Terz. Anders als add9 enthält sus2 keine Terz.'},
+  add9:{label:'Add 9', suffix:'add9', tones:[0,4,7,2], roles:['R','3','5','9'], essential:[0,4,7,2], tip:'Dur-Dreiklang plus None, ohne Septime. Die große Terz bleibt erhalten – anders als bei sus2.'}
+};
+// Barre entries: [fret, first string, last string, finger]. String order is E→e.
+const CL_SHAPES = [
+  {id:'maj-e', q:'major', root:4, form:'E', name:'E-Form', f:[0,2,2,1,0,0], fingers:[1,3,4,2,1,1], openFingers:[0,2,3,1,0,0], bars:[[0,0,5,1]]},
+  {id:'maj-a', q:'major', root:9, form:'A', name:'A-Form', f:[null,0,2,2,2,0], fingers:[0,1,2,3,4,1], openFingers:[0,0,1,2,3,0], bars:[[0,1,5,1]]},
+  {id:'maj-c', q:'major', root:0, form:'C', name:'C-Form', f:[null,3,2,0,1,0], fingers:[0,4,3,1,2,1], openFingers:[0,3,2,0,1,0], bars:[[0,3,5,1]], hard:true},
+  {id:'maj-g', q:'major', root:7, form:'G', name:'G-Form vollständig', f:[3,2,0,0,0,3], fingers:[3,2,1,1,1,4], openFingers:[2,1,0,0,0,3], bars:[[0,2,4,1]], hard:true},
+  {id:'maj-d', q:'major', root:2, form:'D', name:'D-Form', f:[null,null,0,2,3,2], fingers:[0,0,1,2,4,3], openFingers:[0,0,0,1,3,2], bars:[], hard:true},
+  {id:'maj-g-part', q:'major', root:7, name:'G-Form · Teilgriff', f:[null,null,0,0,0,3], fingers:[0,0,1,1,1,4], openFingers:[0,0,0,0,0,3], bars:[[0,2,4,1]], note:'Praktischer Teilgriff der G-Form; die Quinte liegt im Bass.'},
+  {id:'min-e', q:'minor', root:4, name:'Em-Form', f:[0,2,2,0,0,0], fingers:[1,3,4,1,1,1], openFingers:[0,2,3,0,0,0], bars:[[0,0,5,1]]},
+  {id:'min-a', q:'minor', root:9, name:'Am-Form', f:[null,0,2,2,1,0], fingers:[0,1,3,4,2,1], openFingers:[0,0,2,3,1,0], bars:[[0,1,5,1]]},
+  {id:'min-d', q:'minor', root:2, name:'Dm-Form', f:[null,null,0,2,3,1], fingers:[0,0,1,3,4,2], openFingers:[0,0,0,2,3,1], bars:[]},
+  {id:'7-e', q:'7', root:4, name:'E7-Form', f:[0,2,0,1,0,0], fingers:[1,3,1,2,1,1], openFingers:[0,2,0,1,0,0], bars:[[0,0,5,1]]},
+  {id:'7-a', q:'7', root:9, name:'A7-Form', f:[null,0,2,0,2,0], fingers:[0,1,3,1,4,1], openFingers:[0,0,2,0,3,0], bars:[[0,1,5,1]]},
+  {id:'7-c', q:'7', root:0, name:'C7-Form · vier Saiten', f:[null,3,2,3,1,null], fingers:[0,3,2,4,1,0], bars:[]},
+  {id:'maj7-c', q:'maj7', root:0, name:'Cmaj7-Form', f:[null,3,2,0,0,0], fingers:[0,4,3,1,1,1], openFingers:[0,3,2,0,0,0], bars:[[0,3,5,1]]},
+  {id:'maj7-a', q:'maj7', root:9, name:'Amaj7-Form', f:[null,0,2,1,2,0], fingers:[0,1,3,2,4,1], openFingers:[0,0,2,1,3,0], bars:[[0,1,5,1]]},
+  {id:'m7-e', q:'m7', root:4, name:'Em7-Form', f:[0,2,0,0,0,0], fingers:[1,3,1,1,1,1], openFingers:[0,2,0,0,0,0], bars:[[0,0,5,1]]},
+  {id:'m7-a', q:'m7', root:9, name:'Am7-Form', f:[null,0,2,0,1,0], fingers:[0,1,3,1,2,1], openFingers:[0,0,2,0,1,0], bars:[[0,1,5,1]]},
+  {id:'9-a', q:'9', root:4, name:'9 · Grundton auf A-Saite', f:[null,7,6,7,7,7], fingers:[0,2,1,3,3,3], bars:[[7,3,5,3]]},
+  {id:'9-e', q:'9', root:4, name:'9 · Grundton auf E-Saite', f:[0,null,0,1,0,2], fingers:[1,0,1,2,1,4], openFingers:[0,0,0,1,0,3], bars:[[0,0,4,1]], note:'A-Saite nicht anschlagen; beim Barré gezielt überspringen oder abdämpfen.'},
+  {id:'m9-a', q:'m9', root:4, name:'m9 · kompakter Jazz-Griff', f:[null,7,5,7,7,null], fingers:[0,2,1,3,3,0], bars:[[7,3,4,3]]},
+  {id:'m9-e', q:'m9', root:4, name:'m9 · Grundton auf E-Saite', f:[0,null,0,0,0,2], fingers:[1,0,1,1,1,4], openFingers:[0,0,0,0,0,3], bars:[[0,0,4,1]], note:'A-Saite nicht anschlagen.'},
+  {id:'13-e', q:'13', root:4, name:'13 · Blues-/Funk-Griff', f:[0,null,0,1,2,2], fingers:[1,0,1,2,3,3], openFingers:[0,0,0,1,3,3], openBars:[[2,4,5,3]], bars:[[0,0,2,1],[2,4,5,3]], note:'A-Saite auslassen; Quinte und 11 werden nicht gespielt.'},
+  {id:'13-a', q:'13', root:0, name:'13 · Grundton auf A-Saite', f:[null,3,2,3,3,5], fingers:[0,2,1,3,3,4], bars:[[3,3,4,3]], note:'Quinte und 11 werden nicht gespielt.'},
+  {id:'sharp9-a', q:'7#9', root:4, name:'7♯9 · Hendrix-Griff', f:[null,7,6,7,8,null], fingers:[0,2,1,3,4,0], bars:[]},
+  {id:'sharp9-e', q:'7#9', root:9, name:'7♯9 · tiefe Saiten', f:[5,4,5,5,null,null], fingers:[2,1,3,4,0,0], bars:[]},
+  {id:'sus4-e', q:'sus4', root:4, name:'Esus4-Form', f:[0,2,2,2,0,0], fingers:[1,3,3,3,1,1], openFingers:[0,2,3,4,0,0], bars:[[0,0,5,1],[2,1,3,3]]},
+  {id:'sus4-a', q:'sus4', root:9, name:'Asus4-Form', f:[null,0,2,2,3,0], fingers:[0,1,3,3,4,1], openFingers:[0,0,1,2,3,0], bars:[[0,1,5,1],[2,2,3,3]]},
+  {id:'sus2-a', q:'sus2', root:9, name:'Asus2-Form', f:[null,0,2,2,0,0], fingers:[0,1,3,4,1,1], openFingers:[0,0,1,2,0,0], bars:[[0,1,5,1]]},
+  {id:'sus2-d', q:'sus2', root:2, name:'Dsus2-Form', f:[null,null,0,2,3,0], fingers:[0,0,1,3,4,1], openFingers:[0,0,0,1,3,0], bars:[[0,2,5,1]]},
+  {id:'add9-c', q:'add9', root:0, name:'Cadd9-Form', f:[null,3,2,0,3,3], fingers:[0,3,2,1,4,4], openFingers:[0,2,1,0,3,4], bars:[[3,4,5,4]], hard:true},
+  {id:'add9-a', q:'add9', root:9, name:'Aadd9-Form', f:[null,0,2,4,2,0], fingers:[0,1,2,4,3,1], openFingers:[0,0,1,3,2,0], bars:[[0,1,5,1]], hard:true}
+];
+let chordLabOpen = false, chordLabRevealed = true;
+function normalizeChordLab() {
+  const old = S.chordLab || {};
+  S.chordLab = {
+    root:Number.isInteger(old.root) && old.root >= 0 && old.root < 12 ? old.root : 9,
+    quality:Object.hasOwn(CL_QUALITIES, old.quality) ? old.quality : '7',
+    index:Number.isInteger(old.index) && old.index >= 0 ? old.index : 0,
+    mode:old.mode === 'caged' && old.quality === 'major' ? 'caged' : 'grips',
+    form:['C','A','G','E','D'].includes(old.form) ? old.form : 'C',
+    overlay:['none','triad','penta'].includes(old.overlay) ? old.overlay : 'none'
+  };
+  return S.chordLab;
+}
+function chordLabVariants(root, quality) {
+  return CL_SHAPES.filter(t => t.q === quality).flatMap(t => [-12,0,12].map(oct => {
+    const shift = mod12(root - t.root) + oct;
+    const frets = t.f.map(f => f == null ? null : f + shift);
+    if (frets.some(f => f != null && (f < 0 || f > FRETS))) return null;
+    const openShape = shift === 0 && !!t.openFingers;
+    const fingers = (openShape ? t.openFingers : t.fingers).map((f,i) => frets[i] > 0 ? f : 0);
+    const barres = (openShape ? (t.openBars || []) : t.bars).map(([f,from,to,finger]) => ({fret:f+shift,from,to,finger})).filter(b => b.fret > 0);
+    return {id:t.id+':'+shift, template:t.id, name:t.name, form:t.form, frets, fingers, barres,
+      low:Math.min(...frets.filter(f => f != null)), hard:!!t.hard && !openShape, note:t.note || ''};
+  }).filter(Boolean)).sort((a,b) => Number(a.hard)-Number(b.hard) || a.low-b.low || a.id.localeCompare(b.id));
+}
+function chordLabCaged(root) {
+  const all = chordLabVariants(root, 'major');
+  return ['C','A','G','E','D'].map(form => all.filter(v => v.form === form).sort((a,b) => a.low-b.low)[0]);
+}
+function currentChordLab() {
+  const state = normalizeChordLab();
+  const variants = state.mode === 'caged' ? chordLabCaged(state.root) : chordLabVariants(state.root,state.quality);
+  state.index %= variants.length;
+  const index = state.mode === 'caged' ? ['C','A','G','E','D'].indexOf(state.form) : state.index;
+  return {state, variants, index, grip:variants[index], quality:CL_QUALITIES[state.quality], name:CL_ROOTS[state.root]+CL_QUALITIES[state.quality].suffix};
+}
+function chordLabRole(root, quality, pc) {
+  const q = CL_QUALITIES[quality];
+  return q.roles[q.tones.indexOf(mod12(pc-root))];
+}
+// Spell chord tones by their scale degree, including e.g. F#maj7 → E# and C7#9 → D#.
+function chordLabNote(root, role) {
+  const qStep = {R:0,'2':1,'9':1,'♯9':1,'♭3':2,'3':2,'4':3,'11':3,'5':4,'13':5,'♭7':6,'7':6};
+  const semi = {R:0,'2':2,'9':2,'♯9':3,'♭3':3,'3':4,'4':5,'11':5,'5':7,'13':9,'♭7':10,'7':11};
+  const letters = 'CDEFGAB', naturals = [0,2,4,5,7,9,11];
+  const idx = (letters.indexOf(CL_ROOTS[root][0])+qStep[role])%7;
+  let accidental = mod12(root+semi[role]-naturals[idx]);
+  if (accidental > 6) accidental -= 12;
+  return letters[idx]+(accidental > 0 ? '♯'.repeat(accidental) : '♭'.repeat(-accidental));
+}
+function toggleChordLab() {
+  chordLabOpen = !chordLabOpen;
+  renderChordLab();
+}
+function setChordLab(field, value) {
+  normalizeChordLab();
+  if (field === 'root') S.chordLab.root = Number(value);
+  else if (['quality','mode','form','overlay'].includes(field)) S.chordLab[field] = value;
+  if (field === 'mode' && value === 'caged') S.chordLab.quality = 'major';
+  if (field === 'quality' && value !== 'major') S.chordLab.mode = 'grips';
+  if (field === 'root' || field === 'quality' || field === 'mode') S.chordLab.index = 0;
+  renderChordLab(); saveSettings();
+}
+function stepChordLab(dir) {
+  const {state,variants,index} = currentChordLab();
+  const next = (index+dir+variants.length)%variants.length;
+  if (state.mode === 'caged') state.form = ['C','A','G','E','D'][next]; else state.index = next;
+  renderChordLab(); saveSettings();
+}
+function useCurrentChordLab() {
+  const ch = S.prog[S.progIdx];
+  const quality = ch ? ch.fifth !== 7 ? null : ch.third === 3 ? 'minor' : 'major' : S.scale === 'minor' ? 'minor' : 'major';
+  if (!quality) {
+    document.getElementById('clNotice').textContent = 'Für verminderte und übermäßige Akkorde bitte die Triaden-Übung verwenden. Die Auswahl hier bleibt erhalten.';
+    return;
+  }
+  S.chordLab = {...normalizeChordLab(), root:ch ? mod12(ch.rootPc) : S.key, quality, index:0, mode:'grips'};
+  renderChordLab(); saveSettings();
+}
+function playChordLab(arpeggio = false) {
+  const {grip} = currentChordLab();
+  let i = 0;
+  grip.frets.forEach((f, lowString) => {
+    if (f == null) return;
+    pluck(OPEN_MIDI[5-lowString]+f, i++*(arpeggio ? 0.32 : 0.055), arpeggio ? 1.2 : 2, 0.85);
+  });
+}
+function toggleChordLabReveal() {
+  chordLabRevealed = !chordLabRevealed;
+  renderChordLab();
+}
+function drawChordLabDiagram(grip, root, quality) {
+  const svg = document.getElementById('clDiagram'); svg.replaceChildren();
+  const positive = grip.frets.filter(f => f > 0);
+  const first = grip.frets.includes(0) ? 1 : Math.min(...positive);
+  const slots = Math.max(5, Math.max(...positive)-first+1);
+  const left=42, top=65, dx=36, dy=42, bottom=top+slots*dy;
+  svg.setAttribute('viewBox', `0 0 270 ${bottom+60}`);
+  svg.appendChild(el('title',{},'Griffdiagramm E A D G B e. '+grip.frets.map(f=>f==null?'stumm':f).join(', ')));
+  for(let i=0;i<6;i++) {
+    svg.appendChild(el('line',{x1:left+i*dx,x2:left+i*dx,y1:top,y2:bottom,stroke:'#8c9bae','stroke-width':i<3?2:1}));
+    svg.appendChild(el('text',{x:left+i*dx,y:bottom+25,fill:'#afbdce','font-size':13,'text-anchor':'middle'},['E','A','D','G','B','e'][i]));
+  }
+  for(let i=0;i<=slots;i++) svg.appendChild(el('line',{x1:left,x2:left+5*dx,y1:top+i*dy,y2:top+i*dy,stroke:'#8c9bae','stroke-width':i===0&&first===1?5:1}));
+  svg.appendChild(el('text',{x:10,y:top+dy*0.65,fill:'#afbdce','font-size':13},String(first)));
+  grip.barres.forEach(b => svg.appendChild(el('line',{class:'cl-barre',x1:left+b.from*dx,x2:left+b.to*dx,y1:top+(b.fret-first+0.5)*dy,y2:top+(b.fret-first+0.5)*dy,stroke:'#73cdb8','stroke-width':16,'stroke-linecap':'round',opacity:0.55})));
+  grip.frets.forEach((f,i) => {
+    const x=left+i*dx, role=f==null?null:chordLabRole(root,quality,mod12(OPEN_PC[5-i]+f));
+    const color=role==='R'?'#fbbf24':'#8cddcc';
+    if (f==null || f===0) svg.appendChild(el('text',{x,y:top-17,fill:f==null?'#afbdce':color,'font-size':20,'text-anchor':'middle'},f==null?'×':'○'));
+    else {
+      const y=top+(f-first+0.5)*dy;
+      svg.appendChild(el('circle',{class:'cl-finger','data-string':i,'data-fret':f,cx:x,cy:y,r:13,fill:color}));
+      svg.appendChild(el('text',{x,y:y+4,fill:'#102019','font-size':13,'font-weight':'bold','text-anchor':'middle'},String(grip.fingers[i])));
+    }
+  });
+}
+function drawCagedMap(root, grip, overlay) {
+  const svg = document.getElementById('clMap'); svg.replaceChildren();
+  const forms=chordLabCaged(root), max=Math.max(15,...forms.flatMap(v=>v.frets.filter(f=>f!=null)));
+  const left=50, dx=56, top=75, dy=25, height=240;
+  const x=f=>f===0?left-20:left+(f-0.5)*dx, y=i=>top+(5-i)*dy;
+  svg.setAttribute('viewBox',`0 0 ${left+max*dx+20} ${height}`);
+  svg.appendChild(el('title',{},`${CL_ROOTS[root]}-Dur: C-, A-, G-, E- und D-Form. Ausgewählt: ${grip.form}-Form.`));
+  forms.forEach((v,i)=>{
+    const fs=v.frets.filter(f=>f!=null), lo=Math.min(...fs), hi=Math.max(...fs), chosen=v.form===grip.form;
+    svg.appendChild(el('rect',{x:Math.max(7,x(lo)-20),y:top-14,width:x(hi)-x(lo)+40,height:5*dy+28,rx:9,fill:chosen?'#326ce529':'#ffffff03',stroke:chosen?'#8ab5ff':'#526277','stroke-dasharray':chosen?'':'4 4'}));
+    svg.appendChild(el('text',{x:(x(lo)+x(hi))/2,y:26+(i%2)*19,fill:chosen?'#b5cdff':'#afbdce','font-size':13,'text-anchor':'middle'},v.form+'-Form'));
+  });
+  for(let i=0;i<6;i++) {
+    svg.appendChild(el('line',{x1:left,x2:left+max*dx,y1:y(i),y2:y(i),stroke:'#6f8094','stroke-width':i<3?2:1}));
+    svg.appendChild(el('text',{x:6,y:y(i)+4,fill:'#afbdce','font-size':12},['E','A','D','G','B','e'][i]));
+  }
+  for(let f=0;f<=max;f++) {
+    svg.appendChild(el('line',{x1:left+f*dx,x2:left+f*dx,y1:top-5,y2:top+5*dy+5,stroke:'#526277','stroke-width':f===0?4:1}));
+    if(f>0)svg.appendChild(el('text',{x:x(f),y:height-10,fill:'#afbdce','font-size':12,'text-anchor':'middle'},String(f)));
+  }
+  if(overlay!=='none') {
+    const tones=overlay==='triad'?[0,4,7]:[0,2,4,7,9];
+    for(let i=0;i<6;i++)for(let f=0;f<=max;f++)if(tones.includes(mod12(OPEN_PC[5-i]+f-root)))
+      svg.appendChild(el('circle',{class:'cl-overlay',cx:x(f),cy:y(i),r:5,fill:mod12(OPEN_PC[5-i]+f)===root?'#fbbf24':'#a1b8d5',opacity:0.5}));
+  }
+  grip.frets.forEach((f,i)=>{
+    if(f==null)return;
+    const role=chordLabRole(root,'major',mod12(OPEN_PC[5-i]+f));
+    svg.appendChild(el('circle',{class:'cl-map-note','data-role':role,cx:x(f),cy:y(i),r:11,fill:role==='R'?'#fbbf24':'#8cddcc'}));
+    svg.appendChild(el('text',{x:x(f),y:y(i)+4,fill:'#102019','font-size':11,'font-weight':'bold','text-anchor':'middle'},role));
+  });
+}
+function renderChordLab() {
+  const {state,variants,index,grip,quality,name}=currentChordLab();
+  const panel=document.getElementById('chordLab'), button=document.getElementById('btn-chordLab');
+  panel.hidden=!chordLabOpen;
+  button.setAttribute('aria-expanded',String(chordLabOpen)); button.classList.toggle('active',chordLabOpen);
+  if(!chordLabOpen)return;
+  document.getElementById('clRoot').value=state.root;
+  document.getElementById('clQuality').value=state.quality;
+  document.getElementById('clOverlay').value=state.overlay;
+  document.getElementById('clGripsMode').setAttribute('aria-pressed',String(state.mode==='grips'));
+  document.getElementById('clCagedMode').setAttribute('aria-pressed',String(state.mode==='caged'));
+  document.getElementById('clGripsMode').classList.toggle('active',state.mode==='grips');
+  document.getElementById('clCagedMode').classList.toggle('active',state.mode==='caged');
+  document.getElementById('clTitle').textContent=name;
+  document.getElementById('clVariant').textContent=`${grip.name} · ${index+1} / ${variants.length}`;
+  document.getElementById('clNotice').textContent='';
+  document.getElementById('clTheory').textContent=quality.tip;
+  document.getElementById('clFormula').textContent=quality.roles.map(r=>`${r} ${chordLabNote(state.root,r)}`).join(' · ');
+  const played=grip.frets.filter(f=>f!=null).length;
+  const intervals=new Set(grip.frets.flatMap((f,i)=>f==null?[]:[mod12(OPEN_PC[5-i]+f-state.root)]));
+  const omitted=quality.tones.flatMap((t,i)=>intervals.has(t)?[]:[quality.roles[i]]);
+  document.getElementById('clGripHint').textContent=`${played} Saiten klingen. ${grip.hard?'Fortgeschrittener Griff mit größerer Spreizung. ':''}${grip.note} ${omitted.length?'In diesem Griff ausgelassen: '+omitted.join(', ')+'.':'Alle Akkordtöne enthalten.'}`;
+  document.getElementById('clFrets').textContent=grip.frets.map(f=>f==null?'×':f).join(' – ');
+  document.getElementById('clStrings').replaceChildren(...grip.frets.map((f,i)=>{
+    const row=document.createElement('tr');
+    const role=f==null?null:chordLabRole(state.root,state.quality,mod12(OPEN_PC[5-i]+f));
+    [['E','A','D','G','B','e'][i],f==null?'×':String(f),f==null?'–':f===0?'offen':String(grip.fingers[i]),role?chordLabNote(state.root,role):'stumm',role||'–'].forEach(text=>{
+      const cell=document.createElement('td');cell.textContent=text;row.appendChild(cell);
+    });return row;
+  }));
+  document.getElementById('clSolution').hidden=!chordLabRevealed;
+  document.getElementById('clRecall').hidden=chordLabRevealed;
+  document.getElementById('clReveal').textContent=chordLabRevealed?'Griff verdecken':'Griff anzeigen';
+  document.getElementById('clReveal').setAttribute('aria-expanded',String(chordLabRevealed));
+  document.getElementById('clCaged').hidden=state.mode!=='caged';
+  document.querySelectorAll('#clForms button').forEach(b=>{
+    b.classList.toggle('active',b.dataset.form===state.form);
+    b.setAttribute('aria-pressed',String(b.dataset.form===state.form));
+  });
+  document.getElementById('clMapWrap').hidden=!chordLabRevealed;
+  drawChordLabDiagram(grip,state.root,state.quality);
+  if(state.mode==='caged')drawCagedMap(state.root,grip,state.overlay);
+}
+function initChordLab() {
+  const roots=document.getElementById('clRoot'), qualities=document.getElementById('clQuality');
+  CL_ROOTS.forEach((name,i)=>roots.add(new Option(name,String(i))));
+  Object.entries(CL_QUALITIES).forEach(([id,q])=>qualities.add(new Option(q.label,id)));
+  normalizeChordLab(); renderChordLab();
+}
+
 // ─── Init ─────────────────────────────────────────────────────────────────────
 (function init() {
   const sel = document.getElementById('keySelect');
@@ -6467,6 +6813,7 @@ function applySettingsUI() {
     sel.appendChild(o);
   });
   loadSettings();
+  initChordLab();
   loadLicks();
   applySettingsUI();
   renderBeatDots();
