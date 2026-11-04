@@ -175,6 +175,57 @@ async function main() {
   w.stopMetro();
   w.clearProg(); assert.equal(d.getElementById('chordCoach').style.display, 'none');
   assert.equal(d.querySelectorAll('.next-target').length, 0);
+  // Lick controls remain next to the instrument, independent of the hidden toolbar/library.
+  const lickId = state('BUILTIN_LICKS[0].id');
+  w.selectLick(lickId);
+  assert.equal(d.getElementById('selectedLickStatus').style.display, 'flex');
+  assert.equal(state('S.lickShow'), true);
+  click('btn-hideLick'); assert.equal(state('S.lickShow'), false);
+  assert.equal(state('S.selectedLick'), lickId);
+  assert.equal(d.getElementById('fbStaff').style.display, 'none');
+  assert.equal(d.getElementById('btn-hideLick').textContent, 'Lick einblenden');
+  click('btn-hideLick'); assert.equal(state('S.lickShow'), true);
+  click('btn-clearLick'); assert.equal(state('S.selectedLick'), null);
+  assert.equal(d.getElementById('selectedLickStatus').style.display, 'none');
+  // Voicing drill uses actual playable triads, without replacing the progression.
+  w.setTriad('none'); w.setStringSet('DGB');
+  click('btn-voicingPractice');
+  assert.equal(d.getElementById('voicingPractice').style.display, 'flex');
+  const practice = state('currentVoicingPractice()');
+  assert.equal(new Set(Array.from(practice.variants, v => v.inv)).size, 3);
+  assert.equal(state('S.currentGrip.length'), 3);
+  w.saveSettings();
+  assert.equal(JSON.parse(w.localStorage.getItem('gitarrenTraining.settings')).triad, 'none', 'Do not persist temporary drill triad mode');
+  const first = state('JSON.stringify(S.currentGrip)');
+  w.stepVoicingPractice(1); assert.notEqual(state('JSON.stringify(S.currentGrip)'), first);
+  w.stepVoicingPractice(-1); assert.equal(state('JSON.stringify(S.currentGrip)'), first);
+  w.stepVoicingPractice(-1);
+  assert.equal(state('currentVoicingPractice().index'), practice.variants.length-1);
+  w.playChord();
+  w.setStringSet('auto'); assert.equal(state('currentVoicingPractice().index'), 0);
+  assert.equal(new Set(Array.from(state('currentVoicingPractice().variants'), v => v.set)).size, 4);
+  for (const token of ['I', 'i', 'i°', 'I+']) {
+    d.getElementById('progInput').value = token; w.applyProg();
+    const p = state('currentVoicingPractice()');
+    const pcs = [0,p.chord.third,p.chord.fifth].map(n => (p.chord.rootPc+n)%12).sort((a,b)=>a-b);
+    for (const v of p.variants) {
+      const open = state('STRING_SETS[' + JSON.stringify(v.set) + '].map(s => OPEN_PC[s])');
+      assert.deepEqual(Array.from(v.frets,(f,i)=>(open[i]+f)%12).sort((a,b)=>a-b), pcs);
+      assert.ok(v.frets.every(f => f >= 0 && f <= 22));
+    }
+    w.stepVoicingPractice(1);
+    assert.equal(state('JSON.stringify(S.prog[0].voice.frets)'), state('JSON.stringify(currentVoicingPractice().voice.frets)'));
+  }
+  const progText = d.getElementById('progInput').value;
+  click('btn-voicingPractice'); assert.equal(state('S.triad'), 'none');
+  assert.equal(d.getElementById('progInput').value, progText);
+  assert.equal(d.getElementById('voicingPractice').style.display, 'none');
+  w.clearProg(); click('btn-voicingPractice'); w.startMetro();
+  assert.equal(state('voicingPracticeState'), null);
+  assert.equal(d.getElementById('voicingPractice').style.display, 'none'); w.stopMetro();
+  click('btn-voicingPractice'); w.beginNewLick();
+  assert.equal(state('voicingPracticeState'), null);
+  assert.equal(d.getElementById('btn-voicingPractice').disabled, true); w.closeEdit();
   w.saveSettings();
   const saved = JSON.parse(w.localStorage.getItem('gitarrenTraining.settings'));
   assert.equal(saved.key, 2); assert.equal(saved.bpm, 100);
@@ -189,6 +240,6 @@ async function main() {
   assert.equal(restored.window.eval('S.targetNotes'), true);
   restored.window.close();
   assert.deepEqual(errors, []);
-  console.log('PASS: existing UI regression suite; next-chord countdown, split bars, multiple bars/chord, 12/8, loop wrap, root/minor-third targets, toggle and editor/interval guards, count-in, real scheduler callbacks, stopped callback protection, persistence.');
+  console.log('PASS: existing UI and chord-coach regressions; visible lick hide/show/clear; voicing cycling, wrap, all string sets, major/minor/diminished/augmented pitch classes, fret bounds, progression preservation, transport/editor exit, preference restoration.');
 }
 main().catch(e => { console.error(e); process.exitCode = 1; });

@@ -134,6 +134,11 @@ select {
 .chord-coach strong { font-size:1.7rem; color:#c4dbff; margin-left:10px; }
 .chord-coach .countdown { font-size:1rem; font-variant-numeric:tabular-nums; }
 .chord-coach .target-hint { flex-basis:100%; font-size:0.8rem; color:var(--muted); }
+.practice-actions, .voicing-practice { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin:10px 0; }
+.voicing-practice { padding:14px; border:1px solid var(--triad-col); border-radius:10px; background:var(--panel2); }
+.voicing-practice .hint { flex-basis:100%; }
+#selectedLickStatus { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+#selectedLickName { color:var(--muted); font-size:0.82rem; }
 .chord-chip {
   background: var(--panel2); border: 1.5px solid var(--border); border-radius: 9px;
   padding: 7px 13px; cursor: pointer; text-align: center; min-width: 58px;
@@ -597,6 +602,25 @@ body.play-mode #topBar #metroBtn { display: inline-block; }
   <div class="fretboard-wrap">
     <div class="section-heading"><div><p class="eyebrow">SPIELEN &amp; ENTDECKEN</p><h2>Dein Griffbrett</h2></div>
     <span class="hint">Tippe einen Ton an, um ihn zu hören.</span></div>
+    <div class="practice-actions">
+      <span id="selectedLickStatus" style="display:none"><span id="selectedLickName"></span>
+        <button id="btn-hideLick" type="button" onclick="toggleLickShow()">Lick ausblenden</button>
+        <button id="btn-clearLick" type="button" onclick="selectLick(S.selectedLick)" title="Lick-Auswahl aufheben">✕ Auswahl aufheben</button>
+      </span>
+      <button id="btn-voicingPractice" type="button" onclick="toggleVoicingPractice()" aria-expanded="false" aria-controls="voicingPractice">Voicings üben</button>
+    </div>
+    <div id="voicingPractice" class="voicing-practice" style="display:none">
+      <strong id="voicingPracticeTitle"></strong>
+      <label>Saiten <select id="voicingPracticeSet" onchange="setStringSet(this.value)">
+        <option value="GBe">G–B–e</option><option value="DGB">D–G–B</option>
+        <option value="ADG">A–D–G</option><option value="EAD">E–A–D</option><option value="auto">Alle Sets</option>
+      </select></label>
+      <button type="button" onclick="stepVoicingPractice(-1)">‹ Vorheriger Griff</button>
+      <button type="button" onclick="playChord()">♪ Anhören</button>
+      <button type="button" onclick="stepVoicingPractice(1)">Nächster Griff ›</button>
+      <span id="voicingPracticeDetail" class="hint"></span>
+      <span class="hint">Anhören → nachgreifen → nächste Variante. Grundstellung und beide Umkehrungen laufen von tiefen zu hohen Lagen. Wähle einen Akkord in der Progression oder ändere Tonart und Dur/Moll.</span>
+    </div>
     <details class="fretboard-tools"><summary>Anzeige &amp; Klangfarben <span>Noten, Blues-Skala, Triaden und mehr</span></summary>
     <div class="fb-toolbar">
       <span class="btn-row">
@@ -1686,6 +1710,8 @@ function computePath() {
     c.voice = pick;
     if (pick) prev = pick.frets;
   }
+  const practice = currentVoicingPractice();
+  if (practice && S.prog[S.progIdx]) S.prog[S.progIdx].voice = practice.voice;
 }
 
 // Ein einzelnes Stufen-Token (z. B. "IV", "ii°", "bVII") in einen Akkord übersetzen
@@ -1767,6 +1793,7 @@ const fx = fret => fret === 0 ? ML - DR - 5 : ML + (fret - 0.5) * FW;
 const sy = s => MT + s * SH;
 
 function render() {
+  renderPracticeControls();
   const svg = document.getElementById('fb');
   svg.innerHTML = '';
   svg.setAttribute('viewBox', `0 0 ${W} ${H}`);   // Bundzahl/Breite konfigurierbar halten
@@ -1875,6 +1902,11 @@ function render() {
         S.anchor = Math.round((Math.min(...pick.frets) + Math.max(...pick.frets)) / 2);
       }
     }
+  }
+  const practice = currentVoicingPractice();
+  if (practice) {
+    grip = voicingToGrip(practice.voice, practice.chord.rootPc, practice.chord.third, practice.voice.set);
+    S.currentSet = practice.voice.set;
   }
   const gripKey = (s, f) => `${s}:${f}`;
   const gripMap = new Map(grip.map(g => [gripKey(g.s, g.fret), g]));
@@ -2342,13 +2374,14 @@ function updateTriadButtons() {
   document.getElementById('setCtrl').classList.toggle('disabled', S.triad === 'none');
 }
 function setTriad(v) {
+  voicingPracticeState = null;
   S.triad = v;
   S.anchor = null;
   updateTriadButtons();
   renderChips();
   render();
 }
-function setStringSet(v) { S.set = v; S.anchor = null; renderChips(); render(); }
+function setStringSet(v) { S.set = v; document.getElementById('setSelect').value = v; S.anchor = null; renderChips(); render(); }
 function setBoxMode(v) {
   S.boxMode = v;
   ['strict', 'variety', 'ascend'].forEach(m =>
@@ -2394,6 +2427,67 @@ function toggleLickShow() {
   S.lickShow = !S.lickShow;
   document.getElementById('btn-lickshow').classList.toggle('active', S.lickShow);
   render();
+}
+let voicingPracticeState = null;
+function currentVoicingPractice() {
+  if (!voicingPracticeState) return null;
+  const chord = S.prog[S.progIdx] || {rootPc:S.key, third:THIRD[S.scale], fifth:7, name:nn(S.key,S.key)+(S.scale === 'minor' ? 'm' : '')};
+  const signature = [chord.rootPc,chord.third,chord.fifth,S.set].join(':');
+  const variants = candidateSets().flatMap(set => allVoicings(chord.rootPc,chord.third,chord.fifth,set).map(v => ({...v,set})))
+    .sort((a,b) => Math.min(...a.frets)-Math.min(...b.frets) || a.set.localeCompare(b.set));
+  if (!variants.length) return null;
+  if (signature !== voicingPracticeState.signature) {
+    voicingPracticeState.signature = signature;
+    voicingPracticeState.index = 0;
+  }
+  voicingPracticeState.index = ((voicingPracticeState.index % variants.length)+variants.length)%variants.length;
+  return {chord, variants, voice:variants[voicingPracticeState.index], index:voicingPracticeState.index};
+}
+function endVoicingPractice() {
+  if (!voicingPracticeState) return;
+  S.triad = voicingPracticeState.previousTriad;
+  voicingPracticeState = null;
+  updateTriadButtons();
+}
+function toggleVoicingPractice() {
+  if (voicingPracticeState) endVoicingPractice();
+  else {
+    if (S.editing) return;
+    stopMetro();
+    if (S.trainer) stopTrainer();
+    if (S.intervalMode) toggleIntervalMode();
+    voicingPracticeState = {index:0, signature:null, previousTriad:S.triad};
+    S.triad = 'auto';
+    if (S.selectedLick && S.lickShow) toggleLickShow();
+    updateTriadButtons();
+  }
+  renderChips(); render();
+}
+function stepVoicingPractice(dir) {
+  const practice = currentVoicingPractice();
+  if (!practice) return;
+  voicingPracticeState.index += dir;
+  renderChips(); render();
+}
+function renderPracticeControls() {
+  const lick = findLick(S.selectedLick);
+  document.getElementById('selectedLickStatus').style.display = lick && !S.editing ? 'flex' : 'none';
+  document.getElementById('selectedLickName').textContent = lick ? lick.name : '';
+  const hide = document.getElementById('btn-hideLick');
+  hide.textContent = S.lickShow ? 'Lick ausblenden' : 'Lick einblenden';
+  hide.setAttribute('aria-pressed', String(!!S.lickShow));
+  const practice = currentVoicingPractice();
+  const button = document.getElementById('btn-voicingPractice');
+  button.disabled = !!S.editing;
+  button.textContent = practice ? 'Voicing-Übung beenden' : 'Voicings üben';
+  button.setAttribute('aria-expanded', String(!!practice));
+  document.getElementById('voicingPractice').style.display = practice ? 'flex' : 'none';
+  if (practice) {
+    const {chord,voice,index,variants} = practice;
+    document.getElementById('voicingPracticeSet').value = S.set;
+    document.getElementById('voicingPracticeTitle').textContent = `${chord.name} · Griff ${index+1} von ${variants.length}`;
+    document.getElementById('voicingPracticeDetail').textContent = `${INV[voice.inv].label} · ${SET_NAMES[voice.set]} · Bünde tief → hoch: ${voice.frets.join(' – ')}`;
+  }
 }
 // Spielmodus: nur Kopfleiste, Griffbrett, Akkorde und Noten – alles andere weg,
 // damit Lick und Griffbrett zusammen auf den Schirm passen.
@@ -2545,6 +2639,7 @@ function applyIntervalBtn() {
   b.classList.toggle('active', S.intervalMode);
 }
 function toggleIntervalMode() {
+  endVoicingPractice();
   S.intervalMode = !S.intervalMode;
   applyIntervalBtn();
   render();
@@ -3997,6 +4092,7 @@ function beginNewLick() {
   openEditor('Lick ' + (S.licks.length + 1), '');
 }
 function openEditor(name, comment) {
+  endVoicingPractice();
   document.getElementById('editBox').value = S.editBox;
   document.getElementById('editName').value = name;
   document.getElementById('editComment').value = comment || '';
@@ -6020,6 +6116,7 @@ document.addEventListener('keydown', function transportKeydown(e) {
   if (!e.repeat) toggleMetro();
 });
 function startMetro() {
+  endVoicingPractice();
   audio();
   transportGeneration++;
   S.metroOn = true;
@@ -6032,7 +6129,8 @@ function startMetro() {
   metro.parcIdx = 0; metro.parcNextBeat = 0;                                  // Lick-Parcours neu starten
   metro.crIdx = 0; metro.crNextBeat = 0;                                      // Akkord-&-Lick-Übung neu starten
   metro.nextNote = audio().currentTime + 0.12;
-  if (S.prog.length) { S.progIdx = 0; renderChips(); render(); }
+  if (S.prog.length) S.progIdx = 0;
+  renderChips(); render();
   setMetroBtns(true);
   metroTimer = setInterval(metroScheduler, 25);
 }
@@ -6207,6 +6305,7 @@ function saveSettings() {
   try {
     const o = {};
     PERSIST.forEach(k => o[k] = S[k]);
+    if (voicingPracticeState) o.triad = voicingPracticeState.previousTriad;
     o.progText = document.getElementById('progInput').value;
     o.bluesForm = S.bluesForm;
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(o));
