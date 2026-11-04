@@ -121,12 +121,14 @@ select {
 .presets .style-btn { font-family: inherit; border-color: #a78bfa; color: #a78bfa; }
 .presets .style-btn:hover { background: rgba(167,139,250,0.12); }
 .prog-chips { display: flex; flex-wrap: wrap; gap: 8px; min-height: 4px; }
-#fbProg { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 5px; padding: 0 2px; }
-.fbp-chip { font-size: 0.7rem; padding: 2px 8px; border-radius: 6px; background: var(--panel2);
-  border: 1px solid var(--border); color: var(--muted); cursor: pointer; line-height: 1.4; }
+#fbProg { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 14px; padding: 12px;
+  border: 1px solid var(--border); border-radius: 12px; background: var(--bg); }
+.fbp-chip { font-size: 1.1rem; padding: 8px 14px; min-width: 88px; min-height: 64px; border-radius: 9px; background: var(--panel2);
+  border: 1px solid var(--border); color: var(--text); cursor: pointer; line-height: 1.2; }
 .fbp-chip:hover { border-color: var(--muted); }
-.fbp-chip.cur { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
-.fbp-sep { width: 1px; height: 14px; background: var(--border); margin: 0 2px; }
+.fbp-chip.cur { background: var(--accent); border-color: #a9c7ff; color: #fff; font-weight: 750;
+  font-size: 2rem; box-shadow: 0 0 0 2px #a9c7ff40; }
+.fbp-sep { width: 2px; height: 36px; background: var(--border); margin: 0 2px; }
 .chord-chip {
   background: var(--panel2); border: 1.5px solid var(--border); border-radius: 9px;
   padding: 7px 13px; cursor: pointer; text-align: center; min-width: 58px;
@@ -626,7 +628,7 @@ body.play-mode #topBar #metroBtn { display: inline-block; }
     <div class="fretboard-scroll" tabindex="0" role="region" aria-label="Griffbrett, horizontal scrollbar">
     <svg id="fb" viewBox="0 0 1318 235" role="img" aria-label="Interaktives Gitarrengriffbrett"></svg>
     </div>
-    <div id="fbProg" style="display:none" title="Laufende Progression – Klick springt zum Akkord"></div>
+    <div id="fbProg" style="display:none" role="group" aria-label="Akkordfolge – aktueller Akkord hervorgehoben" title="Klick springt zum Akkord · Leertaste: Start / Stop (außer in Eingabefeldern und im Lick-Editor)"></div>
     <!-- Kompakte Lick-Auswahl: bleibt mit dem Griffbrett oben, damit man Licks
          wechseln kann, ohne zur großen Tabelle zu scrollen -->
     <div id="lickBar" style="display:none">
@@ -5574,12 +5576,12 @@ function renderChips() {
        <div class="cc-name">${c.name}</div>${tag}${beats}
      </div>`;
   }).join('');
-  // Mini-Ansicht direkt unterm Griffbrett: nur Akkordnamen, aktueller hervorgehoben
+  // Gut lesbare Akkordfolge direkt unterm Griffbrett, aktueller Akkord vergrößert.
   if (strip) {
     strip.style.display = 'flex';
     strip.innerHTML = S.prog.map((c, i) => {
       const sep = (c.barCount && c.posInBar === 0 && i > 0) ? '<span class="fbp-sep"></span>' : '';
-      return `${sep}<span class="fbp-chip ${i === S.progIdx ? 'cur' : ''}" onclick="selectChord(${i})">${c.name}</span>`;
+      return `${sep}<button type="button" class="fbp-chip ${i === S.progIdx ? 'cur' : ''}" aria-current="${i === S.progIdx ? 'true' : 'false'}" onclick="selectChord(${i})">${c.name}</button>`;
     }).join('');
   }
 }
@@ -5909,6 +5911,15 @@ function metroScheduler() {
   }
 }
 function toggleMetro() { S.metroOn ? stopMetro() : startMetro(); }
+// Preserve text entry, native control shortcuts and the editor's note preview.
+document.addEventListener('keydown', function transportKeydown(e) {
+  if (e.code !== 'Space' && e.key !== ' ') return;
+  if (e.defaultPrevented || e.isComposing || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey || S.editing) return;
+  const target = e.target;
+  if (target instanceof Element && target.closest('input, textarea, select, button, summary, a[href], [contenteditable]:not([contenteditable="false"]), [role="textbox"]')) return;
+  e.preventDefault(); // Space must not scroll the page, including held-key repeats.
+  if (!e.repeat) toggleMetro();
+});
 function startMetro() {
   audio();
   S.metroOn = true;

@@ -59,6 +59,32 @@ async function main() {
   click('metroBtnTop'); assert.equal(state('S.metroOn'), true);
   assert.equal(d.getElementById('metroBtn').textContent, '◼ Stop');
   click('metroBtn'); assert.equal(state('S.metroOn'), false);
+  const space = (target = d.body, options = {}) => {
+    const event = new w.KeyboardEvent('keydown', {key:' ', code:'Space', bubbles:true, cancelable:true, ...options});
+    target.dispatchEvent(event); return event;
+  };
+  assert.equal(d.querySelectorAll('#fbProg button').length, 3);
+  d.querySelectorAll('#fbProg button')[2].click();
+  assert.equal(state('S.progIdx'), 2);
+  assert.equal(d.querySelectorAll('#fbProg [aria-current="true"]').length, 1);
+  assert.equal(d.querySelector('#fbProg .cur').textContent, state('S.prog[2].name'));
+  assert.equal(w.getComputedStyle(d.querySelector('#fbProg .cur')).fontSize, '2rem');
+  assert.equal(space().defaultPrevented, true);
+  assert.equal(state('S.metroOn'), true);
+  assert.equal(space(d.body, {repeat:true}).defaultPrevented, true);
+  assert.equal(state('S.metroOn'), true, 'Held space must not repeatedly toggle');
+  space(); assert.equal(state('S.metroOn'), false);
+  for (const target of [d.getElementById('progInput'), d.getElementById('bpm'), d.getElementById('keySelect'), d.getElementById('metroBtnTop'), d.querySelector('summary')]) {
+    assert.equal(space(target).defaultPrevented, false);
+    assert.equal(state('S.metroOn'), false, 'Do not intercept native controls');
+  }
+  const editable = d.createElement('div'); editable.contentEditable = 'true';
+  editable.setAttribute('contenteditable', 'true'); d.body.append(editable);
+  assert.equal(space(editable).defaultPrevented, false); editable.remove();
+  for (const modifier of ['ctrlKey', 'metaKey', 'altKey', 'shiftKey', 'isComposing']) {
+    assert.equal(space(d.body, {[modifier]:true}).defaultPrevented, false);
+    assert.equal(state('S.metroOn'), false);
+  }
   for (const k of ['path', 'triad', 'prog', 'licks', 'trainer', 'ton']) {
     w.togglePanel(k); w.showPracticeCard(k);
     assert.equal(d.getElementById('card-' + k).style.display, '');
@@ -82,6 +108,7 @@ async function main() {
   assert.ok(d.querySelectorAll('#lickTbody tr').length < before);
   w.setLickFilter('text', '');
   w.beginNewLick(); assert.equal(state('S.editing'), '_new');
+  space(); assert.equal(state('S.metroOn'), false, 'Preserve editor space shortcut');
   assert.equal(d.getElementById('editorRow').style.display, 'block');
   w.closeEdit(); assert.equal(state('S.editing'), null);
   click('backupBtn'); assert.equal(d.getElementById('backupDrawer').style.display, 'flex');
@@ -98,6 +125,6 @@ async function main() {
   assert.equal(restored.window.eval('S.key'), 2);
   restored.window.close();
   assert.deepEqual(errors, []);
-  console.log('PASS: init, unique IDs, scale/key/box, overlays, tempo/time signature, progression, navigation, docking, play-mode escape, scenarios, filtering, editor, backup drawer, persistence.');
+  console.log('PASS: init, unique IDs, scale/key/box, overlays, tempo/time signature, progression/current chord, space transport and input/repeat/editor guards, navigation, docking, play-mode escape, scenarios, filtering, editor, backup drawer, persistence.');
 }
 main().catch(e => { console.error(e); process.exitCode = 1; });
