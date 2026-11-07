@@ -21,8 +21,7 @@ Abrufübung, Wiedergabeparameter, unabhängige Einstellungen und Wiederherstellu
 Die Zahl 620 umfasst Transpositionen und Oktavlagen der 30 Griffvorlagen.
 
 Audio wird in den Tests simuliert; weder Klangqualität noch Mikrofonhardware
-werden dadurch geprüft. Die SVG-Griffdiagramme und die CAGED-Karte wurden separat
-gerendert und visuell kontrolliert. Eine vollständige Browserprüfung der Seite
+werden dadurch geprüft. Die zentrale SVG-Griffbrettanzeige wird zusätzlich separat gerendert. Eine vollständige Browserprüfung der Seite
 war in der Arbeitsumgebung durch die Browserrichtlinie blockiert.
 
 ## Manuell im Browser prüfen
@@ -57,3 +56,15 @@ Akkordton. Türkise Außenringe markieren gleiche Saiten-/Bundpositionen der
 vorherigen Lage. „4+“ ist ein Fingersatzvorschlag mit kleiner Lagenverschiebung.
 Bei Stop darf kein weiterer Ton des Laufs starten; der bereits angeschlagene
 Ton darf kurz ausklingen.
+
+## Gemeinsames Griffbrett
+
+Akkordgriffe, CAGED-Karte und Arpeggios verwenden ausschließlich das zentrale `#fb`.
+Die Tests prüfen Griffpositionen auf den korrekten Saiten/Bünden, offene und
+stumme Saiten, das Verdecken, Entfernen alter Markierungen beim Schließen und
+den Wechsel zur Intervallübung. Ein Neuzeichnen erhält den aktiven Arpeggio-Ton.
+
+Manuell: Zwischen Griffen, CAGED und Arpeggios wechseln; die Anzeige muss immer
+oben auf demselben Griffbrett erscheinen. Danach schließen oder ein Lick wählen:
+Die normale Übungsansicht samt Progression soll wieder sichtbar sein. Auf mobilen
+Geräten Griffbrett horizontal scrollen und Fingersätze auf Lesbarkeit prüfen.
