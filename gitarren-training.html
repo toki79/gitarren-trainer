@@ -556,6 +556,15 @@ body.play-mode #topBar #metroBtn { display: inline-block; }
   .cl-heading { align-items:flex-start; }
 }
 
+
+.cl-arp-map-wrap { overflow-x:auto; margin:14px 0; border:1px solid var(--border); border-radius:10px; background:#101a27; }
+#clArpMap { display:block; width:100%; min-width:510px; max-width:900px; margin:auto; }
+#clArpMap .arp-current > circle:not(.arp-shared) { fill:#fff; stroke:#3b82f6; stroke-width:4px; }
+#clArpMap .arp-note:focus { outline:none; }
+#clArpMap .arp-note:focus > circle:not(.arp-shared) { stroke:#fff; stroke-width:4px; }
+#clArpBpm { width:70px; padding:8px; background:var(--panel2); color:var(--text); border:1px solid var(--border); border-radius:7px; }
+#clArpStatus { margin:14px 0; min-height:1.5em; color:#c5d9f6; }
+#clArpSequence button { font-size:0.78rem; }
 </style>
 </head>
 <body>
@@ -671,11 +680,12 @@ body.play-mode #topBar #metroBtn { display: inline-block; }
       <div class="cl-controls" role="group" aria-label="Akkordgriff-Ansicht">
         <button id="clGripsMode" type="button" onclick="setChordLab('mode','grips')" aria-pressed="true">Typische Griffe</button>
         <button id="clCagedMode" type="button" onclick="setChordLab('mode','caged')" aria-pressed="false">CAGED · Dur</button>
+        <button id="clArpMode" type="button" onclick="setChordLab('mode','arp')" aria-pressed="false">Arpeggios · CAGED-Lagen</button>
         <span class="hint">CAGED wählt die Dur-Formen des eingestellten Grundtons.</span>
       </div>
       <p id="clNotice" class="hint" role="status"></p>
       <div class="cl-chord-heading"><strong id="clTitle"></strong><span id="clVariant" role="status"></span></div>
-      <div class="cl-controls">
+      <div id="clGripControls" class="cl-controls">
         <button id="clPrev" type="button" onclick="stepChordLab(-1)">‹ Vorheriger Griff</button>
         <button id="clPlay" type="button" onclick="playChordLab()">♪ Akkord hören</button>
         <button id="clArpeggio" type="button" onclick="playChordLab(true)">♪ Saite für Saite</button>
@@ -707,6 +717,34 @@ body.play-mode #topBar #metroBtn { display: inline-block; }
         </div>
         <div id="clMapWrap" class="cl-map-wrap" tabindex="0" role="region" aria-label="CAGED-Griffbrett, horizontal scrollbar"><svg id="clMap" role="img" aria-label="CAGED-Formen auf dem Gitarrenhals"></svg></div>
         <p class="hint">Große Punkte = gewählter Griff · kleine Punkte = zusätzlich eingeblendete Töne · Gold = Grundton.</p>
+      </div>
+      <div id="clArpPanel" hidden>
+        <h3>Vom Griff zum Arpeggio</h3>
+        <p class="hint">Wähle eine CAGED-Lage. Die Töne richten sich nach deinem Akkordtyp – auch bei Moll, 7 oder 9. Die graue Kontur zeigt die Dur-Grundform nur als Orientierung auf dem Hals.</p>
+        <div id="clArpForms" class="cl-controls" role="group" aria-label="Arpeggio-Lage">
+          <button type="button" data-form="C" onclick="setChordLab('form','C')">C-Form</button>
+          <button type="button" data-form="A" onclick="setChordLab('form','A')">A-Form</button>
+          <button type="button" data-form="G" onclick="setChordLab('form','G')">G-Form</button>
+          <button type="button" data-form="E" onclick="setChordLab('form','E')">E-Form</button>
+          <button type="button" data-form="D" onclick="setChordLab('form','D')">D-Form</button>
+          <button id="clArpNextForm" type="button" onclick="nextArpeggioForm()">Nächste Halslage →</button>
+        </div>
+        <p id="clArpRegion" class="hint"></p>
+        <div class="cl-controls">
+          <button id="clArpGrip" type="button" onclick="playArpeggioGrip()">♪ Griffanker hören</button>
+          <button id="clArpUp" type="button" onclick="playArpeggio('up')">▶ Aufwärts</button>
+          <button id="clArpDown" type="button" onclick="playArpeggio('down')">▶ Abwärts</button>
+          <button id="clArpBoth" type="button" onclick="playArpeggio('both')">▶ Auf &amp; ab</button>
+          <button id="clArpStep" type="button" onclick="stepArpeggio()">Ton für Ton →</button>
+          <button id="clArpStop" type="button" onclick="stopArpeggio()">■ Stop</button>
+          <label>BPM <input id="clArpBpm" type="number" min="40" max="160" step="5" onchange="setChordLab('arpBpm',this.value)"></label>
+        </div>
+        <div class="cl-arp-map-wrap" tabindex="0" role="region" aria-label="Arpeggio auf sechs Saiten, horizontal scrollbar"><svg id="clArpMap" role="group" aria-label="Arpeggio-Töne, anklickbar"></svg></div>
+        <p class="hint">Gold = Grundton · Ring = Ton eines passenden Akkordgriffs in dieser Lage · Türkiser Außenring = gleicher Griffpunkt wie in der vorherigen Lage. Kleine Zahlen sind Fingersatz-Vorschläge; „4+“ bedeutet kleiner Finger mit kleiner Lagenverschiebung.</p>
+        <p id="clArpReference" class="hint"></p>
+        <p id="clArpStatus" role="status" aria-live="off"></p>
+        <div id="clArpSequence" class="cl-controls" role="group" aria-label="Arpeggio vom tiefsten zum höchsten Ton"></div>
+        <p class="hint">Die Folge spielt jeden erreichbaren Ton dieser Lage einmal vom tiefsten zum höchsten Ton. Gleiche Tonhöhen auf mehreren Saiten werden im Lauf nicht doppelt gespielt. Klicke für alternative Griffpunkte direkt ins Griffbrett. Spiele erst den Griff, dann die Tonfolge und schließlich eine eigene kurze Phrase.</p>
       </div>
       <div class="cl-theory"><p id="clFormula"></p><p id="clTheory" class="hint"></p></div>
       <details class="cl-help"><summary>So übst du · Begriffe &amp; Hintergrund</summary>
@@ -6611,9 +6649,10 @@ function normalizeChordLab() {
     root:Number.isInteger(old.root) && old.root >= 0 && old.root < 12 ? old.root : 9,
     quality:Object.hasOwn(CL_QUALITIES, old.quality) ? old.quality : '7',
     index:Number.isInteger(old.index) && old.index >= 0 ? old.index : 0,
-    mode:old.mode === 'caged' && old.quality === 'major' ? 'caged' : 'grips',
+    mode:old.mode === 'arp' ? 'arp' : old.mode === 'caged' && old.quality === 'major' ? 'caged' : 'grips',
     form:['C','A','G','E','D'].includes(old.form) ? old.form : 'C',
-    overlay:['none','triad','penta'].includes(old.overlay) ? old.overlay : 'none'
+    overlay:['none','triad','penta'].includes(old.overlay) ? old.overlay : 'none',
+    arpBpm:Number.isFinite(+old.arpBpm) ? Math.max(40,Math.min(160,+old.arpBpm)) : 90
   };
   return S.chordLab;
 }
@@ -6655,15 +6694,21 @@ function chordLabNote(root, role) {
   return letters[idx]+(accidental > 0 ? '♯'.repeat(accidental) : '♭'.repeat(-accidental));
 }
 function toggleChordLab() {
+  stopArpeggio();
   chordLabOpen = !chordLabOpen;
   renderChordLab();
 }
 function setChordLab(field, value) {
+  const before = currentChordLab().state;
+  const previousNotes = before.mode === 'arp' && field === 'form' && value !== before.form ? chordLabArpeggio(before.root,before.quality,before.form).notes : [];
+  stopArpeggio(); arpCursor = -1;
+  arpShared = new Set(previousNotes.map(n => `${n.s}:${n.fret}`));
   normalizeChordLab();
   if (field === 'root') S.chordLab.root = Number(value);
+  else if (field === 'arpBpm') S.chordLab.arpBpm = Number(value);
   else if (['quality','mode','form','overlay'].includes(field)) S.chordLab[field] = value;
   if (field === 'mode' && value === 'caged') S.chordLab.quality = 'major';
-  if (field === 'quality' && value !== 'major') S.chordLab.mode = 'grips';
+  if (field === 'quality' && value !== 'major' && S.chordLab.mode === 'caged') S.chordLab.mode = 'grips';
   if (field === 'root' || field === 'quality' || field === 'mode') S.chordLab.index = 0;
   renderChordLab(); saveSettings();
 }
@@ -6674,6 +6719,7 @@ function stepChordLab(dir) {
   renderChordLab(); saveSettings();
 }
 function useCurrentChordLab() {
+  stopArpeggio(); arpCursor = -1; arpShared.clear();
   const ch = S.prog[S.progIdx];
   const quality = ch ? ch.fifth !== 7 ? null : ch.third === 3 ? 'minor' : 'major' : S.scale === 'minor' ? 'minor' : 'major';
   if (!quality) {
@@ -6766,8 +6812,10 @@ function renderChordLab() {
   document.getElementById('clCagedMode').setAttribute('aria-pressed',String(state.mode==='caged'));
   document.getElementById('clGripsMode').classList.toggle('active',state.mode==='grips');
   document.getElementById('clCagedMode').classList.toggle('active',state.mode==='caged');
+  document.getElementById('clArpMode').classList.toggle('active',state.mode==='arp');
+  document.getElementById('clArpMode').setAttribute('aria-pressed',String(state.mode==='arp'));
   document.getElementById('clTitle').textContent=name;
-  document.getElementById('clVariant').textContent=`${grip.name} · ${index+1} / ${variants.length}`;
+  document.getElementById('clVariant').textContent=state.mode==='arp' ? `${state.form}-Lage · Arpeggio` : `${grip.name} · ${index+1} / ${variants.length}`;
   document.getElementById('clNotice').textContent='';
   document.getElementById('clTheory').textContent=quality.tip;
   document.getElementById('clFormula').textContent=quality.roles.map(r=>`${r} ${chordLabNote(state.root,r)}`).join(' · ');
@@ -6783,8 +6831,10 @@ function renderChordLab() {
       const cell=document.createElement('td');cell.textContent=text;row.appendChild(cell);
     });return row;
   }));
-  document.getElementById('clSolution').hidden=!chordLabRevealed;
-  document.getElementById('clRecall').hidden=chordLabRevealed;
+  document.getElementById('clSolution').hidden=!chordLabRevealed || state.mode==='arp';
+  document.getElementById('clRecall').hidden=chordLabRevealed || state.mode==='arp';
+  document.getElementById('clGripControls').hidden=state.mode==='arp';
+  document.getElementById('clArpPanel').hidden=state.mode!=='arp';
   document.getElementById('clReveal').textContent=chordLabRevealed?'Griff verdecken':'Griff anzeigen';
   document.getElementById('clReveal').setAttribute('aria-expanded',String(chordLabRevealed));
   document.getElementById('clCaged').hidden=state.mode!=='caged';
@@ -6795,7 +6845,153 @@ function renderChordLab() {
   document.getElementById('clMapWrap').hidden=!chordLabRevealed;
   drawChordLabDiagram(grip,state.root,state.quality);
   if(state.mode==='caged')drawCagedMap(state.root,grip,state.overlay);
+  if(state.mode==='arp')renderChordLabArpeggio();
 }
+// CAGED is a position reference; pitch membership always comes from the selected
+// chord quality, never from a blanket major shape or the global pentatonic scale.
+let arpTimers = [], arpGeneration = 0, arpCursor = -1, arpShared = new Set();
+function chordLabArpeggio(root, quality, form) {
+  const anchor = chordLabCaged(root).find(v => v.form === form);
+  const lo = Math.min(...anchor.frets.filter(f => f != null));
+  const hi = Math.min(FRETS, Math.max(lo+4,...anchor.frets.filter(f => f != null)));
+  const localGrips = chordLabVariants(root,quality).filter(v => v.frets.every(f => f == null || (f >= lo && f <= hi)));
+  const grip = localGrips.find(v => v.form === form) || localGrips[0] || null;
+  const gripKeys = new Set(grip ? grip.frets.flatMap((f,i) => f == null ? [] : [`${5-i}:${f}`]) : []);
+  const notes = [];
+  for(let s=0;s<6;s++)for(let fret=lo;fret<=hi;fret++) {
+    const pc=mod12(OPEN_PC[s]+fret), role=chordLabRole(root,quality,pc);
+    if(!role)continue;
+    const offset = fret - Math.max(1,lo);
+    notes.push({s,fret,midi:OPEN_MIDI[s]+fret,pc,role,
+      finger:fret===0?'0':offset<4?String(offset+1):'4+',
+      inGrip:gripKeys.has(`${s}:${fret}`)});
+  }
+  // Pick one physical location per pitch for the ascending/descending exercise.
+  // Prefer the visible grip, then the lower fret. All alternatives remain clickable.
+  const byMidi=new Map();
+  [...notes].sort((a,b)=>Number(b.inGrip)-Number(a.inGrip)||a.fret-b.fret||a.s-b.s)
+    .forEach(n=>{if(!byMidi.has(n.midi))byMidi.set(n.midi,n);});
+  const sequence=[...byMidi.values()].sort((a,b)=>a.midi-b.midi);
+  return {root,quality,form,lo,hi,anchor,grip,notes,sequence};
+}
+function currentArpeggio() {
+  const state=normalizeChordLab();
+  return chordLabArpeggio(state.root,state.quality,state.form);
+}
+function nextArpeggioForm() {
+  const state=normalizeChordLab();
+  const forms=chordLabCaged(state.root).sort((a,b)=>a.low-b.low);
+  const idx=forms.findIndex(v=>v.form===state.form);
+  setChordLab('form',forms[(idx+1)%forms.length].form);
+}
+function stopArpeggio() {
+  arpGeneration++;
+  arpTimers.forEach(clearTimeout); arpTimers=[];
+  document.querySelectorAll('#clArpUp,#clArpDown,#clArpBoth').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('#clArpMap .arp-current,#clArpSequence .active').forEach(n=>n.classList.remove('arp-current','active'));
+  const status=document.getElementById('clArpStatus');
+  if(status)status.textContent='Bereit · Wähle einen Lauf oder gehe Ton für Ton weiter.';
+}
+function soundArpeggioNote(n) {
+  const {state}=currentChordLab();
+  pluck(n.midi,0,Math.min(0.7,60/state.arpBpm*0.85),0.85);
+  document.querySelectorAll('#clArpMap .arp-current,#clArpSequence .active').forEach(e=>e.classList.remove('arp-current','active'));
+  const target=document.querySelector(`#clArpMap [data-position="${n.s}:${n.fret}"]`);
+  if(target)target.classList.add('arp-current');
+  const step=document.querySelector(`#clArpSequence [data-position="${n.s}:${n.fret}"]`);
+  if(step)step.classList.add('active');
+  document.getElementById('clArpStatus').textContent=`${chordLabNote(state.root,n.role)} · ${n.role} · ${STR_LABELS[n.s]}-Saite, ${n.fret===0?'offen':'Bund '+n.fret} · ${n.finger==='0'?'leere Saite':'Finger '+n.finger}`;
+}
+function chooseArpeggioNote(n) {
+  stopArpeggio();
+  arpCursor=currentArpeggio().sequence.findIndex(item=>item.midi===n.midi);
+  soundArpeggioNote(n);
+}
+function stepArpeggio() {
+  stopArpeggio();
+  const sequence=currentArpeggio().sequence;
+  arpCursor=(arpCursor+1)%sequence.length;
+  soundArpeggioNote(sequence[arpCursor]);
+}
+function playArpeggioGrip() {
+  stopArpeggio();
+  const {grip}=currentArpeggio();
+  if(!grip)return;
+  let i=0;
+  grip.frets.forEach((f,lowString)=>{
+    if(f!=null)pluck(OPEN_MIDI[5-lowString]+f,i++*0.055,1.2,0.85);
+  });
+}
+function playArpeggio(direction) {
+  stopArpeggio();
+  const data=currentArpeggio(), generation=arpGeneration;
+  const sequence=direction==='down'?[...data.sequence].reverse():direction==='both'?[...data.sequence,...data.sequence.slice(0,-1).reverse()]:data.sequence;
+  const delay=60000/normalizeChordLab().arpBpm;
+  const button=document.getElementById(direction==='down'?'clArpDown':direction==='both'?'clArpBoth':'clArpUp');
+  button.classList.add('active');
+  const play=n=>{
+    if(generation!==arpGeneration || !chordLabOpen || S.chordLab.mode!=='arp')return;
+    arpCursor=data.sequence.findIndex(item=>item.midi===n.midi);
+    soundArpeggioNote(n);
+  };
+  // Unlock Web Audio on the user's click; queue only future JS callbacks, so
+  // stop/context changes can cancel the run without scheduling stale audio.
+  play(sequence[0]);
+  sequence.slice(1).forEach((n,i)=>arpTimers.push(setTimeout(()=>play(n),(i+1)*delay)));
+  arpTimers.push(setTimeout(()=>{
+    if(generation!==arpGeneration)return;
+    button.classList.remove('active');arpTimers=[];
+    document.getElementById('clArpStatus').textContent+=' · Lauf beendet';
+  },sequence.length*delay));
+}
+function renderChordLabArpeggio() {
+  const data=currentArpeggio(), {root,quality,form,lo,hi,notes,sequence,anchor,grip}=data;
+  document.getElementById('clArpBpm').value=normalizeChordLab().arpBpm;
+  document.getElementById('clArpGrip').disabled=!grip;
+  document.querySelectorAll('#clArpForms [data-form]').forEach(b=>{
+    b.classList.toggle('active',b.dataset.form===form);
+    b.setAttribute('aria-pressed',String(b.dataset.form===form));
+  });
+  document.getElementById('clArpRegion').textContent=`${CL_ROOTS[root]+CL_QUALITIES[quality].suffix} · ${form}-Lage · Bünde ${lo}–${hi} · ${sequence.length} Tonhöhen über alle sechs Saiten`;
+  document.getElementById('clArpReference').textContent=grip
+    ? `Griffanker: ${grip.name} (${grip.frets.map(f=>f==null?'×':f).join(' – ')}). Seine Töne sind zusätzlich umrandet. Das Arpeggio ergänzt die übrigen Akkordtöne in dieser Lage.`
+    : 'Für diesen Akkordtyp ist in dieser Lage kein vollständiger Griff hinterlegt. Die graue CAGED-Kontur dient als Lagenanker; die farbigen Punkte sind die tatsächlichen Akkordtöne.';
+  const svg=document.getElementById('clArpMap');svg.replaceChildren();
+  const left=58, dx=82, top=45, dy=44, cols=hi-lo+1, width=left+cols*dx+24;
+  const x=f=>left+(f-lo+0.5)*dx,y=s=>top+s*dy;
+  svg.setAttribute('viewBox',`0 0 ${width} ${top+5*dy+45}`);
+  svg.appendChild(el('title',{},`${CL_ROOTS[root]+CL_QUALITIES[quality].suffix}: Arpeggio in der ${form}-Lage, Bünde ${lo} bis ${hi}`));
+  for(let s=0;s<6;s++) {
+    svg.appendChild(el('text',{x:9,y:y(s)+4,fill:'#afbdce','font-size':13},STR_LABELS[s]));
+    svg.appendChild(el('line',{x1:left,x2:left+cols*dx,y1:y(s),y2:y(s),stroke:'#63758c','stroke-width':s>2?2:1}));
+  }
+  for(let f=lo;f<=hi;f++) {
+    svg.appendChild(el('line',{x1:left+(f-lo+1)*dx,x2:left+(f-lo+1)*dx,y1:top-18,y2:y(5)+18,stroke:'#4f6074','stroke-width':f===0?4:1}));
+    svg.appendChild(el('text',{x:x(f),y:y(5)+39,fill:'#b7c6d9','text-anchor':'middle','font-size':13},f===0?'offen':String(f)));
+  }
+  // Skeleton shows position, not a false major arpeggio over a minor/extended chord.
+  anchor.frets.forEach((f,i)=>{if(f!=null)svg.appendChild(el('rect',{x:x(f)-19,y:y(5-i)-19,width:38,height:38,rx:7,fill:'none',stroke:'#7a8799','stroke-width':1,'stroke-dasharray':'3 3',class:'arp-anchor'}));});
+  notes.forEach(n=>{
+    const xx=x(n.fret), yy=y(n.s), key=`${n.s}:${n.fret}`;
+    const label=`${chordLabNote(root,n.role)}, ${n.role}, ${STR_LABELS[n.s]}-Saite, Bund ${n.fret}, Finger ${n.finger}`;
+    const group=el('g',{class:'arp-note','data-position':key,role:'button',tabindex:0,'aria-label':label,style:'cursor:pointer'});
+    group.appendChild(el('title',{},label));
+    if(arpShared.has(key))group.appendChild(el('circle',{class:'arp-shared',cx:xx,cy:yy,r:21,fill:'none',stroke:'#22d3ee','stroke-width':2,'stroke-dasharray':'3 2'}));
+    group.appendChild(el('circle',{cx:xx,cy:yy,r:15,fill:n.role==='R'?'#fbbf24':'#8cddcc',stroke:n.inGrip?'#f5f8ff':'#132032','stroke-width':n.inGrip?3:1}));
+    group.appendChild(el('text',{x:xx,y:yy+4,fill:'#0b211b','text-anchor':'middle','font-size':11,'font-weight':'bold'},n.role));
+    group.appendChild(el('text',{x:xx+21,y:yy+15,fill:'#c1d0e3','font-size':10},n.finger));
+    group.addEventListener('click',()=>chooseArpeggioNote(n));
+    group.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();e.stopPropagation();chooseArpeggioNote(n);}});
+    svg.appendChild(group);
+  });
+  document.getElementById('clArpSequence').replaceChildren(...sequence.map((n,i)=>{
+    const b=document.createElement('button');b.type='button';b.dataset.position=`${n.s}:${n.fret}`;
+    b.textContent=`${i+1}. ${chordLabNote(root,n.role)} · ${n.role}`;
+    b.title=`${STR_LABELS[n.s]}-Saite, Bund ${n.fret}, Finger ${n.finger}`;
+    b.addEventListener('click',()=>chooseArpeggioNote(n));return b;
+  }));
+}
+
 function initChordLab() {
   const roots=document.getElementById('clRoot'), qualities=document.getElementById('clQuality');
   CL_ROOTS.forEach((name,i)=>roots.add(new Option(name,String(i))));

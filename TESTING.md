@@ -7,6 +7,7 @@ Für die DOM-Tests wird Node.js mit jsdom benötigt:
 npm install --no-save --package-lock=false jsdom@29.1.1
 node ui-smoke.cjs
 node chord-lab.test.cjs
+node arpeggios.test.cjs
 ```
 
 `ui-smoke.cjs` prüft die bestehende Oberfläche, Transportsteuerung, Progression,
@@ -38,3 +39,21 @@ war in der Arbeitsumgebung durch die Browserrichtlinie blockiert.
   soll wiederhergestellt werden; die bisherige Progression bleibt unverändert.
 - Tastaturbedienung, mobile Darstellung, Spielmodus sowie parallele Bibliotheks-
   und Editoransicht prüfen.
+
+## CAGED-Arpeggios
+
+`arpeggios.test.cjs` prüft 720 Kombinationen aus zwölf Tonarten, zwölf
+Akkordtypen und fünf CAGED-Lagen. Tonzugehörigkeit, vollständige Intervallabdeckung,
+Bundgrenzen, Fingersatzhinweise und nach Tonhöhe sortierte Läufe werden geprüft.
+Die DOM-Tests decken Aufwärts-/Abwärts-/Hin-und-zurück-Läufe, Einzelschritte,
+Tastaturbedienung, gemeinsame Griffpunkte, Wiedergabeabbruch bei Stop und
+Kontextwechsel sowie gespeicherte Einstellungen ab. Audio und Timer werden simuliert.
+
+Manuell: In „Akkordgriffe & CAGED“ A7 wählen, „Arpeggios · CAGED-Lagen“ öffnen
+und E-, A-, D- und C-Form vergleichen. Kleine Septime und Griffanker kontrollieren.
+Beim Wechsel nach Moll muss die große durch die kleine Terz ersetzt werden.
+Die graue Kontur ist die Dur-Grundform als Lagenreferenz, kein zusätzlicher
+Akkordton. Türkise Außenringe markieren gleiche Saiten-/Bundpositionen der
+vorherigen Lage. „4+“ ist ein Fingersatzvorschlag mit kleiner Lagenverschiebung.
+Bei Stop darf kein weiterer Ton des Laufs starten; der bereits angeschlagene
+Ton darf kurz ausklingen.
