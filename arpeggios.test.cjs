@@ -34,21 +34,21 @@ try{
   w.clearTimeout=id=>timers.delete(id);
   const flush=()=>{const pending=[...timers.values()].sort((a,b)=>a.delay-b.delay);timers.clear();pending.forEach(t=>t.cb());};
   w.toggleChordLab();w.setChordLab('root',9);w.setChordLab('quality','7');
-  d.getElementById('clArpMode').click();w.setChordLab('form','E');
+  w.setChordLabPosition('E');w.setChordLab('display','arp');
   assert.equal(ev('S.chordLab.quality'),'7','Entering arpeggios must not switch to major');
-  assert.equal(d.getElementById('clArpPanel').hidden,false);
+  assert.equal(d.getElementById('clPosition').value,'E');
   assert.equal(d.getElementById('clGripControls').hidden,true);
   assert.ok(d.getElementById('fb').textContent.includes('♭7'));
   assert.ok(!d.getElementById('fb').outerHTML.includes('NaN'));
   assert.equal(d.querySelectorAll('#fb .arp-note').length,ev('currentArpeggio().notes.length'));
   assert.ok(d.querySelectorAll('#clArpSequence button').length>0);
   const expected=Array.from(ev('currentArpeggio().sequence'),n=>n.midi);
-  d.getElementById('clArpUp').click();flush();
+  w.playArpeggio('up');flush();
   assert.deepEqual(played.map(a=>a[0]),expected);
-  assert.equal(d.getElementById('clArpUp').classList.contains('active'),false);
-  played.length=0;d.getElementById('clArpDown').click();flush();
+  assert.equal(d.getElementById('clTransport').getAttribute('aria-pressed'),'false');
+  played.length=0;w.playArpeggio('down');flush();
   assert.deepEqual(played.map(a=>a[0]),[...expected].reverse());
-  played.length=0;d.getElementById('clArpBoth').click();flush();
+  played.length=0;w.playArpeggio('both');flush();
   assert.deepEqual(played.map(a=>a[0]),[...expected,...expected.slice(0,-1).reverse()]);
   played.length=0;ev('arpCursor=-1');
   d.getElementById('clArpStep').click();d.getElementById('clArpStep').click();
@@ -59,10 +59,10 @@ try{
   const marker=d.querySelector('#fb .arp-note');
   const key=new w.KeyboardEvent('keydown',{key:' ',bubbles:true,cancelable:true});
   marker.dispatchEvent(key);assert.equal(key.defaultPrevented,true);assert.equal(ev('S.metroOn'),false);
-  played.length=0;d.getElementById('clArpUp').click();
-  const stale=[...timers.values()];d.getElementById('clArpStop').click();
+  played.length=0;w.playArpeggio('up');
+  const stale=[...timers.values()];w.stopArpeggio();
   stale.forEach(t=>t.cb());assert.equal(played.length,1);assert.equal(timers.size,0);
-  played.length=0;d.getElementById('clArpUp').click();
+  played.length=0;w.playArpeggio('up');
   const staleContext=[...timers.values()];w.setChordLab('quality','minor');
   staleContext.forEach(t=>t.cb());assert.equal(played.length,1);
   assert.equal(ev('S.chordLab.mode'),'arp');
@@ -80,14 +80,34 @@ try{
   w.setChordLab('quality','13');
   assert.ok(ev('currentArpeggio().notes.some(n=>n.role==="13")'));
   w.setChordLab('quality','major');w.setChordLab('form','C');
-  assert.equal(d.getElementById('clArpGrip').disabled,false);
-  played.length=0;d.getElementById('clArpGrip').click();
+  assert.ok(ev('currentArpeggio().grip'));
+  played.length=0;w.playArpeggioGrip();
   assert.equal(played.length,ev('currentArpeggio().grip.frets.filter(f=>f!=null).length'));
-  d.getElementById('clArpUp').click();w.toggleChordLab();assert.equal(timers.size,0);
+  // Single transport starts/stops both runs and individual chord strings.
+  for(const display of ['arp','both','grip'])for(const direction of ['up','down','both','chord']){
+    w.setChordLab('display',display);w.setChordLab('playback',direction);played.length=0;
+    d.getElementById('clTransport').click();
+    assert.equal(d.getElementById('clTransport').getAttribute('aria-pressed'),'true');
+    const pending=[...timers.values()];d.getElementById('clTransport').click();
+    pending.forEach(t=>t.cb());assert.equal(played.length,1,'Stop cancels future strings/notes');
+    assert.equal(timers.size,0);assert.equal(d.getElementById('clTransport').getAttribute('aria-pressed'),'false');
+    played.length=0;d.getElementById('clTransport').click();flush();
+    const source=display==='grip'||direction==='chord'
+      ? Array.from(ev('currentArpeggio().grip.frets')).flatMap((f,i)=>f==null?[]:[[40,45,50,55,59,64][i]+f])
+      : Array.from(ev('currentArpeggio().sequence'),n=>n.midi);
+    const wanted=direction==='down'?[...source].reverse():direction==='both'?[...source,...source.slice(0,-1).reverse()]:source;
+    assert.deepEqual(played.map(n=>n[0]),wanted);
+    assert.equal(d.getElementById('clTransport').getAttribute('aria-pressed'),'false');
+  }
+  w.setChordLabPosition('free');d.getElementById('clTransport').click();
+  const oldGripTimers=[...timers.values()];played.length=0;w.stepChordLab(1);
+  oldGripTimers.forEach(t=>t.cb());assert.equal(played.length,0);
+  w.setChordLabPosition('C');w.setChordLab('display','arp');
+  w.playArpeggio('up');w.toggleChordLab();assert.equal(timers.size,0);
   w.saveSettings();const saved=JSON.parse(w.localStorage.getItem('gitarrenTraining.settings'));
   assert.equal(saved.chordLab.mode,'arp');assert.equal(saved.chordLab.form,'C');assert.equal(saved.chordLab.arpBpm,40);
   const restored=new JSDOM(html,{url:'https://test.invalid/',runScripts:'dangerously',virtualConsole:vc,beforeParse(window){window.scrollTo=()=>{};window.localStorage.setItem('gitarrenTraining.settings',JSON.stringify(saved));}});
-  restored.window.toggleChordLab();assert.equal(restored.window.document.getElementById('clArpPanel').hidden,false);restored.window.close();
+  restored.window.toggleChordLab();assert.equal(restored.window.document.getElementById('clPosition').value,'C');restored.window.close();
   assert.deepEqual(errors,[]);
   console.log('PASS: arpeggio mode/quality, SVG/keyboard interaction, up/down/return/step playback, tempo bounds, stop/context cancellation, shared positions, grip audio and persistence.');
 }finally{dom.window.close();}
