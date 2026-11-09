@@ -1,6 +1,6 @@
 // node arpeggios.test.cjs (requires jsdom for the DOM/playback half)
 const fs=require('node:fs'), path=require('node:path'), vm=require('node:vm'), assert=require('node:assert/strict');
-const html=fs.readFileSync(path.join(__dirname,'gitarren-training.html'),'utf8');
+const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
 const code=html.slice(html.indexOf('const CL_ROOTS ='),html.lastIndexOf('// ─── Init'));
 const core=vm.createContext({S:{},FRETS:22,mod12:n=>(n%12+12)%12,OPEN_PC:[4,11,7,2,9,4],OPEN_MIDI:[64,59,55,50,45,40]});
 vm.runInContext(code,core);
