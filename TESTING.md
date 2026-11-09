@@ -42,3 +42,18 @@ Eine vollständige Browserprüfung war durch die Browserrichtlinie blockiert.
 - Schließen oder Lick/Intervallübung wählen: normale Ansicht und Progression
   erscheinen wieder. Nach Neuladen bleiben Akkordtyp, Lage und Anzeige erhalten.
 - Tastaturbedienung und mobile Lesbarkeit prüfen; der Hals ist horizontal scrollbar.
+
+## Progression folgen
+
+Die CAGED-Ansicht folgt standardmäßig dem aktiven Progressionsakkord. Ein
+manueller Wechsel von Grundton oder Akkordtyp deaktiviert das Mitlaufen; der
+Schalter aktiviert es wieder. CAGED-Form und Anzeige bleiben beim Akkordwechsel
+erhalten. Die Progression speichert derzeit Dreiklänge, daher werden Dur/Moll
+übernommen und keine Septimen erfunden. Für verminderte/übermäßige Dreiklänge
+erscheint ein Hinweis statt eines falschen CAGED-Musters.
+
+Tests prüfen Am → Dm → E, manuelle Akkordwahl und den Renderpfad des
+Metronoms, Abbruch alter Arpeggio-Timer, Erhalt der Lage, manuelles Abkoppeln,
+Wiederankoppeln, fehlende Muster und eine geleerte Progression.
+Manuell zusätzlich: Progression starten, Akkordleiste direkt unter dem Griffbrett
+beobachten und Tonwechsel auf der Eins sowie nach dem Einzähler vergleichen.

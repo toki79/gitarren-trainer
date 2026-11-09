@@ -561,7 +561,7 @@ body.play-mode #topBar #metroBtn { display: inline-block; }
 #clArpSequence button { font-size:0.78rem; }
 
 body.chord-lab-open .fretboard-tools,
-body.chord-lab-open #fbProg, body.chord-lab-open #chordCoach,
+body.chord-lab-open #chordCoach,
 body.chord-lab-open #lickBar, body.chord-lab-open #walkBar,
 body.chord-lab-open #playBar, body.chord-lab-open #fbStaff,
 body.chord-lab-open #fbComment, body.chord-lab-open #fbLegend,
@@ -665,6 +665,7 @@ body.chord-lab-open .fretboard-wrap.compact #fb { min-width:1000px; max-width:no
     <svg id="fb" viewBox="0 0 1318 235" role="img" aria-label="Interaktives Gitarrengriffbrett"></svg>
     </div>
     <p id="fbWorkspaceStatus" class="hint" role="status"></p>
+    <div id="fbProg" style="display:none" role="group" aria-label="Akkordfolge – aktueller Akkord hervorgehoben" title="Klick springt zum Akkord · Leertaste: Start / Stop (außer in Eingabefeldern und im Lick-Editor)"></div>
     <div id="voicingPractice" class="voicing-practice" style="display:none">
       <strong id="voicingPracticeTitle"></strong>
       <label>Saiten <select id="voicingPracticeSet" onchange="setStringSet(this.value)">
@@ -681,6 +682,7 @@ body.chord-lab-open .fretboard-wrap.compact #fb { min-width:1000px; max-width:no
       <div class="cl-heading"><div><p class="eyebrow">VOM AKKORD ZUM GRIFF</p><h2 id="clHeading">Akkordgriffe &amp; CAGED</h2></div>
         <button type="button" onclick="toggleChordLab()" aria-label="Akkordgriff-Bereich schließen">✕ Schließen</button></div>
       <p class="hint">Akkordtyp bestimmt die Töne, CAGED-Lage bestimmt den Halsbereich.</p>
+      <label><input id="clFollow" type="checkbox" onchange="setChordLabFollow(this.checked)"> Progression folgen</label>
       <div class="cl-controls">
         <label>Grundton <select id="clRoot" onchange="setChordLab('root',this.value)"></select></label>
         <label>Akkordtyp <select id="clQuality" onchange="setChordLab('quality',this.value)"></select></label>
@@ -762,7 +764,6 @@ body.chord-lab-open .fretboard-wrap.compact #fb { min-width:1000px; max-width:no
       <button id="btn-legend" onclick="toggleLegend()" title="Legende ein-/ausblenden">？ Legende</button>
     </div>
     </details>
-    <div id="fbProg" style="display:none" role="group" aria-label="Akkordfolge – aktueller Akkord hervorgehoben" title="Klick springt zum Akkord · Leertaste: Start / Stop (außer in Eingabefeldern und im Lick-Editor)"></div>
     <div id="chordCoach" class="chord-coach" style="display:none">
       <div><span id="nextChordLabel" class="tb-label">Als Nächstes</span><strong id="nextChordName"></strong></div>
       <span id="chordCountdown" class="countdown" role="timer" aria-live="off"></span>
@@ -1899,6 +1900,7 @@ const sy = s => MT + s * SH;
 
 function render() {
   if(chordLabOpen && capturing()) closeChordLabForTraining();
+  if(chordLabOpen && syncChordLabProgression())renderChordLab(false);
   document.body.classList.toggle('chord-lab-open',chordLabOpen);
   renderPracticeControls();
   const svg = document.getElementById('fb');
@@ -6637,6 +6639,7 @@ function normalizeChordLab() {
     mode:old.mode === 'grips' ? 'grips' : 'arp',
     display:['grip','arp','both'].includes(old.display) ? old.display : 'both',
     playback:['up','down','both','chord'].includes(old.playback) ? old.playback : 'up',
+    follow:old.follow !== false,
     form:['C','A','G','E','D'].includes(old.form) ? old.form : 'E',
     overlay:['none','triad','penta'].includes(old.overlay) ? old.overlay : 'none',
     arpBpm:Number.isFinite(+old.arpBpm) ? Math.max(40,Math.min(160,+old.arpBpm)) : 90
@@ -6680,12 +6683,34 @@ function chordLabNote(root, role) {
   if (accidental > 6) accidental -= 12;
   return letters[idx]+(accidental > 0 ? '♯'.repeat(accidental) : '♭'.repeat(-accidental));
 }
+let chordLabFollowSignature=null, chordLabUnsupported=null;
+function setChordLabFollow(enabled) {
+  normalizeChordLab();S.chordLab.follow=enabled;
+  chordLabFollowSignature=null;chordLabUnsupported=null;
+  syncChordLabProgression();renderChordLab();saveSettings();
+}
+function syncChordLabProgression() {
+  const state=normalizeChordLab(),ch=S.prog[S.progIdx];
+  const signature=state.follow&&ch?JSON.stringify([S.progIdx,ch.rootPc,ch.third,ch.fifth,ch.name]):'manual';
+  if(signature===chordLabFollowSignature)return false;
+  chordLabFollowSignature=signature;chordLabUnsupported=null;
+  stopArpeggio();arpCursor=-1;arpShared.clear();
+  if(state.follow&&ch) {
+    // The progression currently stores triads; don't invent sevenths/extensions.
+    const quality=ch.fifth===7?(ch.third===3?'minor':ch.third===4?'major':null):null;
+    if(quality) {state.root=mod12(ch.rootPc);state.quality=quality;state.index=0;}
+    else chordLabUnsupported=ch;
+  }
+  return true;
+}
 function toggleChordLab() {
   stopArpeggio();
   chordLabOpen = !chordLabOpen;
+  if(chordLabOpen)syncChordLabProgression();
   renderChordLab();
 }
 function setChordLab(field, value) {
+  if(field==='root'||field==='quality') {S.chordLab.follow=false;chordLabFollowSignature=null;chordLabUnsupported=null;}
   const before = currentChordLab().state;
   const previousNotes = before.mode === 'arp' && field === 'form' && value !== before.form ? chordLabArpeggio(before.root,before.quality,before.form).notes : [];
   stopArpeggio(); arpCursor = -1;
@@ -6712,7 +6737,7 @@ function useCurrentChordLab() {
     document.getElementById('clNotice').textContent = 'Für verminderte und übermäßige Akkorde bitte die Triaden-Übung verwenden. Die Auswahl hier bleibt erhalten.';
     return;
   }
-  S.chordLab = {...normalizeChordLab(), root:ch ? mod12(ch.rootPc) : S.key, quality, index:0, mode:'grips'};
+  S.chordLab = {...normalizeChordLab(), follow:false, root:ch ? mod12(ch.rootPc) : S.key, quality, index:0, mode:'grips'};
   renderChordLab(); saveSettings();
 }
 function playChordLab(arpeggio = false) {
@@ -6738,6 +6763,7 @@ function renderChordLab(updateFretboard = true) {
   panel.hidden=!chordLabOpen;
   button.setAttribute('aria-expanded',String(chordLabOpen));button.classList.toggle('active',chordLabOpen);
   if(!chordLabOpen) { if(updateFretboard)render(); return; }
+  document.getElementById('clFollow').checked=state.follow;
   document.getElementById('clRoot').value=state.root;
   document.getElementById('clQuality').value=state.quality;
   document.getElementById('clPosition').value=state.mode==='grips'?'free':state.form;
@@ -6768,6 +6794,14 @@ function renderChordLab(updateFretboard = true) {
   document.getElementById('clTransport').disabled=!grip&&(state.display==='grip'||state.playback==='chord');
   renderChordLabArpeggio();
   ['clArpRegion','clArpReference','clArpSequence'].forEach(id=>document.getElementById(id).hidden=state.mode!=='arp'||!chordLabRevealed);
+  if(chordLabUnsupported){
+    document.getElementById('clTitle').textContent=chordLabUnsupported.name;
+    document.getElementById('clRoot').value=mod12(chordLabUnsupported.rootPc);
+    document.getElementById('clQuality').value='';
+    document.getElementById('clNotice').textContent='Für diesen Akkord sind hier noch keine CAGED-Griffe oder Arpeggios hinterlegt. Nutze dafür die Triaden-Voicings.';
+    ['clSolution','clArpSequence','clArpRegion','clArpReference','clFormula','clTheory'].forEach(id=>document.getElementById(id).hidden=true);
+    document.getElementById('clTransport').disabled=true;document.getElementById('clArpStep').disabled=true;
+  }else{['clFormula','clTheory'].forEach(id=>document.getElementById(id).hidden=false);}
   if(updateFretboard)render();
 }
 // CAGED is a position reference; pitch membership always comes from the selected
@@ -6934,6 +6968,7 @@ function closeChordLabForTraining() {
 function drawChordLabOnFretboard(svg) {
   const {state,grip,name}=currentChordLab();
   const status=document.getElementById('fbWorkspaceStatus');
+  if(chordLabUnsupported){status.textContent=`${chordLabUnsupported.name} · Noch kein CAGED-Muster hinterlegt`;return;}
   const area=(lo,hi,selected,label='')=>{
     const x1=Math.max(20,fx(lo)-20), x2=fx(hi)+20;
     svg.appendChild(el('rect',{class:'cl-region',x:x1,y:MT-5,width:x2-x1,height:5*SH+10,rx:6,
