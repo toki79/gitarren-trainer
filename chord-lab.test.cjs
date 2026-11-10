@@ -65,7 +65,7 @@ function test() {
   assert.equal(d.getElementById('clOptions').open,false);
   assert.equal(d.getElementById('clPosition').options.length,6);
   w.setChordLab('root',0);w.setChordLab('quality','major');w.setChordLabPosition('free');
-  assert.equal(d.getElementById('clDisplay').disabled,true);
+  assert.equal(d.getElementById('clDisplay'),null);
   assert.deepEqual(Array.from(ev('currentChordLab().grip.frets')),[null,3,2,0,1,0]);
   assert.equal(d.querySelectorAll('#fb .cl-note').length,5);
   assert.equal(d.querySelectorAll('#fb .cl-muted').length,1);

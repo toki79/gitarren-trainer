@@ -10,6 +10,7 @@ node ui-smoke.cjs
 node chord-lab.test.cjs
 node arpeggios.test.cjs
 node overview.test.cjs
+node layers.test.cjs
 ```
 
 - `ui-smoke.cjs`: bestehende Oberfläche, Transport, Progression, Countdown,
@@ -91,3 +92,19 @@ Griff steht „Töne“ statt „Griff“; es werden keine fremden Dur-Griffe er
 Regressionstest: F-Dur zeigt C-, A-, G- und D-Griffe zusätzlich zur aktiven
 E-Form. Oktavvarianten verwenden die passenden Fingersätze/Barrés aus den
 Griffvorlagen. Öffnen der CAGED-Ansicht beendet eine laufende Triadenübung.
+
+## Unabhängige Anzeige-Ebenen
+
+Über dem Griffbrett stehen drei Checkboxen: CAGED, Pentatonik und Triaden.
+Das bisherige Anzeige-Dropdown entfällt; die aktive CAGED-Lage liegt jetzt
+unter „Weitere Optionen“. Jede Kombination ist möglich, einschließlich einer
+leeren Anzeige. Beim Einstieg über eine Checkbox wird nur diese Ebene aktiviert.
+Die Schaltfläche „Akkord & Übung“ öffnet die zuletzt gespeicherte Kombination.
+
+Die Pentatonik verwendet Tonart und Dur/Moll aus der Hauptsteuerung und bleibt
+bei Progressionswechseln gleich. Blaue Ringe zeigen zusätzliche Pentatonik-Töne
+über den gesamten Hals. Bereits als Akkord- oder Triadenton dargestellte
+Griffpunkte erhalten keinen zweiten Marker.
+`layers.test.cjs` prüft alle acht Kombinationen, Tonzugehörigkeit, unveränderte
+Pentatonik bei Akkordwechsel, Tonartmoduswechsel, Speicherung, Tastatur und
+Verdecken. Manuell zusätzlich Checkboxen bei laufender Progression umschalten.

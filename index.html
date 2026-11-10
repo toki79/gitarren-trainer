@@ -658,8 +658,13 @@ body.chord-lab-open .fretboard-wrap.compact #fb { min-width:1000px; max-width:no
         <button id="btn-hideLick" type="button" onclick="toggleLickShow()">Lick ausblenden</button>
         <button id="btn-clearLick" type="button" onclick="selectLick(S.selectedLick)" title="Lick-Auswahl aufheben">✕ Auswahl aufheben</button>
       </span>
-      <button id="btn-chordLab" type="button" onclick="toggleChordLab()" aria-expanded="false" aria-controls="chordLab">Akkordgriffe &amp; CAGED</button>
+      <button id="btn-chordLab" type="button" onclick="toggleChordLab()" aria-expanded="false" aria-controls="chordLab">Akkord &amp; Übung</button>
       <button id="btn-voicingPractice" type="button" onclick="toggleVoicingPractice()" aria-expanded="false" aria-controls="voicingPractice">Triaden-Voicings</button>
+    </div>
+    <div class="cl-controls" id="fbLayers" role="group" aria-label="Griffbrett-Ebenen">
+      <label><input id="layerCaged" type="checkbox" onchange="setFretboardLayer('caged',this.checked)"> CAGED</label>
+      <label><input id="layerPenta" type="checkbox" onchange="setFretboardLayer('penta',this.checked)"> Pentatonik</label>
+      <label><input id="layerTriads" type="checkbox" onchange="setFretboardLayer('triads',this.checked)"> Triaden</label>
     </div>
     <div class="fretboard-scroll" tabindex="0" role="region" aria-label="Griffbrett, horizontal scrollbar">
     <svg id="fb" viewBox="0 0 1318 235" role="img" aria-label="Interaktives Gitarrengriffbrett"></svg>
@@ -687,13 +692,6 @@ body.chord-lab-open .fretboard-wrap.compact #fb { min-width:1000px; max-width:no
       <div class="cl-controls">
         <label>Grundton <select id="clRoot" onchange="setChordLab('root',this.value)"></select></label>
         <label>Akkordtyp <select id="clQuality" onchange="setChordLab('quality',this.value)"></select></label>
-        <label>CAGED-Lage <select id="clPosition" onchange="setChordLabPosition(this.value)">
-          <option value="C">C-Form</option><option value="A">A-Form</option><option value="G">G-Form</option><option value="E">E-Form</option><option value="D">D-Form</option>
-          <option value="free">Freie Griffauswahl</option>
-        </select></label>
-        <label>Anzeige <select id="clDisplay" onchange="setChordLab('display',this.value)">
-          <option value="grip">Griff</option><option value="arp">Arpeggio</option><option value="both">Beides</option><option value="overview">Halsübersicht + nächster Griff</option>
-        </select></label>
       </div>
       <p id="clNotice" class="hint" role="status"></p>
       <div class="cl-chord-heading"><strong id="clTitle"></strong><span id="clVariant" role="status"></span></div>
@@ -704,6 +702,11 @@ body.chord-lab-open .fretboard-wrap.compact #fb { min-width:1000px; max-width:no
       <p id="clArpStatus" role="status" aria-live="off"></p>
       <p id="clRecall" class="cl-recall" hidden>Greife aus dem Gedächtnis und blende die Anzeige zum Vergleichen wieder ein.</p>
       <details id="clOptions" class="cl-help"><summary>Weitere Optionen</summary>
+        <div class="cl-controls">        <label>CAGED-Lage <select id="clPosition" onchange="setChordLabPosition(this.value)">
+          <option value="C">C-Form</option><option value="A">A-Form</option><option value="G">G-Form</option><option value="E">E-Form</option><option value="D">D-Form</option>
+          <option value="free">Freie Griffauswahl</option>
+        </select></label>
+        </div>
         <div class="cl-controls">
           <button type="button" onclick="useCurrentChordLab()">Aktuellen Akkord übernehmen</button>
           <label>Wiedergabe <select id="clPlayback" onchange="setChordLab('playback',this.value)"><option value="up">Aufwärts</option><option value="down">Abwärts</option><option value="both">Auf &amp; ab</option><option value="chord">Akkordanschlag</option></select></label>
@@ -1903,6 +1906,8 @@ function render() {
   if(chordLabOpen && capturing()) closeChordLabForTraining();
   if(chordLabOpen && syncChordLabProgression())renderChordLab(false);
   document.body.classList.toggle('chord-lab-open',chordLabOpen);
+  const layers=normalizeChordLab().layers;
+  for(const [key,id] of [['caged','layerCaged'],['penta','layerPenta'],['triads','layerTriads']])document.getElementById(id).checked=chordLabOpen&&layers[key];
   renderPracticeControls();
   const svg = document.getElementById('fb');
   svg.innerHTML = '';
@@ -6640,6 +6645,7 @@ function normalizeChordLab() {
     index:Number.isInteger(old.index) && old.index >= 0 ? old.index : 0,
     mode:old.mode === 'grips' ? 'grips' : 'arp',
     display:['grip','arp','both','overview'].includes(old.display) ? old.display : 'overview',
+    layers:{caged:typeof old.layers?.caged==='boolean'?old.layers.caged:true,penta:old.layers?.penta===true,triads:typeof old.layers?.triads==='boolean'?old.layers.triads:(!old.display||old.display==='overview')},
     playback:['up','down','both','chord'].includes(old.playback) ? old.playback : 'up',
     follow:old.follow !== false,
     form:['C','A','G','E','D'].includes(old.form) ? old.form : 'E',
@@ -6708,10 +6714,11 @@ function syncChordLabProgression() {
 function toggleChordLab() {
   stopArpeggio();
   chordLabOpen = !chordLabOpen;
-  if(chordLabOpen){endVoicingPractice();syncChordLabProgression();}
+  if(chordLabOpen){endVoicingPractice();normalizeChordLab().display='overview';syncChordLabProgression();}
   renderChordLab();
 }
 function setChordLab(field, value) {
+  if(field==='display'){normalizeChordLab();S.chordLab.layers.caged=true;S.chordLab.layers.triads=value==='overview';}
   if(field==='root'||field==='quality') {S.chordLab.follow=false;chordLabFollowSignature=null;chordLabUnsupported=null;}
   const before = currentChordLab().state;
   const previousNotes = before.mode === 'arp' && field === 'form' && value !== before.form ? chordLabArpeggio(before.root,before.quality,before.form).notes : [];
@@ -6769,8 +6776,7 @@ function renderChordLab(updateFretboard = true) {
   document.getElementById('clRoot').value=state.root;
   document.getElementById('clQuality').value=state.quality;
   document.getElementById('clPosition').value=state.mode==='grips'?'free':state.form;
-  document.getElementById('clDisplay').value=state.mode==='grips'?'grip':state.display;
-  document.getElementById('clDisplay').disabled=state.mode==='grips';
+
   document.getElementById('clPlayback').value=state.playback;
   document.getElementById('clArpBpm').value=state.arpBpm;
   document.getElementById('clTitle').textContent=name;
@@ -6787,15 +6793,15 @@ function renderChordLab(updateFretboard = true) {
       const cell=document.createElement('td');cell.textContent=text;row.appendChild(cell);
     });return row;
   }));
-  document.getElementById('clSolution').hidden=!chordLabRevealed || !grip;
+  document.getElementById('clSolution').hidden=!chordLabRevealed || !grip || !state.layers.caged;
   document.getElementById('clRecall').hidden=chordLabRevealed;
   document.getElementById('clGripControls').hidden=state.mode!=='grips';
   document.getElementById('clReveal').textContent=chordLabRevealed?'Anzeige verdecken':'Anzeige anzeigen';
   document.getElementById('clReveal').setAttribute('aria-expanded',String(chordLabRevealed));
-  document.getElementById('clArpStep').disabled=state.mode!=='arp' || state.display==='grip';
-  document.getElementById('clTransport').disabled=!grip&&(state.display==='grip'||state.playback==='chord');
+  document.getElementById('clArpStep').disabled=!state.layers.caged || state.mode!=='arp' || state.display==='grip';
+  document.getElementById('clTransport').disabled=!state.layers.caged || (!grip&&(state.display==='grip'||state.playback==='chord'));
   renderChordLabArpeggio();
-  ['clArpRegion','clArpReference','clArpSequence'].forEach(id=>document.getElementById(id).hidden=state.mode!=='arp'||!chordLabRevealed);
+  ['clArpRegion','clArpReference','clArpSequence'].forEach(id=>document.getElementById(id).hidden=state.mode!=='arp'||!chordLabRevealed||!state.layers.caged);
   if(chordLabUnsupported){
     document.getElementById('clTitle').textContent=chordLabUnsupported.name;
     document.getElementById('clRoot').value=mod12(chordLabUnsupported.rootPc);
@@ -7059,32 +7065,52 @@ function drawOverviewRecommendation(svg,state,data) {
   });
 }
 
+function setFretboardLayer(layer,enabled) {
+  if(!['caged','penta','triads'].includes(layer))return;
+  stopArpeggio();endVoicingPractice();
+  const state=normalizeChordLab();if(!chordLabOpen)state.layers={caged:false,penta:false,triads:false};state.layers[layer]=enabled;state.display='overview';
+  if(layer==='caged'&&enabled)state.mode='arp';
+  chordLabOpen=true;syncChordLabProgression();renderChordLab();saveSettings();
+}
+function drawPentatonicLayer(svg) {
+  // Use the song's key/scale, independently of the current progression chord.
+  const tones=scaleSet(S.key,S.scale),occupied=new Set();
+  svg.querySelectorAll('.cl-note,.overview-grip-note,.overview-tone,.arp-note,.overview-current,.overview-next').forEach(g=>{
+    const c=g.querySelector('circle');if(c)occupied.add(c.getAttribute('cx')+':'+c.getAttribute('cy'));
+  });
+  for(let s=0;s<6;s++)for(let fret=0;fret<=FRETS;fret++){
+    const pc=mod12(OPEN_PC[s]+fret);if(!tones.includes(pc)||occupied.has(fx(fret)+':'+sy(s)))continue;
+    const group=el('g',{class:'pentatonic-note','data-string':s,'data-fret':fret,role:'button',tabindex:0,'aria-label':`${nn(pc,S.key)}, ${STR_LABELS[s]}-Saite, Bund ${fret}, Pentatonik`,style:'cursor:pointer'});
+    group.appendChild(el('circle',{cx:fx(fret),cy:sy(s),r:8,fill:'#0d1117',stroke:'#8cb9e9','stroke-width':1.5}));
+    group.appendChild(el('title',{},nn(pc,S.key)+' · Pentatonik'));
+    const play=()=>{stopArpeggio();pluck(OPEN_MIDI[s]+fret,0,0.8,0.85);};
+    group.addEventListener('click',play);group.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();e.stopPropagation();play();}});svg.appendChild(group);
+  }
+}
 function drawChordLabOnFretboard(svg) {
-  const {state,grip,name}=currentChordLab();
+  const {state,grip,name}=currentChordLab(), layers=state.layers;
   const status=document.getElementById('fbWorkspaceStatus');
-  if(chordLabUnsupported){status.textContent=`${chordLabUnsupported.name} · Noch kein CAGED-Muster hinterlegt`;return;}
+  if(!chordLabRevealed){status.textContent='Anzeige verdeckt';return;}
   const area=(lo,hi,selected,label='')=>{
     const x1=Math.max(20,fx(lo)-20), x2=fx(hi)+20;
     svg.appendChild(el('rect',{class:'cl-region',x:x1,y:MT-5,width:x2-x1,height:5*SH+10,rx:6,
       fill:selected?'#326ce51c':'#ffffff03',stroke:selected?'#8ab5ff':'#526277','stroke-dasharray':selected?'':'4 4'}));
     if(label)svg.appendChild(el('text',{x:(x1+x2)/2,y:10,fill:selected?'#c5dbff':'#a5b1c2','font-size':9,'text-anchor':'middle'},label));
   };
-  if(state.mode==='arp') {
-    const data=currentArpeggio();
-    status.textContent=`${name} · ${state.form}-Lage · Bünde ${data.lo}–${data.hi} · Gold: Grundton · kleine Zahl: Finger${state.display==='overview'?' · Weiß umrandet: Akkordgriffe in allen verfügbaren Lagen · kleinere Punkte: weitere Akkordtöne':''}`;
-    if(!chordLabRevealed) {status.textContent=`${name} · Anzeige verdeckt`;return;}
-    if(state.display==='overview')drawCagedOverview(svg,state,data,area);
-    area(data.lo,data.hi,true,state.form+'-Lage');
-    if(state.display!=='grip')drawArpeggioOnFretboard(svg,data);
-    if(state.display!=='arp' && data.grip)drawFullGrip(svg,data.grip,state);
-    if(state.display==='overview')drawOverviewRecommendation(svg,state,data);
-    return;
+  const data=currentArpeggio(),parts=[];
+  if(layers.caged&&!chordLabUnsupported){
+    if(state.mode==='arp'){
+      if(state.display==='overview')drawCagedOverview(svg,state,data,area);
+      area(data.lo,data.hi,true,state.form+'-Lage');
+      if(state.display!=='grip')drawArpeggioOnFretboard(svg,data);
+      if(state.display!=='arp'&&data.grip)drawFullGrip(svg,data.grip,state);
+    }else{const frets=grip.frets.filter(f=>f!=null);area(Math.min(...frets),Math.max(...frets),true);drawFullGrip(svg,grip,state);}
+    parts.push(`${name} · CAGED · aktive ${state.form}-Lage · Gold: Grundton`);
   }
-  status.textContent=`${name} · ${grip.name} · Gold: Grundton · kleine Zahlen: Finger · Balken: Barré · ○ offen · × nicht anschlagen`;
-  if(!chordLabRevealed) { status.textContent=`${name} · Griff verdeckt – „Griff anzeigen“ blendet ihn hier wieder ein.`; return; }
-  const frets=grip.frets.filter(f=>f!=null);
-  area(Math.min(...frets),Math.max(...frets),true);
-  drawFullGrip(svg,grip,state);
+  if(layers.triads&&!chordLabUnsupported){drawOverviewRecommendation(svg,state,data);parts.push('Triaden: aktuell + nächster Akkord');}
+  if(chordLabUnsupported&&(layers.caged||layers.triads))parts.push(`${chordLabUnsupported.name} · Noch kein CAGED-Muster hinterlegt`);
+  if(layers.penta){drawPentatonicLayer(svg);parts.push(`${nn(S.key,S.key)}-${S.scale==='minor'?'Moll':'Dur'}-Pentatonik · blaue Ringe`);}
+  status.textContent=parts.join(' · ')||'Keine Ebene ausgewählt – CAGED, Pentatonik und Triaden lassen sich frei kombinieren.';
 }
 function drawFullGrip(svg,grip,state,options={}) {
   grip.barres.forEach(b=>svg.appendChild(el('line',{class:'cl-barre',x1:fx(b.fret),x2:fx(b.fret),y1:sy(5-b.from),y2:sy(5-b.to),stroke:'#73cdb8','stroke-width':13,'stroke-linecap':'round',opacity:0.55})));
