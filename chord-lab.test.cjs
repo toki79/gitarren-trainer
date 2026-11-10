@@ -1,8 +1,8 @@
 // npm install --no-save jsdom && node chord-lab.test.cjs
 // Exhaustive pitch/fingering invariants plus DOM interaction tests. Web Audio is mocked.
-const {JSDOM, VirtualConsole}=require('jsdom');
+const {JSDOM, VirtualConsole}=require(process.env.JSDOM_MODULE || 'jsdom');
 const fs=require('node:fs'), path=require('node:path'), assert=require('node:assert/strict');
-const html=fs.readFileSync(path.join(__dirname,'gitarren-training.html'),'utf8');
+const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
 const errors=[], audioNotes=[];
 const vc=new VirtualConsole(); vc.on('jsdomError',e=>errors.push(e.message));
 function boot(settings) {
@@ -65,7 +65,7 @@ function test() {
   assert.equal(d.getElementById('clOptions').open,false);
   assert.equal(d.getElementById('clPosition').options.length,6);
   w.setChordLab('root',0);w.setChordLab('quality','major');w.setChordLabPosition('free');
-  assert.equal(d.getElementById('clDisplay').disabled,true);
+  assert.equal(d.getElementById('clDisplay'),null);
   assert.deepEqual(Array.from(ev('currentChordLab().grip.frets')),[null,3,2,0,1,0]);
   assert.equal(d.querySelectorAll('#fb .cl-note').length,5);
   assert.equal(d.querySelectorAll('#fb .cl-muted').length,1);

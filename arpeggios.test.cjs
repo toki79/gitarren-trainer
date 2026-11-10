@@ -1,6 +1,6 @@
 // node arpeggios.test.cjs (requires jsdom for the DOM/playback half)
 const fs=require('node:fs'), path=require('node:path'), vm=require('node:vm'), assert=require('node:assert/strict');
-const html=fs.readFileSync(path.join(__dirname,'gitarren-training.html'),'utf8');
+const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
 const code=html.slice(html.indexOf('const CL_ROOTS ='),html.lastIndexOf('// ─── Init'));
 const core=vm.createContext({S:{},FRETS:22,mod12:n=>(n%12+12)%12,OPEN_PC:[4,11,7,2,9,4],OPEN_MIDI:[64,59,55,50,45,40]});
 vm.runInContext(code,core);
@@ -103,6 +103,28 @@ try{
   const oldGripTimers=[...timers.values()];played.length=0;w.stepChordLab(1);
   oldGripTimers.forEach(t=>t.cb());assert.equal(played.length,0);
   w.setChordLabPosition('C');w.setChordLab('display','arp');
+  // Progression changes use the same render path as scheduled beat callbacks.
+  ev("S.prog=[{rootPc:9,third:3,fifth:7,name:'Am',rn:'i'},{rootPc:2,third:3,fifth:7,name:'Dm',rn:'iv'},{rootPc:4,third:4,fifth:7,name:'E',rn:'V'},{rootPc:11,third:3,fifth:6,name:'Bdim',rn:'ii°'}];S.progIdx=0;strumActive=()=>{}");
+  w.setChordLabFollow(true);w.setChordLabPosition('E');
+  assert.equal(d.getElementById('clTitle').textContent,'Am');
+  assert.equal(ev('S.chordLab.quality'),'minor');
+  w.playArpeggio('up');const staleProgression=[...timers.values()];played.length=0;
+  w.selectChord(1);staleProgression.forEach(t=>t.cb());assert.equal(played.length,0);
+  assert.equal(d.getElementById('clTitle').textContent,'Dm');
+  assert.equal(ev('S.chordLab.form'),'E');assert.equal(ev('S.chordLab.display'),'arp');
+  assert.ok(Array.from(ev('currentArpeggio().notes')).every(n=>[2,5,9].includes(n.pc)));
+  ev('S.progIdx=2');w.render();assert.equal(d.getElementById('clTitle').textContent,'E');
+  assert.equal(ev('S.chordLab.quality'),'major');
+  w.selectChord(3);assert.equal(d.querySelectorAll('#fb .arp-note,#fb .cl-note').length,0);
+  assert.match(d.getElementById('clNotice').textContent,/noch keine CAGED/);
+  assert.equal(d.getElementById('clTransport').disabled,true);
+  w.selectChord(0);assert.equal(d.getElementById('clTransport').disabled,false);
+  assert.ok(d.querySelector('#fb .arp-note'));
+  w.setChordLab('root',0);assert.equal(d.getElementById('clFollow').checked,false);
+  w.selectChord(1);assert.equal(ev('S.chordLab.root'),0,'Manual selection stays independent');
+  w.setChordLabFollow(true);assert.equal(ev('S.chordLab.root'),2);
+  ev('S.prog=[];S.progIdx=-1');w.render();assert.equal(d.getElementById('clTransport').disabled,false);
+  w.setChordLabPosition('C');
   w.playArpeggio('up');w.toggleChordLab();assert.equal(timers.size,0);
   w.saveSettings();const saved=JSON.parse(w.localStorage.getItem('gitarrenTraining.settings'));
   assert.equal(saved.chordLab.mode,'arp');assert.equal(saved.chordLab.form,'C');assert.equal(saved.chordLab.arpBpm,40);

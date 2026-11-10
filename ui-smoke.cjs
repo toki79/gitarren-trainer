@@ -1,10 +1,10 @@
 // Run: npm install --no-save jsdom && node ui-smoke.cjs
 // DOM/state regression tests; audio hardware and browser layout require manual QA.
-const { JSDOM, VirtualConsole } = require('jsdom');
+const { JSDOM, VirtualConsole } = require(process.env.JSDOM_MODULE || 'jsdom');
 const fs = require('node:fs');
 const assert = require('node:assert/strict');
 const path = require('node:path');
-const source = fs.readFileSync(path.join(__dirname, 'gitarren-training.html'), 'utf8');
+const source = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
 const errors = [];
 const vc = new VirtualConsole();
 vc.on('jsdomError', e => errors.push(e.message));
