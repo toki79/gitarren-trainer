@@ -11,6 +11,7 @@ node chord-lab.test.cjs
 node arpeggios.test.cjs
 node overview.test.cjs
 node layers.test.cjs
+node tab-player.test.cjs
 ```
 
 - `ui-smoke.cjs`: bestehende Oberfläche, Transport, Progression, Countdown,
@@ -108,3 +109,32 @@ Griffpunkte erhalten keinen zweiten Marker.
 `layers.test.cjs` prüft alle acht Kombinationen, Tonzugehörigkeit, unveränderte
 Pentatonik bei Akkordwechsel, Tonartmoduswechsel, Speicherung, Tastatur und
 Verdecken. Manuell zusätzlich Checkboxen bei laufender Progression umschalten.
+
+## Interaktiver TAB-Player
+
+Feature-Branch: `feature/interactive-tab-player`. Ein ausgewählter Bibliotheks-
+oder eigener Lick liefert automatisch Saite, Bund, Rhythmus und Spieltechniken
+an den Player unter dem Griffbrett. Im Editor verwendet der Player den aktuellen
+Notenpuffer und sitzt direkt über dessen Noten/TAB. Keine neue Dateneingabe nötig.
+
+Klick/Enter/Leertaste auf eine Notenspalte wählt den Einstieg. Umschalt-Klick
+markiert den Bereich zwischen Cursor und Ziel; alternativ A/B an den gewünschten
+Ereignissen setzen. Grenzen sind inklusive, auch Pausen zählen als Ereignisse.
+Loop wiederholt den Abschnitt. Tempo 25–150 % skaliert das eingestellte BPM,
+ohne Tonhöhe zu verändern; der eigenständige Player stoppt das Backing.
+Tempoänderungen starten das aktuelle Ereignis mit dem neuen Tempo erneut.
+Stop verhindert neue Anschläge; bereits klingende Töne dürfen ausklingen.
+
+Der Notencursor und die Griffbrettmarkierung folgen demselben Ereignisindex.
+Haltebögen verlängern den ersten Ton ohne erneuten Anschlag; beim Einstieg auf
+einer gebundenen Note wird sie angeschlagen. Pausen, Doppelgriffe, Triolen-
+Dauern und Shuffle-Timing werden berücksichtigt; Bends/Slides/Vibrato/Staccato
+verwenden die bestehende Audio-Synthese. Notenänderungen, Transposition und
+Kontextwechsel stoppen den Player und setzen die Bereichsgrenzen zurück.
+
+`tab-player.test.cjs` prüft Darstellung und Datenquelle, Tondauern, Pausen und
+Haltebögen, Doppelgriffe, Artikulationsparameter, halbes Tempo, A–B-Loops,
+Klick-/Tastatur-Einstieg, abgebrochene Timer und Editoränderungen.
+Manuell: langen Lick wählen und horizontales Mitlaufen der TAB prüfen, im Editor
+Töne/Dauern ändern, A/B setzen und bei halbem Tempo loopen. Klang und mobile
+Editorhöhe benötigen weiterhin eine vollständige Browserprüfung.
