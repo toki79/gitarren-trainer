@@ -28,6 +28,18 @@ try{
   assert.ok(!d.getElementById('fb').outerHTML.includes('NaN'));
   assert.ok(d.querySelectorAll('.cl-region').length>=5);checked++;
  }
+ // Regression: actual C/A/G/D grips must accompany the active E shape, not just boxes.
+ w.setChordLab('root',5);w.setChordLab('quality','major');w.setChordLabPosition('E');
+ assert.deepEqual([...new Set([...d.querySelectorAll('.overview-grip')].map(n=>n.dataset.form))].sort(),['A','C','D','E','G']);
+ for(const group of d.querySelectorAll('.overview-grip'))assert.ok(group.querySelectorAll('.overview-grip-note').length>=4);
+ for(let root=0;root<12;root++) {
+  w.setChordLab('root',root);
+  for(const shape of ev('overviewGrips(normalizeChordLab())'))if(shape.grip){
+    shape.grip.frets.forEach((f,i)=>{if(f!=null){assert.ok(f>=0&&f<=22);assert.ok(f===0?shape.grip.fingers[i]===0:shape.grip.fingers[i]>=1&&shape.grip.fingers[i]<=4);}});
+  }
+ }
+ w.toggleChordLab();w.toggleVoicingPractice();assert.ok(ev('voicingPracticeState'));
+ w.toggleChordLab();assert.equal(ev('voicingPracticeState'),null);assert.equal(d.getElementById('voicingPractice').style.display,'none');
  w.setChordLab('quality','7');assert.ok(d.querySelector('.overview-target'));assert.match(d.getElementById('clRecommendation').textContent,/Septime/);
  w.setChordLab('quality','sus4');assert.equal(d.querySelectorAll('.overview-current').length,0);assert.match(d.getElementById('clRecommendation').textContent,/keine Dur/);
  w.setChordLab('quality','minor');

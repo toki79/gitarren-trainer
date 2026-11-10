@@ -78,3 +78,16 @@ Sus-Akkorde erhalten keinen irreführenden Dur-/Moll-Triadenvorschlag.
 Manuell: Am–Dm–E abspielen, Vorschau und tatsächlichen nächsten Griff vergleichen,
 einzelne Triadentöne anklicken, anschließend A7 ohne Progressionsbindung wählen
 und Terz-/Septim-Markierungen prüfen. Mobile Ansicht horizontal scrollen.
+
+## Sichtbare Griffe in sämtlichen CAGED-Lagen
+
+Die Halsübersicht zeichnet jetzt die hinterlegten vollständigen Griffe in allen
+Lagen, einschließlich vollständiger Oktavwiederholungen bis Bund 22. Weiß
+umrandete große Punkte und Barrés zeigen die Griffe; weitere Akkordtöne sind
+kleiner, aber mit Intervall beschriftet. Fingerzahlen stehen nur an der aktiven
+Form, um überlagerte Fingersätze zu vermeiden. Für Lagen ohne hinterlegten
+Griff steht „Töne“ statt „Griff“; es werden keine fremden Dur-Griffe ergänzt.
+
+Regressionstest: F-Dur zeigt C-, A-, G- und D-Griffe zusätzlich zur aktiven
+E-Form. Oktavvarianten verwenden die passenden Fingersätze/Barrés aus den
+Griffvorlagen. Öffnen der CAGED-Ansicht beendet eine laufende Triadenübung.
