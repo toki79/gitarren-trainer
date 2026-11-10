@@ -1,6 +1,6 @@
 // npm install --no-save jsdom && node chord-lab.test.cjs
 // Exhaustive pitch/fingering invariants plus DOM interaction tests. Web Audio is mocked.
-const {JSDOM, VirtualConsole}=require('jsdom');
+const {JSDOM, VirtualConsole}=require(process.env.JSDOM_MODULE || 'jsdom');
 const fs=require('node:fs'), path=require('node:path'), assert=require('node:assert/strict');
 const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
 const errors=[], audioNotes=[];

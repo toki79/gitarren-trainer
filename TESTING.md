@@ -1,13 +1,15 @@
 # Tests
 
 Die App bleibt eine eigenständige HTML-Datei ohne Laufzeit-Abhängigkeiten.
-Die Tests benötigen Node.js und jsdom:
+Die Tests benötigen Node.js und jsdom. Alternativ lässt sich mit `JSDOM_MODULE`
+ein vorhandener Installationspfad angeben (auch mit jsdom 26.1.0 geprüft):
 
 ```sh
 npm install --no-save --package-lock=false jsdom@29.1.1
 node ui-smoke.cjs
 node chord-lab.test.cjs
 node arpeggios.test.cjs
+node overview.test.cjs
 ```
 
 - `ui-smoke.cjs`: bestehende Oberfläche, Transport, Progression, Countdown,
@@ -57,3 +59,22 @@ Metronoms, Abbruch alter Arpeggio-Timer, Erhalt der Lage, manuelles Abkoppeln,
 Wiederankoppeln, fehlende Muster und eine geleerte Progression.
 Manuell zusätzlich: Progression starten, Akkordleiste direkt unter dem Griffbrett
 beobachten und Tonwechsel auf der Eins sowie nach dem Einzähler vergleichen.
+
+## Halsübersicht + nächster Griff
+
+Unter Anzeige die Halsübersicht wählen. Alle fünf CAGED-Lagen und ihre
+Oktavwiederholungen werden dezent markiert; kleine Punkte sind ausschließlich
+Töne des gewählten Akkords. Die aktive Lage zeigt Griff und Arpeggio.
+Violett markiert die empfohlene Triade auf G–B–e, Orange die nächste, Türkis
+gleiche Griffpunkte. Pfeile zeigen Bewegungen derselben Stimme. Die erste
+Triade liegt möglichst nahe der gewählten CAGED-Lage; danach minimiert ein
+gemeinsamer Pfad die Summe der Bundbewegungen inklusive Schleifenübergang.
+Die empfohlene Triade kann dabei die aktive CAGED-Lage verlassen.
+
+`overview.test.cjs` prüft alle 144 Tonart-/Akkordtyp-Kombinationen, korrekte
+Töne über den Hals, Griffgrenzen, Vorschau-Kontinuität einschließlich Rücksprung,
+Zieltöne bei Septakkorden sowie Verdecken, Ansichtswechsel und Speicherung.
+Sus-Akkorde erhalten keinen irreführenden Dur-/Moll-Triadenvorschlag.
+Manuell: Am–Dm–E abspielen, Vorschau und tatsächlichen nächsten Griff vergleichen,
+einzelne Triadentöne anklicken, anschließend A7 ohne Progressionsbindung wählen
+und Terz-/Septim-Markierungen prüfen. Mobile Ansicht horizontal scrollen.
