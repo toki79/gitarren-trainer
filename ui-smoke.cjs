@@ -85,20 +85,20 @@ async function main() {
     assert.equal(space(d.body, {[modifier]:true}).defaultPrevented, false);
     assert.equal(state('S.metroOn'), false);
   }
-  for (const k of ['path', 'triad', 'prog', 'licks', 'trainer', 'ton']) {
-    w.togglePanel(k); w.showPracticeCard(k);
-    assert.equal(d.getElementById('card-' + k).style.display, '');
-    assert.equal(d.getElementById('card-' + k).open, true);
-    assert.equal(d.querySelector('[data-panel="' + k + '"]').getAttribute('aria-pressed'), 'true');
+  assert.equal(d.getElementById('workspaceOptions'),null);
+  for (const k of ['fb','path','triad','prog','licks','trainer','ton']) {
+    const panel=w.panelTarget(k);
+    panel.open=false;await tick();
+    panel.querySelector('summary').click();await tick();
+    assert.ok(panel.open&&state('S.panels.'+k));assert.equal(panel.style.display,'');
+    panel.querySelector('summary').click();await tick();
+    assert.equal(panel.open,false);assert.equal(panel.style.display,'');
   }
-  await tick(); assert.equal(d.body.classList.contains('licks-side'), true);
-  d.getElementById('card-licks').open = false;
-  await tick(); assert.equal(d.body.classList.contains('licks-side'), false);
-  w.toggleSettings(); assert.equal(d.getElementById('topBar').style.display, 'none');
-  w.togglePlayMode(); assert.equal(d.getElementById('topBar').style.display, '');
-  assert.equal(d.body.classList.contains('play-mode'), true);
-  w.togglePlayMode(); assert.equal(d.getElementById('topBar').style.display, 'none');
-  w.toggleSettings();
+  w.showPracticeCard('prog');assert.ok(w.panelTarget('prog').open);
+  const settings=d.getElementById('settingsSection');settings.open=false;await tick();
+  w.togglePlayMode();assert.ok(settings.open);
+  w.togglePlayMode();assert.equal(settings.open,false);
+  settings.open=true;await tick();
   w.enterScenario('trainer'); assert.equal(state('S.panels.trainer'), true);
   assert.equal(state('S.panels.prog'), false);
   w.enterScenario('free'); assert.equal(state('Object.values(S.panels).every(Boolean)'), true);

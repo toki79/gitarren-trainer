@@ -138,3 +138,12 @@ Klick-/Tastatur-Einstieg, abgebrochene Timer und Editoränderungen.
 Manuell: langen Lick wählen und horizontales Mitlaufen der TAB prüfen, im Editor
 Töne/Dauern ändern, A/B setzen und bei halbem Tempo loopen. Klang und mobile
 Editorhöhe benötigen weiterhin eine vollständige Browserprüfung.
+
+## Aufklappbare Bereiche und Lick-Editor
+
+Die Hauptbereiche öffnen sich über ihre Überschrift im Seitenfluss. Der Editor
+behält beim Zuklappen den Entwurf. „Fenster füllen“ vergrößert ihn samt
+anklickbarem Griffbrett. „Zur Seitenansicht“ kehrt zur Bearbeitung in der Seite
+zurück. „A–B duplizieren“ fügt eine Kopie direkt hinter dem gewählten Abschnitt
+ein und markiert die Kopie. Der UI-Test prüft die Bereichsüberschriften, der
+Player-Test den Erhalt des Entwurfs, die Kopie und die Rückgabe des Griffbretts.

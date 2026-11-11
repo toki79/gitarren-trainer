@@ -28,7 +28,16 @@ try{
  assert.equal(d.getElementById('editTabPlayer').hidden,false);assert.equal(d.getElementById('tabPlayerMain').hidden,true);assert.equal(d.querySelectorAll('#editStaff [data-note-index]').length,3);
  w.startTabPlayer();tick();tick();assert.equal(dead.length,1);w.stopTabPlayer();
  ev('S.lickRec.pop()');w.renderEditor();assert.equal(ev('tabPlayer.b'),1);assert.equal(ev('tabPlayer.cursor'),0);
- w.closeEdit();w.selectLick('tab-test');w.startTabPlayer();w.toggleChordLab();assert.equal(ev('tabPlayer.playing'),false);assert.equal(d.getElementById('tabPlayerMain').hidden,true);
+ const board=d.getElementById('mainFretboard'),dialog=d.getElementById('editorRow');
+ assert.ok(dialog.open&&dialog.contains(board));
+ const workspace=d.getElementById('editorWorkspace');workspace.open=false;assert.equal(ev('S.lickRec.length'),2);workspace.open=true;w.toggleEditorFocus();assert.ok(dialog.classList.contains('expanded'));w.toggleEditorFocus();assert.ok(dialog.open&&!dialog.classList.contains('expanded'));
+ const score=d.getElementById('editScoreSection');score.open=false;w.renderEditor();assert.equal(score.open,false);score.open=true;
+ w.tabSeek(0);w.setTabBoundary('a');w.tabSeek(1);w.setTabBoundary('b');
+ const original=JSON.parse(ev('JSON.stringify(S.lickRec)'));d.getElementById('duplicatePhrase').click();
+ assert.deepEqual(JSON.parse(ev('JSON.stringify(S.lickRec)')),[...original,...original]);
+ assert.equal(ev('S.editSel'),2);assert.equal(ev('tabPlayer.a'),2);assert.equal(ev('tabPlayer.b'),3);
+ d.querySelector('#editStaff [data-note-index="0"]').dispatchEvent(new w.MouseEvent('click',{bubbles:true}));assert.equal(ev('S.editSel'),0);assert.ok(!d.querySelector('#editTools button').disabled);
+ w.closeEdit();assert.ok(!dialog.open&&!dialog.contains(board));assert.equal(d.querySelectorAll('#fb').length,1);w.selectLick('tab-test');w.startTabPlayer();w.toggleChordLab();assert.equal(ev('tabPlayer.playing'),false);assert.equal(d.getElementById('tabPlayerMain').hidden,true);
  w.toggleChordLab();w.startTabPlayer();w.setFretboardLayer('penta',true);assert.equal(ev('tabPlayer.playing'),false);
  assert.deepEqual(errors,[]);console.log('PASS: source-to-TAB, ties/rests/double stops/articulations, cursor/fretboard sync, keyboard/seek, inclusive A–B loops, half-speed timing, stale timer cancellation, editor updates and context changes.');
 }finally{dom.window.close();}

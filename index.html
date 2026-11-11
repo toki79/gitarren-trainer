@@ -183,19 +183,16 @@ select {
 #micLevel { display: block; height: 100%; width: 0%; background: #6b7280; transition: width 0.06s; }
 .rec-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .rec-label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); font-weight: 600; }
-/* Lick-Editor als angedockte Leiste unten – das Griffbrett darüber bleibt
-   sichtbar UND anklickbar (Töne werden ja per Griffbrett eingegeben). */
-#editorRow { position: fixed; left: 0; right: 0; bottom: 0; z-index: 100;
-  max-height: 54vh; overflow: auto; padding: 0 10px 10px; }
-#editorRow .edit-modal { position: relative; max-width: 1500px; margin: 0 auto; background: var(--panel);
-  border: 1.5px solid rgba(245,158,11,0.55); border-radius: 12px 12px 0 0; padding: 12px 14px;
-  box-shadow: 0 -12px 40px rgba(0,0,0,0.55); }
-body.editing { padding-bottom: 66vh; }        /* Platz, damit nichts dauerhaft verdeckt bleibt */
-/* Kopfzeile bleibt beim Scrollen in der Leiste stehen – sonst wandert der
-   Schließen-Knopf aus dem Sichtbereich und der Editor wirkt ausweglos. */
-#editorRow .eh-main { position: sticky; top: 0; z-index: 3; background: var(--panel);
-  margin: -12px -14px 8px; padding: 12px 14px 8px; border-radius: 11px 11px 0 0;
-  border-bottom: 1px solid var(--border); }
+#editorRow.expanded { position:fixed; inset:0; width:100%; height:100%; max-width:none; max-height:none;
+  box-sizing:border-box; margin:0; padding:0; overflow:auto; border:0; color:var(--text); background:var(--bg); }
+#editorRow { position:static; width:100%; max-width:none; max-height:none; box-sizing:border-box; margin:0; padding:0; border:0; background:var(--bg); color:var(--text); }
+body:has(#editorRow.expanded) { overflow:hidden; }
+#editorRow .edit-modal { max-width:1500px; margin:auto; padding:0 clamp(12px,3vw,40px) 30px; }
+#editorRow .eh-main { position:sticky; top:0; z-index:3; background:var(--bg); padding:12px 0; margin:0; border-bottom:1px solid var(--border); }
+.edit-section, #editorRow .fretboard-wrap { margin:10px 0; padding:12px; background:var(--panel); border:1px solid var(--border); border-radius:9px; }
+.edit-section > summary, .fretboard-wrap > summary { cursor:pointer; font-weight:650; }
+.edit-section[open] > summary, .fretboard-wrap[open] > summary { margin-bottom:10px; }
+#editorRow .practice-actions, #editorRow #fbLayers { display:none; }
 #editClose { margin-left: auto; padding: 5px 10px; line-height: 1; border-radius: 8px; }
 #editClose:hover { background: #dc2626; border-color: #dc2626; color: #fff; }
 .fb-staff { overflow-x: auto; margin-top: 6px; border: 1px solid var(--border); border-radius: 8px; background: #0d1117; }
@@ -416,18 +413,6 @@ details.card > summary:hover { color: var(--text); }
 #walkBar .wb-name { font-weight: 600; }
 #walkBar button { font-size: 0.8rem; padding: 4px 9px; }
 #walkBar .tb-sep { align-self: stretch; }
-/* Breite Bildschirme: Lick-Liste als angedockte rechte Spalte neben dem Griffbrett –
-   beide gleichzeitig voll bedienbar. Auf schmalen Fenstern automatisch gestapelt. */
-@media (min-width: 1280px) {
-  body.licks-side:not(.play-mode) { padding-right: 380px; }
-  body.licks-side:not(.play-mode) #card-licks {
-    position: fixed; top: 12px; right: 12px; width: 356px; margin: 0; z-index: 45;
-    max-height: calc(100vh - 24px); overflow: auto; }
-  body.licks-side:not(.play-mode) #lickBar { display: none !important; }   /* die Spalte ersetzt die schmale Leiste */
-  /* Beim Editieren die rechte Spalte ausblenden – die Editor-Leiste unten würde sie überlappen */
-  body.licks-side.editing { padding-right: 0; }
-  body.licks-side.editing #card-licks { display: none !important; }
-}
 #panelMenu .tb-sep { align-self: stretch; }
 /* Übungs-Szenario-Wähler: hervorgehoben (blaue Einstellung, startet einen Ablauf) */
 #scenarioSel { background: var(--panel2); color: var(--text); border: 1px solid var(--accent);
@@ -490,11 +475,6 @@ details.card[open] > summary { background: #ffffff03; }
 body.play-mode .app-header, body.play-mode .practice-nav, body.play-mode .section-heading, body.play-mode .fretboard-tools { display: none; }
 body.play-mode #topBar { border-radius: 12px; }
 body.play-mode #topBar #metroBtn { display: inline-block; }
-@media (min-width: 1280px) {
-  body.licks-side:not(.play-mode) { padding-right: 400px; }
-  body.licks-side:not(.play-mode) #card-licks { top: 24px; right: 20px; max-height: calc(100vh - 48px); }
-  body.licks-side.editing { padding-right: clamp(16px, 3vw, 48px); }
-}
 @media (max-width: 700px) {
   body { padding: 20px 12px 32px; }
   .app-header { align-items: flex-start; margin-bottom: 20px; }
@@ -574,6 +554,7 @@ body.chord-lab-open .fretboard-wrap.compact #fb { min-width:1000px; max-width:no
 .tab-score { overflow-x:auto; max-width:100%; }
 #tabPlayerMain[hidden], #editTabPlayer[hidden] { display:none; }
 [data-note-index]:focus { stroke:#22d3ee; stroke-width:2; outline:none; }
+#editorEntry[hidden]{display:none}
 </style>
 </head>
 <body>
@@ -586,7 +567,8 @@ body.chord-lab-open .fretboard-wrap.compact #fb { min-width:1000px; max-width:no
 
 <div id="stickyTop">
   <!-- Dauerleiste ganz oben: immer sichtbar, blendet alle Bereiche ein/aus -->
-  <div id="panelMenu" title="Bereiche ein-/ausblenden – ausgeblendete Bereiche behalten ihre Einstellungen">
+  <details class="edit-section" open><summary>Übung und Wiedergabe</summary>
+  <div id="panelMenu">
     <label class="tb-label" for="scenarioSel">🎯 Übung</label>
     <select id="scenarioSel" onchange="enterScenario(this.value); this.value='';" title="Fertiges Übungs-Szenario starten – richtet die passenden Bereiche automatisch ein">
       <option value="" selected>Wie möchtest du üben?</option>
@@ -601,23 +583,10 @@ body.chord-lab-open .fretboard-wrap.compact #fb { min-width:1000px; max-width:no
     </select>
     <button id="metroBtnTop" class="flow" onclick="toggleMetro()" title="Backing/Metronom starten und stoppen – immer erreichbar">▶ Play</button>
     <span class="tb-sep"></span>
-    <details class="workspace-options" id="workspaceOptions">
-      <summary>Bereiche anpassen</summary>
-      <div class="workspace-option-list"><span class="tb-label">Sichtbare Bereiche</span>
-    <button data-panel="fb" class="active" onclick="togglePanel('fb')" title="Griffbrett ein-/ausblenden">▦ Griffbrett</button>
-    <button id="btn-editorPanel" onclick="editorBarBtn()" disabled title="Erst ein Lick auswählen, dann hier bearbeiten">✎ Editor</button>
-    <button data-panel="path" class="active" onclick="togglePanel('path')">🗺 Lernpfad</button>
-    <button data-panel="triad" class="active" onclick="togglePanel('triad')">🎸 Triade</button>
-    <button data-panel="prog" class="active" onclick="togglePanel('prog')">🎼 Progression</button>
-    <button data-panel="licks" class="active" onclick="togglePanel('licks')">🎵 Licks</button>
-    <button data-panel="trainer" class="active" onclick="togglePanel('trainer')">🎤 Trainer</button>
-    <button data-panel="ton" class="active" onclick="togglePanel('ton')">🎚 Ton</button>
-    <span class="tb-sep"></span>
-      </div>
-    </details>
-    <button id="btn-settings" class="active" onclick="toggleSettings()" title="Einstellungszeile (Tonart, Box, Tempo …) ein-/ausblenden">⚙ Einstellungen</button>
   </div>
   <div id="scenHint" style="display:none"></div>
+  </details>
+  <details id="settingsSection" ontoggle="if(!S.playMode){S.settingsShow=this.open;saveSettings()}" class="edit-section" open><summary>Einstellungen</summary>
   <div id="topBar">
     <label class="tb-field">Tonart
       <select id="keySelect" onchange="setKey(+this.value)"></select>
@@ -654,9 +623,8 @@ body.chord-lab-open .fretboard-wrap.compact #fb { min-width:1000px; max-width:no
     <span id="backupInfo" class="hint"></span>
   </div>
 
-  <div class="fretboard-wrap">
-    <div class="section-heading"><div><p class="eyebrow">SPIELEN &amp; ENTDECKEN</p><h2>Dein Griffbrett</h2></div>
-    <span class="hint">Tippe einen Ton an, um ihn zu hören.</span></div>
+  </details>
+  <details ontoggle="cardToggled(this)" class="fretboard-wrap" open id="mainFretboard"><summary>Griffbrett</summary>
     <div class="practice-actions">
       <span id="selectedLickStatus" style="display:none"><span id="selectedLickName"></span>
         <button id="btn-hideLick" type="button" onclick="toggleLickShow()">Lick ausblenden</button>
@@ -828,13 +796,61 @@ body.chord-lab-open .fretboard-wrap.compact #fb { min-width:1000px; max-width:no
       <span class="leg"><span class="ldot" style="background:#f97316"></span>Obere Struktur</span>
       <span class="leg hint">Töne anklickbar 🔊</span>
     </div>
-  </div>
+  </details>
 </div>
 
 <!-- Noten/TAB (+ Notiz) des gewählten Licks: bewusst UNTER der klebenden Region –
      so pinnt das Griffbrett oben, aber der hohe Noten-Streifen scrollt weg und gibt
      der Lick-Liste Platz. Das Lick bleibt am Griffbrett (Overlay) sichtbar. -->
-<section id="tabPlayerMain" hidden aria-label="Interaktiver TAB-Player"><div id="tabControls"></div><div id="tabScore" class="tab-score"></div></section>
+<details id="editorWorkspace" class="edit-section"><summary>Lick-Editor</summary>
+  <div id="editorEntry" class="edit-head"><button onclick="beginNewLick()">Neuer Lick</button><button id="btn-editorPanel" onclick="editSelectedLick()">Ausgewählten Lick bearbeiten</button></div>
+<dialog id="editorRow" aria-labelledby="editorTitle" oncancel="event.preventDefault();closeEdit()" style="display:none">
+ <div class="edit-modal">
+  <!-- schmale Dauerleiste: bleibt beim Scrollen stehen, damit Speichern und
+       Schließen immer erreichbar sind (der Rest darf wegscrollen) -->
+  <div class="edit-head eh-main">
+    <strong id="editorTitle">Lick-Editor</strong>
+    <span id="editMeta">0 Töne</span>
+    <button onclick="saveEdit()" title="Änderungen speichern (überschreibt den Lick)">💾 Speichern</button>
+    <button id="editorFocus" onclick="toggleEditorFocus()">Fenster füllen</button>
+    <button id="editClose" onclick="closeEdit()" title="Editor schließen (Esc) – ungespeicherte Änderungen werden verworfen">✕ Schließen</button>
+  </div>
+  <div id="editBoardSlot"></div>
+  <details class="edit-section" id="editScoreSection" open><summary>Noten und TAB</summary>
+    <div class="edit-head"><button onclick="setStaffZoom(-1)">Kleiner</button><button onclick="setStaffZoom(1)">Größer</button><button id="btn-staffview" onclick="toggleStaffView()">Nur TAB</button></div>
+    <div id="editStaff" class="edit-staff"></div><div id="editSel" class="edit-sel"></div>
+  </details>
+  <details class="edit-section" open><summary>Wiedergabe und A–B-Abschnitt</summary>
+    <div id="editTabPlayer" hidden></div>
+    <button id="duplicatePhrase" onclick="duplicateEditPhrase()">A–B duplizieren</button>
+  </details>
+  <details class="edit-section" open><summary>Notenwerte und Spieltechniken</summary>
+    <button onclick="insertRestEdit()">Pause einfügen</button><div id="editTools" class="edit-tools"></div>
+  </details>
+  <details class="edit-section"><summary>Name, Box und Notiz</summary>
+    <div class="edit-head"><label>Name <input id="editName" placeholder="Name des Licks"></label>
+    <label class="metro-field" title="Pentatonik-Box des Licks – wird beim Öffnen automatisch erkannt und kann hier übersteuert werden (– = keine eindeutige Box)">Box
+      <select id="editBox" onchange="S.editBox = +this.value">
+        <option value="0">–</option>
+        <option value="1">1</option>
+        <option value="2">2</option>
+        <option value="3">3</option>
+        <option value="4">4</option>
+        <option value="5">5</option>
+      </select>
+    </label>
+    <label>Notiz <input id="editComment"></label><button onclick="saveEditAsNew()">Als Kopie speichern</button></div>
+  </details>
+  <details class="edit-section"><summary>Tastenkürzel</summary>  <div id="editHelp" class="hint"><b>Direkt in der TAB editieren:</b> Klick setzt den Cursor (orange Spalte), dann
+    <b>0–9</b>&nbsp;Bund (zweistellig schnell tippen) · <b>←→</b>&nbsp;Position · <b>Alt+←→</b>&nbsp;Ton verschieben · <b>↑↓</b>&nbsp;Saite (Bund bleibt, Ton ändert sich) · <b>Shift+↑↓</b>&nbsp;Saite (gleiche Tonhöhe) ·
+    <b>+/−</b>&nbsp;Dauer · <b>t</b>&nbsp;Triole · <b>b</b>&nbsp;Bend · <b>s</b>&nbsp;Slide · <b>i</b>&nbsp;Einschleifer · <b>h</b>&nbsp;Hammer/Pull · <b>d</b>&nbsp;Schlag binden ·
+    <b>v</b>&nbsp;Vibrato · <b>x</b>&nbsp;tote Note · <b>c</b>&nbsp;Doppelgriff (dann 2. Saite klicken · auch Shift-Klick) · <b>n</b>&nbsp;Vorschlag · <b>.</b>&nbsp;Staccato · <b>g</b>&nbsp;Betonung · <b>p</b>&nbsp;Pause · <b>Entf</b>&nbsp;löschen ·
+    <b>Leertaste</b>&nbsp;anhören · <b>Esc</b>&nbsp;schließen. <b>Griffbrett-Klick fügt hinter dem Cursor ein</b> – jeder Bund ist anklickbar, auch außerhalb der Box.</div>
+  </details>
+ </div>
+</dialog>
+</details>
+<details id="tabPlayerMain" open hidden><summary>TAB-Player</summary><div id="tabControls"></div><div id="tabScore" class="tab-score"></div></details>
 <div id="fbStaff" class="fb-staff" style="display:none" title="Noten &amp; TAB des gewählten Licks – Größe über 🔍−/+ in der Werkzeugleiste"></div>
 <div id="fbComment" style="display:none"></div>
 
@@ -1211,56 +1227,9 @@ body.chord-lab-open .fretboard-wrap.compact #fb { min-width:1000px; max-width:no
   </div>
 </details>
 
-<div class="info" id="info"></div>
+<details class="edit-section"><summary>Tonart und Skala</summary><div class="info" id="info"></div></details>
 
-<!-- Lick-Editor als Vollbild-Dialog: bewusst auf oberster Ebene, damit er
-     unabhängig davon funktioniert, ob die Licks-Karte auf- oder zugeklappt ist -->
-<div id="editorRow" style="display:none">
- <div class="edit-modal">
-  <!-- schmale Dauerleiste: bleibt beim Scrollen stehen, damit Speichern und
-       Schließen immer erreichbar sind (der Rest darf wegscrollen) -->
-  <div class="edit-head eh-main">
-    <span class="rec-label">✎ Lick-Editor</span>
-    <span id="editMeta">0 Töne</span>
-    <button onclick="saveEdit()" title="Änderungen speichern (überschreibt den Lick)">💾 Speichern</button>
-    <button id="editClose" onclick="closeEdit()" title="Editor schließen (Esc) – ungespeicherte Änderungen werden verworfen">✕ Schließen</button>
-  </div>
-  <div class="edit-head">
-    <input id="editName" placeholder="Name des Licks">
-    <label class="metro-field" title="Pentatonik-Box des Licks – wird beim Öffnen automatisch erkannt und kann hier übersteuert werden (– = keine eindeutige Box)">Box
-      <select id="editBox" onchange="S.editBox = +this.value">
-        <option value="0">–</option>
-        <option value="1">1</option>
-        <option value="2">2</option>
-        <option value="3">3</option>
-        <option value="4">4</option>
-        <option value="5">5</option>
-      </select>
-    </label>
-    <span class="tb-sep"></span>
-    <button onclick="setStaffZoom(-1)" title="Noten kleiner">🔍−</button>
-    <button onclick="setStaffZoom(1)" title="Noten größer">🔍+</button>
-    <button id="btn-staffview" onclick="toggleStaffView()" title="Noten + TAB – klicke für „nur TAB“ (spart Höhe)">♪ TAB</button>
-    <button onclick="insertRestEdit()" title="Pause hinter dem Cursor einfügen">⏸ Pause</button>
-    <button onclick="playEditBuffer()" title="Aktuellen Stand abspielen (folgt Groove &amp; Tempo)">▶ Anhören</button>
-    <button onclick="saveEditAsNew()" title="Als neuen Lick in die Sammlung speichern (Original bleibt)">⧉ Als Kopie</button>
-    <button id="editHelpBtn" onclick="toggleEditHelp()" title="Tastatur-Kurzbefehle ein-/ausblenden">？ Tasten</button>
-  </div>
-  <div class="edit-head" style="margin-bottom:8px">
-    <span class="rec-label">💬 Notiz</span>
-    <input id="editComment" placeholder="Freitext zum Lick – z. B. „Bend mit Ring- und Mittelfinger stützen“, „Quelle: Lesson 12“">
-  </div>
-  <div id="editHelp" class="hint" style="margin-bottom:8px;display:none"><b>Direkt in der TAB editieren:</b> Klick setzt den Cursor (orange Spalte), dann
-    <b>0–9</b>&nbsp;Bund (zweistellig schnell tippen) · <b>←→</b>&nbsp;Position · <b>Alt+←→</b>&nbsp;Ton verschieben · <b>↑↓</b>&nbsp;Saite (Bund bleibt, Ton ändert sich) · <b>Shift+↑↓</b>&nbsp;Saite (gleiche Tonhöhe) ·
-    <b>+/−</b>&nbsp;Dauer · <b>t</b>&nbsp;Triole · <b>b</b>&nbsp;Bend · <b>s</b>&nbsp;Slide · <b>i</b>&nbsp;Einschleifer · <b>h</b>&nbsp;Hammer/Pull · <b>d</b>&nbsp;Schlag binden ·
-    <b>v</b>&nbsp;Vibrato · <b>x</b>&nbsp;tote Note · <b>c</b>&nbsp;Doppelgriff (dann 2. Saite klicken · auch Shift-Klick) · <b>n</b>&nbsp;Vorschlag · <b>.</b>&nbsp;Staccato · <b>g</b>&nbsp;Betonung · <b>p</b>&nbsp;Pause · <b>Entf</b>&nbsp;löschen ·
-    <b>Leertaste</b>&nbsp;anhören · <b>Esc</b>&nbsp;schließen. <b>Griffbrett-Klick fügt hinter dem Cursor ein</b> – jeder Bund ist anklickbar, auch außerhalb der Box.</div>
-  <div id="editTools" class="edit-tools"></div>
-  <div id="editTabPlayer" hidden></div>
-  <div id="editStaff" class="edit-staff" style="display:none"></div>
-  <div id="editSel" class="edit-sel"></div>
- </div>
-</div>
+
 
 <script>
 // ─── Musik-Konstanten ─────────────────────────────────────────────────────────
@@ -2643,7 +2612,6 @@ function setStaffZoom(dir) {
   S.staffZoom = Math.min(3, Math.max(0.8, round6(S.staffZoom + dir * 0.2)));
   renderFbStaff();
   if (S.editing) renderEditorStaff();
-  fitEditorSheet();
   saveSettings();
 }
 // Noten + TAB ⇄ nur TAB. „Nur TAB“ ist knapp halb so hoch – hilft auf kleinen
@@ -2653,7 +2621,6 @@ function toggleStaffView() {
   applyStaffView();
   renderFbStaff();
   if (S.editing) renderEditorStaff();
-  fitEditorSheet();
   saveSettings();
 }
 function applyStaffView() {
@@ -2687,35 +2654,14 @@ function showPracticeCard(k) {
   saveSettings();
 }
 function applyPanels() {
-  Object.entries(S.panels || {}).forEach(([k, v]) => {
-    const el = panelTarget(k);
-    if (el) el.style.display = v ? '' : 'none';
-    const btn = document.querySelector(`#panelMenu button[data-panel="${k}"]`);
-    if (btn) { btn.classList.toggle('active', !!v); btn.setAttribute('aria-pressed', String(!!v)); }
-  });
-  // Breite Schirme: rechte Lick-Spalte nur, wenn der Bereich „Licks" an ist
-  document.body.classList.toggle('licks-side', !!(S.panels && S.panels.licks && document.getElementById('card-licks').open));
-  renderLickBar();                                   // kompakte Auswahl folgt dem „Licks"-Bereich
+  for(const [key,open] of Object.entries(S.panels)){
+    const panel=panelTarget(key);
+    if(panel)panel.open=!!open;
+  }
+  renderLickBar();
 }
-function togglePanel(k) {
-  // Beim Editieren werden Töne am Griffbrett angeklickt – es darf nicht weg.
-  if (k === 'fb' && S.editing) return;
-  S.panels[k] = !S.panels[k];
-  applyPanels();
-  saveSettings();
-}
-// Einstellungszeile (Tonart/Box/Tempo) ein-/ausklappen – gibt oben Platz frei.
 function applySettings() {
-  const tb = document.getElementById('topBar');
-  if (tb) tb.style.display = (S.settingsShow || S.playMode) ? '' : 'none';
-  const b = document.getElementById('btn-settings');
-  if (b) { b.classList.toggle('active', S.settingsShow); b.setAttribute('aria-expanded', String(S.settingsShow)); b.setAttribute('aria-controls', 'topBar'); }
-  if (S.editing) fitEditorSheet();          // Griffbrett rückt nach → Editor-Höhe neu
-}
-function toggleSettings() {
-  S.settingsShow = !S.settingsShow;
-  applySettings();
-  saveSettings();
+  document.getElementById('settingsSection').open=!!(S.settingsShow||S.playMode);
 }
 // Ist das Lick bearbeitbar? Eigene direkt, Bibliotheks-Licks als Kopie. _solo (Entwurf) nicht.
 function isEditableLick(id) {
@@ -2745,11 +2691,6 @@ function updateEditAffordances() {
   }
   const inl = document.getElementById('btn-editSel');
   if (inl) inl.style.display = canOpen ? '' : 'none';
-}
-// Griffbrett-Toggle sperren, solange editiert wird (Töne kommen vom Griffbrett).
-function lockFretboardToggle(lock) {
-  const b = document.querySelector('#panelMenu button[data-panel="fb"]');
-  if (b) { b.disabled = lock; b.title = lock ? 'Beim Editieren sichtbar – hier werden die Töne angeklickt' : 'Griffbrett ein-/ausblenden'; }
 }
 function toggleLegend() {
   S.showLegend = !S.showLegend;
@@ -2782,8 +2723,10 @@ function setIntervalRef(s, fret) {
   render();
 }
 function cardToggled(el) {
-  S.cards[el.id.replace('card-', '')] = el.open;
-  if (el.id === 'card-licks') applyPanels();
+  const key=el.id==='mainFretboard'?'fb':el.id.slice(5);
+  S.panels[key]=el.open;
+  if(key!=='fb')S.cards[key]=el.open;
+  if(key==='licks')renderLickBar();
   saveSettings();
 }
 // Akkord (Grundton als Bass) + überlagerte Triade zusammen anschlagen
@@ -4229,6 +4172,14 @@ function beginNewLick() {
   S.editBox = 0;
   openEditor('Lick ' + (S.licks.length + 1), '');
 }
+function toggleEditorFocus() {
+  const dialog=document.getElementById('editorRow');
+  const expand=!dialog.classList.contains('expanded');
+  if(dialog.close)dialog.close();else dialog.removeAttribute('open');
+  dialog.classList.toggle('expanded',expand);
+  if(expand&&dialog.showModal)dialog.showModal();else dialog.setAttribute('open','');
+  document.getElementById('editorFocus').textContent=expand?'Zur Seitenansicht':'Fenster füllen';
+}
 function openEditor(name, comment) {
   stopTabPlayer(false);
   if(chordLabOpen)closeChordLabForTraining();
@@ -4236,49 +4187,24 @@ function openEditor(name, comment) {
   document.getElementById('editBox').value = S.editBox;
   document.getElementById('editName').value = name;
   document.getElementById('editComment').value = comment || '';
-  document.getElementById('editorRow').style.display = 'block';   // angedockte Leiste unten
+  const dialog=document.getElementById('editorRow');
+  const board=document.getElementById('mainFretboard');
+  if(!dialog.contains(board)){
+    const anchor=document.createElement('span');anchor.hidden=true;anchor.id='editorBoardAnchor';
+    board.before(anchor);document.getElementById('editBoardSlot').append(board);
+  }
+  dialog.style.display='block';
+  dialog.setAttribute('open','');
+  document.getElementById('editorWorkspace').open=true;
+  document.getElementById('editorEntry').hidden=true;
+  dialog.scrollTop=0;
   document.body.classList.add('editing');
   if (!S.panels.fb) { S._fbWasOff = true; S.panels.fb = true; applyPanels(); }   // Griffbrett wird zum Klicken gebraucht
-  lockFretboardToggle(true);
   updateEditAffordances();
-  window.scrollTo(0, 0);                       // Griffbrett nach oben holen – dort wird geklickt
+  document.getElementById('editorWorkspace').scrollIntoView?.({block:'start'});
   renderEditor();
   renderLickPanel();
   render();
-  fitEditorSheet();
-}
-// Die Editor-Leiste darf nie über das Griffbrett wachsen – dort werden die Töne
-// angeklickt. Höhe deshalb an den freien Platz unter dem Griffbrett koppeln.
-function fitEditorSheet() {
-  const row = document.getElementById('editorRow');
-  if (!row || row.style.display === 'none') return;
-  const fb = document.getElementById('fb');
-  const MIN_SHEET = 190, MIN_FB = 130;                 // darunter wird beides unbedienbar
-  if (fb) {
-    fb.style.maxWidth = fb.style.minWidth = '';        // erst die Naturgröße messen
-    const r0 = fb.getBoundingClientRect();
-    const top = Math.max(0, r0.top);
-    const want = Math.min(row.scrollHeight + 4, innerHeight * 0.54);
-    const room = innerHeight - top - Math.max(MIN_SHEET, want) - 12;
-    // Reicht die Höhe nicht, das Griffbrett stufenlos schrumpfen (Seitenverhältnis
-    // bleibt) – lieber ein kleineres Griffbrett als ein verdecktes. min-width muss
-    // mit weichen, sonst gewinnt es gegen max-width.
-    if (r0.height > room && r0.height > MIN_FB) {
-      fb.style.minWidth = '0';
-      fb.style.maxWidth = Math.round(r0.width * Math.max(MIN_FB, room) / r0.height) + 'px';
-    }
-  }
-  const avail = fb ? innerHeight - fb.getBoundingClientRect().bottom - 8 : innerHeight * 0.5;
-  row.style.maxHeight = Math.round(Math.max(MIN_SHEET, Math.min(innerHeight * 0.54, avail))) + 'px';
-  document.body.style.paddingBottom = Math.round(row.getBoundingClientRect().height + 24) + 'px';
-}
-addEventListener('resize', fitEditorSheet);
-function toggleEditHelp() {
-  const h = document.getElementById('editHelp');
-  const open = h.style.display === 'none';
-  h.style.display = open ? 'block' : 'none';
-  document.getElementById('editHelpBtn').classList.toggle('active', open);
-  fitEditorSheet();
 }
 // ─── Editor: Noten- und TAB-Ansicht (SVG, wie in Lehr-TABs) ─────────────────
 // Gitarre wird eine Oktave höher notiert als sie klingt (Konvention).
@@ -4333,7 +4259,7 @@ function renderTabPlayer(){
   controls.querySelector('[data-tab="loop"]').checked=tabPlayer.loop;
   controls.querySelector('[data-tab="status"]').textContent=`${tabPlayer.playing?'Spielt':'Bereit'} · Ereignis ${tabPlayer.cursor+1}/${source.notes.length} · Abschnitt A–B: ${tabPlayer.a+1}–${tabPlayer.b+1}`;
   const box=S.editing?document.getElementById('editStaff'):document.getElementById('tabScore');box.style.display='block';
-  renderStaff(box,source.notes,{key:S.key,sel:tabPlayer.cursor,selColor:'#22d3ee',zoom:S.staffZoom,view:S.staffView,playhead:true,range:[tabPlayer.a,tabPlayer.b],onClick:(i,e)=>{if(S.editing)S.editSel=i;tabSeek(i,e);}});
+  renderStaff(box,source.notes,{key:S.key,sel:tabPlayer.cursor,selColor:'#22d3ee',zoom:S.staffZoom,view:S.staffView,playhead:true,range:[tabPlayer.a,tabPlayer.b],onClick:(i,e)=>{tabSeek(i,e);if(S.editing){S.editSel=tabPlayer.cursor;renderEditor();}}});
   drawTabPlayerFretboard();
 }
 function drawTabPlayerFretboard(){
@@ -4800,12 +4726,24 @@ function syncTies() {
     if (!n.tie) last = n;
   });
 }
+function duplicateEditPhrase() {
+  if(!S.editing || !S.lickRec.length)return;
+  tabPlayerSync();stopTabPlayer(false);
+  const start=tabPlayer.b+1;
+  const copy=JSON.parse(JSON.stringify(S.lickRec.slice(tabPlayer.a,start)));
+  if(copy[0]?.tie)delete copy[0].tie;
+  S.lickRec.splice(start,0,...copy);
+  S.editSel=start;tabPlayerSync();tabPlayer.cursor=start;
+  tabPlayer.a=start;tabPlayer.b=start+copy.length-1;tabPlayer.loop=true;
+  renderEditor();render();
+}
 function renderEditor() {
-  syncTies();
+  syncTies();tabPlayerSync();
+  if(!tabPlayer.playing && S.editSel>=0)tabPlayer.cursor=S.editSel;
+  document.getElementById('duplicatePhrase').disabled=!S.lickRec.length;
   renderEditorStaff();
   renderEditTools();
   updateEditMeta();
-  fitEditorSheet();
   const el2 = document.getElementById('editSel');
   if (!el2) return;
   if (!S.lickRec.length) {
@@ -4884,9 +4822,12 @@ function insertRestEdit() {                 // Pause hinter der markierten Zeile
 // b/s/h/v/x/./g Artikulation · p Pause · Entf löschen · Leertaste anhören
 const editDigit = { v: 0, t: 0, i: -1 };    // Puffer für zweistellige Bund-Eingabe
 function editorKeydown(e) {
-  if (!S.editing) return;
+  const workspace=document.getElementById('editorWorkspace');
+  if(!S.editing||!workspace.open)return;
+  if(e.target!==document && e.target!==document.body && !workspace.contains(e.target))return;
   const tag = (document.activeElement && document.activeElement.tagName) || '';
   if (['INPUT', 'SELECT', 'TEXTAREA'].includes(tag)) return;   // Formularfelder nicht kapern
+  if ((tag==='SUMMARY'||tag==='BUTTON') && (e.key===' '||e.key==='Enter')) return;
   if (e.metaKey || e.ctrlKey) return;
   const i = S.editSel, n = i >= 0 ? S.lickRec[i] : null;
   const k = e.key;
@@ -4993,10 +4934,6 @@ function deleteEditNote(i) {
   if (S.editSel >= S.lickRec.length) S.editSel = S.lickRec.length - 1;
   renderEditor(); render();
 }
-function playEditBuffer() {
-  if (!S.lickRec.length) return;
-  playLickAt({ notes: S.lickRec, key: S.key, scale: S.scale }, nextBarDelay());
-}
 function saveEdit() {
   if (!S.editing) return;
   if (!S.lickRec.length) { alert('Der Lick hat keine Töne. Klicke Töne am Griffbrett an.'); return; }
@@ -5047,13 +4984,14 @@ function closeEdit() {
   if (!S.selectedLick && wasEditing && wasEditing !== '_new' && findLick(wasEditing)) S.selectedLick = wasEditing;
   resetLickStep();
   document.body.classList.remove('editing');
-  document.body.style.paddingBottom = '';
-  const fbEl = document.getElementById('fb');
-  if (fbEl) fbEl.style.maxWidth = fbEl.style.minWidth = '';   // Griffbrett wieder in Originalgröße
-  const row = document.getElementById('editorRow');
-  if (row) row.style.display = 'none';
+  const dialog=document.getElementById('editorRow');
+  if(dialog.open){if(dialog.close)dialog.close();else dialog.removeAttribute('open');}
+  document.getElementById('editorBoardAnchor')?.replaceWith(document.getElementById('mainFretboard'));
+  dialog.style.display='none';
+  dialog.classList.remove('expanded');
+  document.getElementById('editorFocus').textContent='Fenster füllen';
+  document.getElementById('editorEntry').hidden=false;
   if (S._fbWasOff) { S.panels.fb = false; applyPanels(); S._fbWasOff = false; }   // Vorzustand wiederherstellen
-  lockFretboardToggle(false);
   updateEditAffordances();
   renderLickPanel();
   render();
@@ -6688,6 +6626,7 @@ function applySettingsUI() {
   if (!findLick(S.selectedLick)) S.selectedLick = null;   // gelöschte Licks nicht wiederherstellen
   // Layout: Preset-Tab, Bereichs-Menü, Legende, Karten-Zustände
   setPresetTab(S.presetTab || 'vorlagen');
+  for(const key of Object.keys(S.cards))S.panels[key]=S.panels[key]!==false&&!!S.cards[key];
   applyPanels();
   applySettings();
   updateEditAffordances();
@@ -6697,10 +6636,6 @@ function applySettingsUI() {
   applyFbSize();
   applyStaffView();
   applyIntervalBtn();
-  Object.entries(S.cards || {}).forEach(([k, v]) => {
-    const el = document.getElementById('card-' + k);
-    if (el) el.open = !!v;
-  });
   // Progression wiederherstellen (applyProg räumt bluesForm auf → danach zurücksetzen)
   if (S._progText) {
     document.getElementById('progInput').value = S._progText;
