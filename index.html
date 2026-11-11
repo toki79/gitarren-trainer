@@ -698,7 +698,7 @@ body.chord-lab-open .fretboard-wrap.compact #fb { min-width:1000px; max-width:no
         <p id="clArpRegion" class="hint"></p><p id="clArpReference" class="hint"></p>
         <div id="clArpSequence" class="cl-controls" role="group" aria-label="Arpeggio vom tiefsten zum höchsten Ton"></div>
         <div class="cl-theory"><p id="clFormula"></p><p id="clTheory" class="hint"></p></div>
-        <p class="hint">CAGED benennt Halslagen anhand der fünf Dur-Grundformen. Moll, Septimen und Erweiterungen liefern ihre eigenen Akkordtöne in diesen Lagen. Nicht für jede Kombination ist ein vollständiger Griff hinterlegt. Fingersätze sind Vorschläge; „4+“ bedeutet eine kleine Lagenverschiebung.</p>
+        <p class="hint">CAGED benennt Halslagen anhand der fünf Dur-Grundformen. Moll, Septimen und Erweiterungen liefern ihre eigenen Akkordtöne in diesen Lagen. Die Buchstaben über dem Griffbrett bezeichnen immer die Lage. Kleine Punkte zeigen Akkordtöne. Ein weiß umrandeter Griff erscheint dort, wo ein vollständiger Fingersatz hinterlegt ist. Fingersätze sind Vorschläge; „4+“ bedeutet eine kleine Lagenverschiebung.</p>
       </details>
       <details class="cl-help"><summary>So übst du · Begriffe &amp; Hintergrund</summary>
         <p>Wähle einen Akkord, höre die Saiten einzeln und greife nach. Verdecke den Griff und versuche ihn aus dem Gedächtnis. Wechsle anschließend zur nächsten Lage und vergleiche den Klang.</p>
@@ -7078,7 +7078,7 @@ function overviewGrips(state) {
 }
 function drawCagedOverview(svg,state,data,area) {
   const shapes=overviewGrips(state);
-  for(const shape of shapes)if(!shape.active)area(shape.lo,shape.hi,false,shape.form+(shape.grip?' · Griff':' · Töne'));
+  for(const shape of shapes)if(!shape.active)area(shape.lo,shape.hi,false,shape.form+'-Lage');
   // Clearly readable chord tones across the neck, including regions without a stored full grip.
   for(let s=0;s<6;s++)for(let fret=0;fret<=FRETS;fret++){
     const role=chordLabRole(state.root,state.quality,mod12(OPEN_PC[s]+fret));
