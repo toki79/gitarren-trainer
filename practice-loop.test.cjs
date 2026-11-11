@@ -1,0 +1,55 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const {JSDOM, VirtualConsole} = require(process.env.JSDOM_MODULE || 'jsdom');
+const errors = [];
+const virtualConsole = new VirtualConsole();
+virtualConsole.on('jsdomError', error => errors.push(error.message));
+const dom = new JSDOM(fs.readFileSync(__dirname+'/index.html','utf8'), {
+  url:'https://test.invalid', runScripts:'dangerously', virtualConsole
+});
+const w = dom.window, ev = code => w.eval(code);
+const id = key => w.document.getElementById(key);
+const marker = () => w.document.querySelector('.practice-cue');
+try {
+  ev("S.key=9; S.scale='minor'; S.beatsPerMeasure=4; S.countIn=true; audio=()=>({currentTime:0}); pluck=()=>window.played++; window.played=0;");
+  id('progInput').value = 'i | i iv | V';
+  w.applyProg();
+  id('practiceFrom').value = '1';
+  w.changePracticeRange();
+  id('practiceEnabled').click();
+  assert.equal(ev('S.progIdx'),1);
+  assert.equal(ev('transportSchedule().total'),4);
+  assert.equal(ev('buildBeatSchedule().total'),12);
+  assert.equal(marker().textContent,'F');
+  assert.match(id('practiceStatus').textContent,/Am → Dm/);
+  w.startMetro();
+  assert.equal(ev('metro.sched.starts[0]'),1);
+  assert.equal(ev('metro.sched.starts[2]'),2);
+  assert.equal(marker(),null);
+  id('practiceListen').click();
+  const beat = m => ev('updateCoachBeat('+m+'%4,'+m+',metro.sched)');
+  beat(0); assert.equal(marker(),null);
+  beat(1); assert.equal(marker().textContent,'F');
+  beat(1); assert.equal(w.played,1);
+  beat(3); assert.equal(marker().textContent,'C');
+  beat(15); assert.ok(marker());
+  beat(17); assert.equal(marker(),null);
+  assert.equal(w.played,3);
+  assert.match(id('practiceStatus').textContent,/Runde 5/);
+  w.stopMetro();
+  w.setFretboardLayer('caged',true);
+  assert.ok(marker());
+  id('practiceGuide').click();
+  assert.equal(marker(),null);
+  w.startMetro();
+  id('practiceTo').value = '3';
+  w.changePracticeRange();
+  assert.equal(ev('metro.sched.total'),8);
+  id('practiceEnabled').click();
+  assert.equal(ev('metro.sched.total'),12);
+  w.clearProg();
+  assert.equal(id('practiceEnabled').disabled,true);
+  assert.equal(marker(),null);
+  assert.deepEqual(errors,[]);
+  console.log('PASS: shared-bar excerpt, count-in, timed cues, loop wrap, audio, fifth round, layers, range edits and reset.');
+} finally { dom.window.close(); }

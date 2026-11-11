@@ -12,6 +12,7 @@ node arpeggios.test.cjs
 node overview.test.cjs
 node layers.test.cjs
 node tab-player.test.cjs
+node practice-loop.test.cjs
 ```
 
 - `ui-smoke.cjs`: bestehende Oberfläche, Transport, Progression, Countdown,
@@ -147,3 +148,5 @@ anklickbarem Griffbrett. „Zur Seitenansicht“ kehrt zur Bearbeitung in der Se
 zurück. „A–B duplizieren“ fügt eine Kopie direkt hinter dem gewählten Abschnitt
 ein und markiert die Kopie. Der UI-Test prüft die Bereichsüberschriften, der
 Player-Test den Erhalt des Entwurfs, die Kopie und die Rückgabe des Griffbretts.
+
+Der Test für den Akkordwechsel-Loop prüft geteilte Takte, den Einzähler, die Zielterz vor dem Wechsel und den Rücksprung am Abschnittsende. Er prüft außerdem, dass jede Hörhilfe nur einmal erklingt und die automatische Hilfe nach vier Runden endet.

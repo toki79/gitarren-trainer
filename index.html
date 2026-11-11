@@ -555,6 +555,10 @@ body.chord-lab-open .fretboard-wrap.compact #fb { min-width:1000px; max-width:no
 #tabPlayerMain[hidden], #editTabPlayer[hidden] { display:none; }
 [data-note-index]:focus { stroke:#22d3ee; stroke-width:2; outline:none; }
 #editorEntry[hidden]{display:none}
+#practicePanel { margin: .6rem 0; padding: .65rem .85rem; border: 1px solid var(--border, #475569); border-radius: .5rem; }
+#practicePanel summary { cursor: pointer; font-weight: 650; }
+.practice-controls { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem 1rem; margin-top: .75rem; }
+#practiceStatus { margin: .6rem 0 0; }
 </style>
 </head>
 <body>
@@ -644,6 +648,18 @@ body.chord-lab-open .fretboard-wrap.compact #fb { min-width:1000px; max-width:no
     <p id="fbWorkspaceStatus" class="hint" role="status"></p>
     <p id="clRecommendation" class="hint" role="status" hidden></p>
     <div id="fbProg" style="display:none" role="group" aria-label="Akkordfolge – aktueller Akkord hervorgehoben" title="Klick springt zum Akkord · Leertaste: Start / Stop (außer in Eingabefeldern und im Lick-Editor)"></div>
+    <details id="practicePanel">
+      <summary>Akkordwechsel üben</summary>
+      <div class="practice-controls">
+        <label><input id="practiceEnabled" type="checkbox" onchange="changePracticeRange()"> Abschnitt loopen</label>
+        <label>Von <select id="practiceFrom" onchange="changePracticeRange()"></select></label>
+        <label>Bis <select id="practiceTo" onchange="changePracticeRange()"></select></label>
+        <label><input id="practiceGuide" type="checkbox" checked onchange="render()"> Zielton zeigen</label>
+        <label><input id="practiceListen" type="checkbox"> Zielton vorspielen</label>
+        <button type="button" id="practicePreview" onclick="previewPracticeTarget()">♪ Zielton hören</button>
+      </div>
+      <p id="practiceStatus"></p>
+    </details>
     <div id="voicingPractice" class="voicing-practice" style="display:none">
       <strong id="voicingPracticeTitle"></strong>
       <label>Saiten <select id="voicingPracticeSet" onchange="setStringSet(this.value)">
@@ -1843,11 +1859,109 @@ function chordBeats(ch) {
 }
 
 // Zählzeit-Fahrplan: welcher Akkord beginnt auf welcher Zählzeit + Gesamtlänge
-function buildBeatSchedule() {
+function buildBeatSchedule(first = 0, last = S.prog.length - 1) {
   const starts = {};
   let beat = 0;
-  S.prog.forEach((ch, ci) => { starts[beat] = ci; beat += chordBeats(ch); });
+  for (let i = first; i <= last; i++) { starts[beat] = i; beat += chordBeats(S.prog[i]); }
   return { starts, total: beat };
+}
+const practice = { progression:null, enabled:false, first:0, last:1, lastAudioBeat:null };
+function practiceActive() {
+  return practice.enabled && practice.progression === S.prog && practice.last < S.prog.length;
+}
+function transportSchedule() {
+  if (!practiceActive()) return buildBeatSchedule();
+  const schedule = buildBeatSchedule(practice.first, practice.last);
+  schedule.beatOffset = buildBeatSchedule(0, practice.first-1).total;
+  return schedule;
+}
+function nextPracticeIndex(idx) {
+  return practiceActive() && idx === practice.last ? practice.first : (idx + 1) % S.prog.length;
+}
+function syncPracticeControls() {
+  const changed = practice.progression !== S.prog;
+  const from = document.getElementById('practiceFrom'), to = document.getElementById('practiceTo');
+  if (changed) {
+    practice.progression = S.prog;
+    practice.enabled = false;
+    practice.first = Math.max(0, Math.min(S.progIdx, S.prog.length - 2));
+    practice.last = practice.first + 1;
+    from.replaceChildren(); to.replaceChildren();
+    S.prog.forEach((ch, i) => {
+      const label = (i+1) + ' · ' + ch.name;
+      if (i < S.prog.length-1) from.add(new Option(label, i));
+      if (i > 0) to.add(new Option(label, i));
+    });
+  }
+  from.value = practice.first; to.value = practice.last;
+  for (const option of to.options) option.disabled = Number(option.value) <= practice.first;
+  for (const id of ['practiceFrom','practiceTo','practiceEnabled']) document.getElementById(id).disabled = S.prog.length < 2;
+  document.getElementById('practiceEnabled').checked = practice.enabled;
+  for (const id of ['practicePreview','practiceGuide','practiceListen']) document.getElementById(id).disabled = !practiceActive();
+}
+function changePracticeRange() {
+  const running = S.metroOn;
+  if (running) stopMetro();
+  practice.first = Number(document.getElementById('practiceFrom').value);
+  practice.last = Math.max(practice.first+1, Number(document.getElementById('practiceTo').value));
+  practice.enabled = document.getElementById('practiceEnabled').checked;
+  if (practiceActive()) S.progIdx = practice.first;
+  if (running) startMetro();
+  else { renderChips(); render(); }
+}
+// Choose the next third near a current chord tone on the same string.
+function practiceTarget(idx) {
+  const from = S.prog[idx], to = S.prog[nextPracticeIndex(idx)];
+  const pc = mod12(to.rootPc + to.third);
+  const current = [0,from.third,from.fifth].map(interval => mod12(from.rootPc + interval));
+  const center = boxCenterNow();
+  let best = null;
+  for (let s = 0; s < 3; s++) for (let fret = 0; fret <= FRETS; fret++) {
+    if (mod12(OPEN_PC[s] + fret) !== pc) continue;
+    for (let source = Math.max(0,fret-6); source <= Math.min(FRETS,fret+6); source++) {
+      if (!current.includes(mod12(OPEN_PC[s]+source))) continue;
+      const score = Math.abs(source-fret)*24 + Math.abs(center-fret);
+      if (!best || score < best.score) best = {s,fret,source,score,pc};
+    }
+  }
+  return best;
+}
+function previewPracticeTarget() {
+  if (!practiceActive()) return;
+  const target = practiceTarget(S.progIdx);
+  if (target) playNote(OPEN_MIDI[target.s]+target.fret,target.s,target.fret,'#facc15');
+}
+function refreshPracticeCue() {
+  const svg = document.getElementById('fb'), status = document.getElementById('practiceStatus');
+  svg.querySelector('.practice-cue')?.remove();
+  if (!practiceActive()) {
+    status.textContent = S.prog.length < 2 ? 'Lade eine Progression mit mindestens zwei Akkorden.' : 'Wähle einen Abschnitt und aktiviere den Loop.';
+    return;
+  }
+  const round = coachBeat?.round || 1;
+  if (round > 4) { status.textContent = 'Runde ' + round + ' · Spiele ohne Zielhilfe weiter.'; return; }
+  if (S.metroOn && (coachBeat?.remaining !== 1 || coachBeat.countIn)) {
+    status.textContent = 'Runde ' + round + ' von 4 mit Zielhilfe · Spiele bis zum Wechsel frei.';
+    return;
+  }
+  const idx = S.metroOn ? coachBeat.idx : S.progIdx;
+  const target = practiceTarget(idx);
+  if (!target) return;
+  if (S.metroOn && document.getElementById('practiceListen').checked && practice.lastAudioBeat !== coachBeat.beat) {
+    practice.lastAudioBeat = coachBeat.beat;
+    pluck(OPEN_MIDI[target.s]+target.fret, 0, .45, .7);
+  }
+  if (!document.getElementById('practiceGuide').checked || S.intervalMode || capturing() || (chordLabOpen && !chordLabRevealed)) {
+    status.textContent = 'Runde ' + round + ' · Zielmarkierung ausgeblendet.';
+    return;
+  }
+  const name = nn(target.pc,S.key), string = STR_LABELS[target.s];
+  status.textContent = S.prog[idx].name + ' → ' + S.prog[nextPracticeIndex(idx)].name + ' · Ziele auf ' + name + ' (Terz) · ' + string + '-Saite, Bund ' + target.source + (target.source===target.fret ? ' halten' : ' → ' + target.fret) + '.';
+  const x=fx(target.fret), y=sy(target.s);
+  const group=el('g',{class:'practice-cue','pointer-events':'none'});
+  group.append(el('circle',{cx:x,cy:y,r:DR+4,fill:'#172033',stroke:'#facc15','stroke-width':3}),
+    el('text',{x,y:y+4,fill:'white','font-size':12,'font-weight':'bold','text-anchor':'middle'},name));
+  svg.append(group);
 }
 // Welcher Akkord-Index ist bei Position mm (Beat in der Form) aktiv? (für die Solo-Analyse)
 function chordIdxAtMM(mm) {
@@ -1944,7 +2058,7 @@ function render() {
     svg.appendChild(el('text', { x:chordLabOpen?12:24, y:y, fill:'#6b7280', 'font-size':11, 'text-anchor':'middle', 'dominant-baseline':'middle' }, STR_LABELS[s]));
   }
 
-  if(chordLabOpen) { drawChordLabOnFretboard(svg); saveSettings(); return; }
+  if(chordLabOpen) { drawChordLabOnFretboard(svg); refreshPracticeCue(); saveSettings(); return; }
 
   // ── Intervall-Ansicht: jede Position als Intervall zum Bezugston ──
   if (S.intervalMode) {
@@ -1970,6 +2084,7 @@ function render() {
     document.getElementById('info').innerHTML =
       `<h3>Intervall-Ansicht</h3><div class="hint">Bezugston: <b>${nn(refPc, refPc)}</b>${ref ? '' : ' (Grundton der Tonart)'} · jede Position zeigt ihr Intervall dazu. Klicke eine Position, um sie zum neuen Bezugston zu machen.<br>R · Terz (♭3/3, grün) · Quinte (5, lila) · Septime (♭7/7, blau) sind hervorgehoben.</div>`;
     S.currentGrip = [];
+    refreshPracticeCue();
     renderChordCoach();
     saveSettings();
     return;
@@ -2326,6 +2441,7 @@ function render() {
 
   S.currentGrip = grip;
   renderTargetNotes(svg);
+  refreshPracticeCue();
   renderChordCoach();
   updateInfo(grip);
   renderFbStaff();         // Noten/TAB unter dem Griffbrett mitziehen
@@ -2754,7 +2870,7 @@ function applyProg() {
   mpc.parentElement.style.opacity = S.useBars ? 0.4 : 1;
   // Neue Progression startet im Voice-Leading-Modus, falls Triade aus war
   if (S.prog.length && S.triad === 'none') { S.triad = 'auto'; updateTriadButtons(); }
-  if (S.metroOn) metro.sched = S.prog.length ? buildBeatSchedule() : null;
+  if (S.metroOn) metro.sched = S.prog.length ? transportSchedule() : null;
   if (!S.prog.length) stopMetro();
   if (S.editing) renderEditor();       // Takt-/Akkord-Labels im Lick-Editor aktualisieren
   renderChips();
@@ -2800,7 +2916,7 @@ function startExercise(type) {
   buildExercise(type);
   S.progIdx = 0; S.anchor = null;
   if (S.triad === 'none') { S.triad = 'auto'; updateTriadButtons(); }
-  if (S.metroOn) metro.sched = buildBeatSchedule();
+  if (S.metroOn) metro.sched = transportSchedule();
   renderChips();
   render();
 }
@@ -5404,7 +5520,7 @@ function trainerHearNote(midi, onsetT) {
 function trainerRoundDone(tr, tg) {
   const stats = `${tr.hits} Treffer, ${tr.misses} Fehler`;
   if (tr.mode === 'arp' && S.prog.length) {
-    S.progIdx = (S.progIdx + 1) % S.prog.length;   // ohne Anschlag – Mikrofon nicht stören
+    S.progIdx = nextPracticeIndex(S.progIdx);   // ohne Anschlag – Mikrofon nicht stören
     renderChips(); render();
     tr.targets = arpTargets();
     tr.idx = 0;
@@ -5861,7 +5977,7 @@ let transportGeneration = 0;
 function upcomingChord() {
   if (!S.prog.length) return null;
   const countIn = S.metroOn && coachBeat && coachBeat.countIn;
-  const idx = countIn || S.progIdx < 0 ? 0 : (S.progIdx + 1) % S.prog.length;
+  const idx = countIn || S.progIdx < 0 ? (practiceActive() ? practice.first : 0) : nextPracticeIndex(S.progIdx);
   return S.prog[idx];
 }
 function toggleTargetNotes() {
@@ -5885,7 +6001,7 @@ function renderChordCoach() {
   btn.classList.toggle('active', !!S.targetNotes);
   btn.setAttribute('aria-pressed', String(!!S.targetNotes));
   const hint = document.getElementById('targetNotesHint');
-  hint.style.display = S.targetNotes ? '' : 'none';
+  hint.style.display = S.targetNotes && !practiceActive() ? '' : 'none';
   hint.textContent = S.intervalMode || capturing() ? 'Zieltöne pausieren in der Intervall-Ansicht und im Editor.'
     : `Ziel für ${next.name}: R = ${nn(mod12(next.rootPc), S.key)} · ${next.third === 3 ? '♭3' : '3'} = ${nn(mod12(next.rootPc + next.third), S.key)}. Je ein naher Griffpunkt, gestrichelt markiert – auch außerhalb der Pentatonik.`;
 }
@@ -5905,7 +6021,7 @@ function targetPositions(ch) {
   });
 }
 function renderTargetNotes(svg) {
-  if (!S.targetNotes || S.intervalMode || capturing()) return;
+  if (practiceActive() || !S.targetNotes || S.intervalMode || capturing()) return;
   targetPositions(upcomingChord()).forEach(n => {
     const x = fx(n.fret), y = sy(n.s);
     const g = el('g', {class:'next-target', 'data-role':n.role, 'data-pc':n.pc});
@@ -5925,11 +6041,13 @@ function updateCoachBeat(mm, m, schedule) {
     const starts = Object.keys(schedule.starts).map(Number).sort((a,b) => a-b);
     const start = starts.filter(b => b <= mm).pop();
     const end = starts.find(b => b > mm) ?? schedule.total;
-    coachBeat = {idx:schedule.starts[start], remaining:end-mm, countIn:false};
+    coachBeat = {idx:schedule.starts[start], remaining:end-mm, round:1+Math.floor(m/schedule.total), beat:m, countIn:false};
   } else coachBeat = null;
+  refreshPracticeCue();
   renderChordCoach();
 }
 function renderChips() {
+  syncPracticeControls();
   renderChordCoach();
   const box = document.getElementById('progChips');
   const transport = document.getElementById('progTransport');
@@ -5962,6 +6080,10 @@ function renderChips() {
   }
 }
 function selectChord(i) {
+  if (practiceActive() && (i < practice.first || i > practice.last)) {
+    document.getElementById('practiceEnabled').checked = false;
+    changePracticeRange();
+  }
   S.progIdx = i;
   renderChips();
   render();
@@ -5969,7 +6091,9 @@ function selectChord(i) {
 }
 function progStep(dir) {
   if (!S.prog.length) return;
-  S.progIdx = (S.progIdx + dir + S.prog.length) % S.prog.length;
+  const first = practiceActive() ? practice.first : 0;
+  const length = practiceActive() ? practice.last-first+1 : S.prog.length;
+  S.progIdx = first + (S.progIdx-first+dir+length)%length;
   renderChips();
   render();
   strumActive();
@@ -6184,13 +6308,14 @@ function metroScheduler() {
   }
   while (metro.nextNote < ac.currentTime + 0.12) {
     const t = metro.nextNote;
-    const beatInMeasure = metro.beat % S.beatsPerMeasure;
     const aheadMs = Math.max(0, (t - ac.currentTime) * 1000);
     const m = metro.beat - metro.countInBeats;     // musikalische Zählzeit (negativ = Einzähler)
     const isCountIn = m < 0;
-    if (S.click) clickSound(t, beatInMeasure === 0);
     const mm = (!isCountIn && metro.sched)
       ? ((m % metro.sched.total) + metro.sched.total) % metro.sched.total : -1;
+    const beatInMeasure = (mm >= 0 && metro.sched.beatOffset !== undefined
+      ? metro.sched.beatOffset + mm : metro.beat) % S.beatsPerMeasure;
+    if (S.click) clickSound(t, beatInMeasure === 0);
     // Backing Track (nicht während des Einzählers; Drums auch ohne Progression)
     if (!isCountIn) {
       if (S.drums) scheduleDrums(t, beatInMeasure, mm);
@@ -6315,13 +6440,14 @@ function startMetro() {
   metro.beat = 0;
   metro.countInBeats = (S.countIn && S.prog.length) ? S.beatsPerMeasure : 0;  // ein Takt Vorzähler
   coachBeat = metro.countInBeats ? {countIn:true, remaining:metro.countInBeats} : null;
-  metro.sched = S.prog.length ? buildBeatSchedule() : null;
+  metro.sched = S.prog.length ? transportSchedule() : null;
   metro.lickNextBeat = 0;                                                     // Lick-Loop neu starten
   metro.tradeSeg = -1;                                                        // Trading Fours neu starten
   metro.parcIdx = 0; metro.parcNextBeat = 0;                                  // Lick-Parcours neu starten
   metro.crIdx = 0; metro.crNextBeat = 0;                                      // Akkord-&-Lick-Übung neu starten
   metro.nextNote = audio().currentTime + 0.12;
-  if (S.prog.length) S.progIdx = 0;
+  practice.lastAudioBeat = null;
+  if (S.prog.length) S.progIdx = metro.sched.starts[0];
   renderChips(); render();
   setMetroBtns(true);
   metroTimer = setInterval(metroScheduler, 25);
@@ -6352,12 +6478,12 @@ function setTimeSig(v) {
   if (v === '12-8') { S.beatsPerMeasure = 4; S.tripletFeel = true; }
   else { S.beatsPerMeasure = +v; S.tripletFeel = false; }
   renderBeatDots();
-  if (S.metroOn) metro.sched = buildBeatSchedule();
+  if (S.metroOn) metro.sched = transportSchedule();
   if (S.editing) renderEditor();       // Takt-Grenzen im Lick-Editor neu ziehen
 }
 function setMeasPerChord(v) {
   S.measuresPerChord = +v;
-  if (S.metroOn) metro.sched = buildBeatSchedule();
+  if (S.metroOn) metro.sched = transportSchedule();
   if (S.editing) renderEditor();
 }
 function toggleCountIn() {
@@ -6480,6 +6606,7 @@ function reparseProg() {
   if (S.bluesForm) document.getElementById('progInput').value = bluesVariant(S.bluesForm);
   const text = document.getElementById('progInput').value;
   S.prog = parseProg(text, S.key, S.scale);
+  if (S.metroOn) metro.sched = S.prog.length ? transportSchedule() : null;
   if (S.progIdx >= S.prog.length) S.progIdx = S.prog.length - 1;
   renderChips();
 }
@@ -7047,7 +7174,8 @@ function overviewTriads(state,data) {
   const third=tones.includes(4)?4:tones.includes(3)?3:null;
   if(third===null || !tones.includes(7))return null;
   const follows=state.follow && S.prog.length && S.progIdx>=0;
-  const chords=follows?S.prog:[{rootPc:state.root,third,fifth:7,name:CL_ROOTS[state.root]+CL_QUALITIES[state.quality].suffix}];
+  const excerpt=follows && practiceActive() && S.progIdx>=practice.first && S.progIdx<=practice.last;
+  const chords=follows?(excerpt?S.prog.slice(practice.first,practice.last+1):S.prog):[{rootPc:state.root,third,fifth:7,name:CL_ROOTS[state.root]+CL_QUALITIES[state.quality].suffix}];
   const sets=chords.map(overviewCandidates);
   if(sets.some(v=>!v.length))return null;
   const firstRegion=chordLabArpeggio(chords[0].rootPc,chords[0].third===3?'minor':'major',state.form);
@@ -7058,7 +7186,7 @@ function overviewTriads(state,data) {
     return {voice,cost:best.cost+overviewMovement(best.voice,voice),path:[...best.path,voice]};
   });
   const best=paths.reduce((a,p)=>!a || p.cost+overviewMovement(p.voice,first)<a.cost+overviewMovement(a.voice,first)?p:a,null);
-  const idx=follows?S.progIdx:0, nextIdx=(idx+1)%chords.length;
+  const idx=follows?S.progIdx-(excerpt?practice.first:0):0, nextIdx=(idx+1)%chords.length;
   return {current:{...chords[idx],voice:best.path[idx]},next:follows&&chords.length>1?{...chords[nextIdx],voice:best.path[nextIdx]}:null};
 }
 function overviewGrips(state) {
@@ -7226,6 +7354,7 @@ function initChordLab() {
   renderPathSongs();
   renderPath();
   initOutCtrl();
+  syncPracticeControls();
   render();
   window.addEventListener('beforeunload', saveSettings);   // letzter Stand beim Schließen
 })();
