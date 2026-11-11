@@ -640,6 +640,7 @@ body.chord-lab-open .fretboard-wrap.compact #fb { min-width:1000px; max-width:no
     <div class="cl-controls" id="fbLayers" role="group" aria-label="Griffbrett-Ebenen">
       <label><input id="layerCaged" type="checkbox" onchange="setFretboardLayer('caged',this.checked)"> CAGED</label>
       <label><input id="layerPenta" type="checkbox" onchange="setFretboardLayer('penta',this.checked)"> Pentatonik</label>
+      <label><input id="layerScale" type="checkbox" onchange="setFretboardLayer('scale',this.checked)"> Tonleiter</label>
       <label><input id="layerTriads" type="checkbox" onchange="setFretboardLayer('triads',this.checked)"> Triaden</label>
       <label><input id="layerArp" type="checkbox" onchange="setFretboardLayer('arp',this.checked)"> Arpeggios</label>
     </div>
@@ -1997,7 +1998,7 @@ function render() {
   if(chordLabOpen && syncChordLabProgression())renderChordLab(false);
   document.body.classList.toggle('chord-lab-open',chordLabOpen);
   const layers=normalizeChordLab().layers;
-  for(const [key,id] of [['caged','layerCaged'],['penta','layerPenta'],['triads','layerTriads'],['arp','layerArp']])document.getElementById(id).checked=chordLabOpen&&layers[key];
+  for(const [key,id] of [['caged','layerCaged'],['penta','layerPenta'],['triads','layerTriads'],['arp','layerArp'],['scale','layerScale']])document.getElementById(id).checked=chordLabOpen&&layers[key];
   renderPracticeControls();
   const svg = document.getElementById('fb');
   svg.innerHTML = '';
@@ -6835,7 +6836,7 @@ function normalizeChordLab() {
     index:Number.isInteger(old.index) && old.index >= 0 ? old.index : 0,
     mode:old.mode === 'grips' ? 'grips' : 'arp',
     display:['grip','arp','both','overview'].includes(old.display) ? old.display : 'overview',
-    layers:{arp:old.layers?.arp ?? (!!old.display && old.layers?.caged!==false && old.mode!=='grips' && old.display!=='grip'),caged:typeof old.layers?.caged==='boolean'?old.layers.caged:true,penta:old.layers?.penta===true,triads:typeof old.layers?.triads==='boolean'?old.layers.triads:(!old.display||old.display==='overview')},
+    layers:{scale:old.layers?.scale===true,arp:old.layers?.arp ?? (!!old.display && old.layers?.caged!==false && old.mode!=='grips' && old.display!=='grip'),caged:typeof old.layers?.caged==='boolean'?old.layers.caged:true,penta:old.layers?.penta===true,triads:typeof old.layers?.triads==='boolean'?old.layers.triads:(!old.display||old.display==='overview')},
     playback:['up','down','both','chord'].includes(old.playback) ? old.playback : 'up',
     follow:old.follow !== false,
     form:['C','A','G','E','D'].includes(old.form) ? old.form : 'E',
@@ -7260,25 +7261,40 @@ function drawOverviewRecommendation(svg,state,data) {
 
 function setFretboardLayer(layer,enabled) {
   stopTabPlayer(false);
-  if(!['caged','penta','triads','arp'].includes(layer))return;
+  if(!['caged','penta','triads','arp','scale'].includes(layer))return;
   stopArpeggio();endVoicingPractice();
-  const state=normalizeChordLab();if(!chordLabOpen)state.layers={caged:false,penta:false,triads:false,arp:false};state.layers[layer]=enabled;state.display='overview';
+  const state=normalizeChordLab();if(!chordLabOpen)state.layers={caged:false,penta:false,triads:false,arp:false,scale:false};state.layers[layer]=enabled;state.display='overview';
   if(layer==='caged'&&enabled)state.mode='arp';
   chordLabOpen=true;syncChordLabProgression();renderChordLab();saveSettings();
 }
-function drawPentatonicLayer(svg) {
-  // Use the song's key/scale, independently of the current progression chord.
-  const tones=scaleSet(S.key,S.scale),occupied=new Set();
-  svg.querySelectorAll('.cl-note,.overview-grip-note,.overview-tone,.arp-note,.overview-current,.overview-next').forEach(g=>{
-    const c=g.querySelector('circle');if(c)occupied.add(c.getAttribute('cx')+':'+c.getAttribute('cy'));
+function drawScaleLayer(svg, fullScale) {
+  const label = fullScale ? 'Tonleiter' : 'Pentatonik';
+  const intervals = S.scale === 'minor' ? MIN_SCALE : MAJ_SCALE;
+  const tones = fullScale ? intervals.map(i => mod12(S.key+i)) : scaleSet(S.key,S.scale);
+  const occupied = new Set();
+  svg.querySelectorAll('.cl-note,.overview-grip-note,.overview-tone,.arp-note,.overview-current,.overview-next,.pentatonic-note').forEach(group => {
+    const circle = group.querySelector('circle');
+    if (circle) occupied.add(circle.getAttribute('cx')+':'+circle.getAttribute('cy'));
   });
-  for(let s=0;s<6;s++)for(let fret=0;fret<=FRETS;fret++){
-    const pc=mod12(OPEN_PC[s]+fret);if(!tones.includes(pc)||occupied.has(fx(fret)+':'+sy(s)))continue;
-    const group=el('g',{class:'pentatonic-note','data-string':s,'data-fret':fret,role:'button',tabindex:0,'aria-label':`${nn(pc,S.key)}, ${STR_LABELS[s]}-Saite, Bund ${fret}, Pentatonik`,style:'cursor:pointer'});
-    group.appendChild(el('circle',{cx:fx(fret),cy:sy(s),r:8,fill:'#0d1117',stroke:'#8cb9e9','stroke-width':1.5}));
-    group.appendChild(el('title',{},nn(pc,S.key)+' · Pentatonik'));
+  for (let s=0; s<6; s++) for (let fret=0; fret<=FRETS; fret++) {
+    const pc = mod12(OPEN_PC[s]+fret);
+    if (!tones.includes(pc)) continue;
+    const x=fx(fret), y=sy(s);
+    if (occupied.has(x+':'+y)) {
+      if (fullScale) svg.append(el('line', {class:'scale-shared','data-string':s,'data-fret':fret,
+        x1:x-5,x2:x+5,y1:y+14,y2:y+14,stroke:'#ffcea1','stroke-width':2,'pointer-events':'none'}));
+      continue;
+    }
+    const name = nn(pc,S.key);
+    const group = el('g',{class:fullScale?'scale-note':'pentatonic-note','data-string':s,'data-fret':fret,
+      role:'button',tabindex:0,'aria-label':`${name}, ${STR_LABELS[s]}-Saite, Bund ${fret}, ${label}`,style:'cursor:pointer'});
+    group.append(el('circle',{cx:x,cy:y,r:fullScale?10:8,fill:'#0d1117',stroke:fullScale?'#ffcea1':'#8cb9e9','stroke-width':1.5}));
+    if (fullScale) group.append(el('text',{x,y:y+3,'text-anchor':'middle',fill:'#ffcea1','font-size':9},name));
+    group.append(el('title',{},name+' · '+label));
     const play=()=>{stopArpeggio();pluck(OPEN_MIDI[s]+fret,0,0.8,0.85);};
-    group.addEventListener('click',play);group.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();e.stopPropagation();play();}});svg.appendChild(group);
+    group.addEventListener('click',play);
+    group.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();e.stopPropagation();play();}});
+    svg.append(group);
   }
 }
 function drawChordLabOnFretboard(svg) {
@@ -7312,7 +7328,12 @@ function drawChordLabOnFretboard(svg) {
     svg.append(rings);
   }
   if(chordLabUnsupported&&(layers.caged||layers.triads||layers.arp))parts.push(`${chordLabUnsupported.name} · Noch kein CAGED-Muster hinterlegt`);
-  if(layers.penta){drawPentatonicLayer(svg);parts.push(`${nn(S.key,S.key)}-${S.scale==='minor'?'Moll':'Dur'}-Pentatonik · blaue Ringe`);}
+  if(layers.penta){drawScaleLayer(svg,false);parts.push(`${nn(S.key,S.key)}-${S.scale==='minor'?'Moll':'Dur'}-Pentatonik · blaue Ringe`);}
+  if(layers.scale){
+    drawScaleLayer(svg,true);
+    const tonic=nn(S.key,S.key);
+    parts.push((S.scale==='minor'?tonic+'-Moll (natürlich)':tonic+'-Dur')+' · Tonleiter in Apricot · Strich unter gemeinsamen Tönen');
+  }
   status.textContent=parts.join(' · ')||'Keine Ebene ausgewählt – Wähle eine Ebene über dem Griffbrett.';
 }
 function drawFullGrip(svg,grip,state,options={}) {
