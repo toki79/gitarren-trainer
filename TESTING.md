@@ -97,7 +97,8 @@ Griffvorlagen. Öffnen der CAGED-Ansicht beendet eine laufende Triadenübung.
 
 ## Unabhängige Anzeige-Ebenen
 
-Über dem Griffbrett stehen drei Checkboxen: CAGED, Pentatonik und Triaden.
+Über dem Griffbrett stehen vier Checkboxen für CAGED, Pentatonik, Triaden und Arpeggios.
+Grüne Ringe markieren die Arpeggiotöne des Akkords in der gewählten CAGED-Lage.
 Das bisherige Anzeige-Dropdown entfällt; die aktive CAGED-Lage liegt jetzt
 unter „Weitere Optionen“. Jede Kombination ist möglich, einschließlich einer
 leeren Anzeige. Beim Einstieg über eine Checkbox wird nur diese Ebene aktiviert.
@@ -107,7 +108,7 @@ Die Pentatonik verwendet Tonart und Dur/Moll aus der Hauptsteuerung und bleibt
 bei Progressionswechseln gleich. Blaue Ringe zeigen zusätzliche Pentatonik-Töne
 über den gesamten Hals. Bereits als Akkord- oder Triadenton dargestellte
 Griffpunkte erhalten keinen zweiten Marker.
-`layers.test.cjs` prüft alle acht Kombinationen, Tonzugehörigkeit, unveränderte
+`layers.test.cjs` prüft alle 16 Kombinationen aus CAGED, Pentatonik, Triaden und Arpeggios, Tonzugehörigkeit, unveränderte
 Pentatonik bei Akkordwechsel, Tonartmoduswechsel, Speicherung, Tastatur und
 Verdecken. Manuell zusätzlich Checkboxen bei laufender Progression umschalten.
 
