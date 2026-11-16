@@ -879,7 +879,7 @@ body.chord-lab-open .fretboard-wrap.compact #fb { min-width:1000px; max-width:no
   <a href="#card-trainer" onclick="showPracticeCard('trainer')">Trainer</a>
   <a href="#card-ton" onclick="showPracticeCard('ton')">Ton &amp; Rhythmus</a>
 </nav>
-<details class="card" id="card-path" open ontoggle="cardToggled(this)">
+<details class="card" id="card-path" open ontoggle="window.cardToggled&&cardToggled(this)">
   <summary>🗺 Song-Lernpfad · Schritt für Schritt zum Song</summary>
   <div class="card-body">
     <div class="path-head">
@@ -898,7 +898,7 @@ body.chord-lab-open .fretboard-wrap.compact #fb { min-width:1000px; max-width:no
   </div>
 </details>
 
-<details class="card" id="card-triad" ontoggle="cardToggled(this)">
+<details class="card" id="card-triad" ontoggle="window.cardToggled&&cardToggled(this)">
   <summary>🎸 Triade &amp; Klang</summary>
   <div class="card-body controls-flat">
     <div class="ctrl">
@@ -939,7 +939,7 @@ body.chord-lab-open .fretboard-wrap.compact #fb { min-width:1000px; max-width:no
   </div>
 </details>
 
-<details class="card" id="card-prog" ontoggle="cardToggled(this)">
+<details class="card" id="card-prog" ontoggle="window.cardToggled&&cardToggled(this)">
   <summary>🎼 Progression &amp; Backing</summary>
   <div class="card-body">
     <div class="prog-field">
@@ -1029,7 +1029,7 @@ body.chord-lab-open .fretboard-wrap.compact #fb { min-width:1000px; max-width:no
   </div>
 </details>
 
-<details class="card" id="card-licks" ontoggle="cardToggled(this)">
+<details class="card" id="card-licks" ontoggle="window.cardToggled&&cardToggled(this)">
   <summary>🎵 Licks · Bibliothek &amp; eigene Sammlung</summary>
   <div class="card-body">
   <div class="lick-head">
@@ -1109,7 +1109,7 @@ body.chord-lab-open .fretboard-wrap.compact #fb { min-width:1000px; max-width:no
   </div>
 </details>
 
-<details class="card" id="card-trainer" ontoggle="cardToggled(this)">
+<details class="card" id="card-trainer" ontoggle="window.cardToggled&&cardToggled(this)">
   <summary>🎤 Trainer &amp; Jam · Übungen mit echter Gitarre</summary>
   <div class="card-body" id="trainerBar">
   <div class="rec-row" style="margin-bottom:8px">
@@ -1162,7 +1162,7 @@ body.chord-lab-open .fretboard-wrap.compact #fb { min-width:1000px; max-width:no
   </div>
 </details>
 
-<details class="card" id="card-ton" ontoggle="cardToggled(this)">
+<details class="card" id="card-ton" ontoggle="window.cardToggled&&cardToggled(this)">
   <summary>🎚 Ton · Klang, Mixer &amp; Geräte</summary>
   <div class="card-body">
     <div class="rec-row" style="margin-bottom:8px">
