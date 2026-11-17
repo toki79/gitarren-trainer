@@ -556,6 +556,16 @@ body.play-mode #topBar #metroBtn { display: inline-block; }
 #fb .arp-current > circle:not(.arp-shared) { fill:#fff; stroke:#3b82f6; stroke-width:4px; }
 #fb .arp-note:focus { outline:none; }
 #fb .arp-note:focus > circle:not(.arp-shared) { stroke:#fff; stroke-width:4px; }
+/* CAGED-Leiste unter dem Griffbrett: Formwahl links, passende Licks rechts */
+.caged-bar { display:grid; grid-template-columns:minmax(260px,1fr) minmax(280px,1.4fr); gap:18px; margin:12px 0; padding:14px; border:1px solid #6386b1; border-radius:12px; background:#121d2b; }
+.caged-bar[hidden] { display:none; }
+.cg-title { font-size:0.7rem; text-transform:uppercase; letter-spacing:1.5px; color:var(--muted); font-weight:600; margin-bottom:8px; }
+.cg-btns { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; }
+.cg-btns button { font-size:0.82rem; padding:6px 11px; }
+.cg-practice .cg-title:not(:first-child) { margin-top:14px; }
+.cg-q { font-size:1rem; font-weight:600; color:#e6edf6; margin:4px 0 6px; min-height:1.4em; }
+.cg-extra:hover circle { stroke:#fff; }
+@media (max-width:700px) { .caged-bar { grid-template-columns:1fr; } }
 #clArpBpm { width:70px; padding:8px; background:var(--panel2); color:var(--text); border:1px solid var(--border); border-radius:7px; }
 #clArpStatus { margin:14px 0; min-height:1.5em; color:#c5d9f6; }
 #clArpSequence button { font-size:0.78rem; }
@@ -671,6 +681,41 @@ body.chord-lab-open .fretboard-wrap.compact #fb { min-width:1000px; max-width:no
     </div>
     <p id="fbWorkspaceStatus" class="hint" role="status"></p>
     <p id="clRecommendation" class="hint" role="status" hidden></p>
+    <div id="cagedBar" class="caged-bar" hidden>
+      <div class="cg-forms">
+        <div class="cg-title">CAGED-Form für den aktiven Akkord</div>
+        <div id="cagedForms" class="cg-btns" role="group" aria-label="CAGED-Form wählen">
+          <button type="button" data-form="E" onclick="setCagedForm('E')">E-Form</button>
+          <button type="button" data-form="A" onclick="setCagedForm('A')">A-Form</button>
+          <button type="button" data-form="C" onclick="setCagedForm('C')">C-Form</button>
+          <button type="button" data-form="D" onclick="setCagedForm('D')">D-Form</button>
+          <button type="button" data-form="G" onclick="setCagedForm('G')">G-Form</button>
+        </div>
+        <div id="cagedFormMode" class="cg-btns" role="group" aria-label="Verhalten beim Akkordwechsel">
+          <button type="button" data-mode="follow" onclick="setCagedFormMode('follow')" title="Die gewählte Form wird für jeden Akkord der Progression neu am Hals gesucht und wandert mit.">Form wandert mit dem Akkord</button>
+          <button type="button" data-mode="fixed" onclick="setCagedFormMode('fixed')" title="Der Halsbereich bleibt bei der gewählten Form des Key-Akkords stehen; angezeigt werden die Töne des aktiven Akkords darin.">Fest am Key-Akkord <span id="cagedKeyChord"></span></button>
+        </div>
+        <p id="cagedInfo" class="hint" role="status"></p>
+      </div>
+      <div class="cg-practice">
+        <div class="cg-title">Zeige in der Form</div>
+        <div id="cagedLevel" class="cg-btns" role="group" aria-label="Was zusätzlich in der Form angezeigt wird">
+          <button type="button" data-level="0" onclick="setCagedLevel(0)">Akkordtöne</button>
+          <button type="button" data-level="1" onclick="setCagedLevel(1)">+ Pentatonik</button>
+          <button type="button" data-level="2" onclick="setCagedLevel(2)">+ Skala</button>
+          <button type="button" data-level="3" onclick="setCagedLevel(3)">+ Chromatik</button>
+        </div>
+        <p id="cagedLegend" class="hint"></p>
+        <div class="cg-title">Quiz</div>
+        <div class="cg-btns">
+          <button type="button" id="cagedQuizBtn" onclick="toggleCagedQuiz()">Quiz starten</button>
+          <button type="button" id="cagedQuizSkip" onclick="skipCagedQuiz()" hidden>Frage überspringen</button>
+        </div>
+        <p id="cagedQuizQ" class="cg-q" role="status" aria-live="polite"></p>
+        <p id="cagedQuizScore" class="hint"></p>
+        <p id="cagedNext" class="hint"></p>
+      </div>
+    </div>
     <div id="fbProg" style="display:none" role="group" aria-label="Akkordfolge – aktueller Akkord hervorgehoben" title="Klick springt zum Akkord · Leertaste: Start / Stop (außer in Eingabefeldern und im Lick-Editor)"></div>
     <div id="voicingPractice" class="voicing-practice" style="display:none">
       <strong id="voicingPracticeTitle"></strong>
@@ -842,7 +887,7 @@ body.chord-lab-open .fretboard-wrap.compact #fb { min-width:1000px; max-width:no
   <a href="#card-trainer" onclick="showPracticeCard('trainer')">Trainer</a>
   <a href="#card-ton" onclick="showPracticeCard('ton')">Ton &amp; Rhythmus</a>
 </nav>
-<details class="card" id="card-path" open ontoggle="cardToggled(this)">
+<details class="card" id="card-path" open ontoggle="window.cardToggled&&cardToggled(this)">
   <summary>🗺 Song-Lernpfad · Schritt für Schritt zum Song</summary>
   <div class="card-body">
     <div class="path-head">
@@ -861,7 +906,7 @@ body.chord-lab-open .fretboard-wrap.compact #fb { min-width:1000px; max-width:no
   </div>
 </details>
 
-<details class="card" id="card-triad" ontoggle="cardToggled(this)">
+<details class="card" id="card-triad" ontoggle="window.cardToggled&&cardToggled(this)">
   <summary>🎸 Triade &amp; Klang</summary>
   <div class="card-body controls-flat">
     <div class="ctrl">
@@ -902,7 +947,7 @@ body.chord-lab-open .fretboard-wrap.compact #fb { min-width:1000px; max-width:no
   </div>
 </details>
 
-<details class="card" id="card-prog" ontoggle="cardToggled(this)">
+<details class="card" id="card-prog" ontoggle="window.cardToggled&&cardToggled(this)">
   <summary>🎼 Progression &amp; Backing</summary>
   <div class="card-body">
     <div class="prog-field">
@@ -992,7 +1037,7 @@ body.chord-lab-open .fretboard-wrap.compact #fb { min-width:1000px; max-width:no
   </div>
 </details>
 
-<details class="card" id="card-licks" ontoggle="cardToggled(this)">
+<details class="card" id="card-licks" ontoggle="window.cardToggled&&cardToggled(this)">
   <summary>🎵 Licks · Bibliothek &amp; eigene Sammlung</summary>
   <div class="card-body">
   <div class="lick-head">
@@ -1072,7 +1117,7 @@ body.chord-lab-open .fretboard-wrap.compact #fb { min-width:1000px; max-width:no
   </div>
 </details>
 
-<details class="card" id="card-trainer" ontoggle="cardToggled(this)">
+<details class="card" id="card-trainer" ontoggle="window.cardToggled&&cardToggled(this)">
   <summary>🎤 Trainer &amp; Jam · Übungen mit echter Gitarre</summary>
   <div class="card-body" id="trainerBar">
   <div class="rec-row" style="margin-bottom:8px">
@@ -1125,7 +1170,7 @@ body.chord-lab-open .fretboard-wrap.compact #fb { min-width:1000px; max-width:no
   </div>
 </details>
 
-<details class="card" id="card-ton" ontoggle="cardToggled(this)">
+<details class="card" id="card-ton" ontoggle="window.cardToggled&&cardToggled(this)">
   <summary>🎚 Ton · Klang, Mixer &amp; Geräte</summary>
   <div class="card-body">
     <div class="rec-row" style="margin-bottom:8px">
@@ -1968,6 +2013,7 @@ function render() {
     svg.appendChild(el('text', { x:chordLabOpen?12:24, y:y, fill:'#6b7280', 'font-size':11, 'text-anchor':'middle', 'dominant-baseline':'middle' }, STR_LABELS[s]));
   }
 
+  renderCagedBar();
   if(chordLabOpen) { drawChordLabOnFretboard(svg); saveSettings(); return; }
 
   // ── Intervall-Ansicht: jede Position als Intervall zum Bezugston ──
@@ -6648,6 +6694,8 @@ function normalizeChordLab() {
     layers:{caged:typeof old.layers?.caged==='boolean'?old.layers.caged:true,penta:old.layers?.penta===true,triads:typeof old.layers?.triads==='boolean'?old.layers.triads:(!old.display||old.display==='overview')},
     playback:['up','down','both','chord'].includes(old.playback) ? old.playback : 'up',
     follow:old.follow !== false,
+    formMode:old.formMode === 'fixed' ? 'fixed' : 'follow',
+    level:Math.min(3,Math.max(0,Math.round(Number(old.level))||0)),
     form:['C','A','G','E','D'].includes(old.form) ? old.form : 'E',
     overlay:['none','triad','penta'].includes(old.overlay) ? old.overlay : 'none',
     arpBpm:Number.isFinite(+old.arpBpm) ? Math.max(40,Math.min(160,+old.arpBpm)) : 90
@@ -6721,7 +6769,7 @@ function setChordLab(field, value) {
   if(field==='display'){normalizeChordLab();S.chordLab.layers.caged=true;S.chordLab.layers.triads=value==='overview';}
   if(field==='root'||field==='quality') {S.chordLab.follow=false;chordLabFollowSignature=null;chordLabUnsupported=null;}
   const before = currentChordLab().state;
-  const previousNotes = before.mode === 'arp' && field === 'form' && value !== before.form ? chordLabArpeggio(before.root,before.quality,before.form).notes : [];
+  const previousNotes = before.mode === 'arp' && field === 'form' && value !== before.form ? chordLabArpeggio(before.root,before.quality,before.form,cagedRegionRoot(before)).notes : [];
   stopArpeggio(); arpCursor = -1;
   arpShared = new Set(previousNotes.map(n => `${n.s}:${n.fret}`));
   normalizeChordLab();
@@ -6815,8 +6863,10 @@ function renderChordLab(updateFretboard = true) {
 // CAGED is a position reference; pitch membership always comes from the selected
 // chord quality, never from a blanket major shape or the global pentatonic scale.
 let arpTimers = [], arpGeneration = 0, arpCursor = -1, arpShared = new Set(), arpActivePosition = null;
-function chordLabArpeggio(root, quality, form) {
-  const anchor = chordLabCaged(root).find(v => v.form === form);
+// regionRoot: Grundton, dessen CAGED-Form den Halsbereich bestimmt (Standard: der Akkord selbst;
+// „fest am Key-Akkord“: der Grundton der Tonart, die Akkordtöne bleiben die des aktiven Akkords).
+function chordLabArpeggio(root, quality, form, regionRoot = root) {
+  const anchor = chordLabCaged(regionRoot).find(v => v.form === form);
   const lo = Math.min(...anchor.frets.filter(f => f != null));
   const hi = Math.min(FRETS, Math.max(lo+4,...anchor.frets.filter(f => f != null)));
   const localGrips = chordLabVariants(root,quality).filter(v => v.frets.every(f => f == null || (f >= lo && f <= hi)));
@@ -6839,13 +6889,14 @@ function chordLabArpeggio(root, quality, form) {
   const sequence=[...byMidi.values()].sort((a,b)=>a.midi-b.midi);
   return {root,quality,form,lo,hi,anchor,grip,notes,sequence};
 }
+function cagedRegionRoot(state) { return state.formMode==='fixed' ? mod12(S.key) : state.root; }
 function currentArpeggio() {
   const state=normalizeChordLab();
-  return chordLabArpeggio(state.root,state.quality,state.form);
+  return chordLabArpeggio(state.root,state.quality,state.form,cagedRegionRoot(state));
 }
 function nextArpeggioForm() {
   const state=normalizeChordLab();
-  const forms=chordLabCaged(state.root).sort((a,b)=>a.low-b.low);
+  const forms=chordLabCaged(cagedRegionRoot(state)).sort((a,b)=>a.low-b.low);
   const idx=forms.findIndex(v=>v.form===state.form);
   setChordLabPosition(forms[(idx+1)%forms.length].form);
 }
@@ -6987,7 +7038,7 @@ function overviewTriads(state,data) {
   const chords=follows?S.prog:[{rootPc:state.root,third,fifth:7,name:CL_ROOTS[state.root]+CL_QUALITIES[state.quality].suffix}];
   const sets=chords.map(overviewCandidates);
   if(sets.some(v=>!v.length))return null;
-  const firstRegion=chordLabArpeggio(chords[0].rootPc,chords[0].third===3?'minor':'major',state.form);
+  const firstRegion=chordLabArpeggio(chords[0].rootPc,chords[0].third===3?'minor':'major',state.form,state.formMode==='fixed'?mod12(S.key):undefined);
   const first=pickVoicing(sets[0],null,(firstRegion.lo+firstRegion.hi)/2,[firstRegion.lo,firstRegion.hi]);
   let paths=[{voice:first,cost:0,path:[first]}];
   for(let i=1;i<sets.length;i++)paths=sets[i].map(voice=>{
@@ -7001,7 +7052,7 @@ function overviewTriads(state,data) {
 function overviewGrips(state) {
   const result=[];
   for(const form of ['C','A','G','E','D']) {
-    const region=chordLabArpeggio(state.root,state.quality,form);
+    const region=chordLabArpeggio(state.root,state.quality,form,cagedRegionRoot(state));
     for(const shift of [-12,0,12]) {
       const lo=region.lo+shift,hi=Math.min(FRETS,region.hi+shift);
       if(lo<0||lo>FRETS||hi<lo)continue;
@@ -7065,6 +7116,170 @@ function drawOverviewRecommendation(svg,state,data) {
   });
 }
 
+// ─── CAGED-Leiste: Formwahl, Stufen (was zusätzlich in der Form steht) und Quiz ──
+const CG_INT=['R','♭2','2','♭3','3','4','♭5','5','♭6','6','♭7','7'];
+const CG_INT_NAME={R:'Grundton','♭2':'kleine Sekunde (♭2)','2':'große Sekunde (2)','♭3':'kleine Terz (♭3)','3':'große Terz (3)','4':'Quarte (4)','♭5':'♭5 (Blue Note)','5':'Quinte (5)','♭6':'kleine Sexte (♭6)','6':'große Sexte (6)','♭7':'kleine Septime (♭7)','7':'große Septime (7)'};
+const CG_SCALE={minor:[0,2,3,5,7,8,10],major:[0,2,4,5,7,9,11]};
+const CG_LEGEND=['Hell: Akkordtöne (Gold = Grundton).','Zusätzlich blau: Töne der Pentatonik.','Zusätzlich grau: übrige Töne der Skala.','Zusätzlich gestrichelt: Chromatik (Durchgangstöne).'];
+let cagedQuiz={active:false,q:null,sig:'',ok:0,total:0,missed:false,feedback:'',wrong:null,reveal:null,timer:0};
+function setCagedForm(form) {
+  if(!['C','A','G','E','D'].includes(form))return;
+  normalizeChordLab();
+  setChordLabPosition(form);
+}
+function setCagedFormMode(mode) {
+  const state=normalizeChordLab();
+  state.formMode=mode==='fixed'?'fixed':'follow';
+  stopArpeggio();arpCursor=-1;arpShared.clear();
+  if(state.mode!=='arp')state.mode='arp';
+  renderChordLab();saveSettings();
+}
+function setCagedLevel(level) {
+  const state=normalizeChordLab();
+  state.level=Math.min(3,Math.max(0,Math.round(level)||0));
+  renderChordLab();saveSettings();
+}
+// Töne, die in der Form zusätzlich zu den Akkordtönen gezeigt werden (je nach Stufe).
+function cagedTones(state) {
+  const chord=CL_QUALITIES[state.quality].tones.map(t=>mod12(state.root+t));
+  const pent=scaleSet(S.key,S.scale),scale=CG_SCALE[S.scale].map(i=>mod12(S.key+i));
+  const kind=pc=>chord.includes(pc)?'chord':pent.includes(pc)?'pent':scale.includes(pc)?'scale':'chrom';
+  const order=['chord','pent','scale','chrom'];
+  const extra=[...Array(12).keys()].filter(pc=>kind(pc)!=='chord'&&order.indexOf(kind(pc))<=state.level);
+  return {chord,extra,kind};
+}
+function cagedPositions(data) {
+  const out=[];
+  for(let s=0;s<6;s++)for(let fret=Math.max(0,data.lo);fret<=Math.min(FRETS,data.hi);fret++)out.push({s,fret,pc:mod12(OPEN_PC[s]+fret)});
+  return out;
+}
+function cagedNextChord(state) {
+  if(!state.follow||S.prog.length<2||S.progIdx<0)return null;
+  const nx=S.prog[(S.progIdx+1)%S.prog.length];
+  if(!nx||nx.rootPc==null)return null;
+  const role=nx.third===3?'♭3':'3',root=mod12(nx.rootPc);
+  return {name:nx.name,role,note:chordLabNote(root,role),pc:mod12(root+(nx.third===3?3:4)),root,quality:nx.third===3?'minor':'major'};
+}
+// Zusätzliche Töne der gewählten Stufe in der Form; Akkordtöne an weiteren Positionen hell, Rest gedimmt.
+function drawCagedExtras(svg,state,data) {
+  const {chord,extra,kind}=cagedTones(state),occupied=new Set();
+  svg.querySelectorAll('.cl-note,.overview-grip-note,.overview-tone,.arp-note,.overview-current,.overview-next').forEach(g=>{
+    const c=g.querySelector('circle');if(c)occupied.add(c.getAttribute('cx')+':'+c.getAttribute('cy'));
+  });
+  const next=state.formMode==='fixed'?cagedNextChord(state):null;
+  for(const {s,fret,pc} of cagedPositions(data)) {
+    const x=fx(fret),y=sy(s);
+    if(next&&pc===next.pc)svg.appendChild(el('circle',{class:'cg-target',cx:x,cy:y,r:16,fill:'none',stroke:'#fbbf24','stroke-width':2,'stroke-dasharray':'3 3','pointer-events':'none'}));
+    if(occupied.has(x+':'+y))continue;
+    const isChord=chord.includes(pc);
+    if(!isChord&&!extra.includes(pc))continue;
+    const k=kind(pc),role=isChord?chordLabRole(state.root,state.quality,pc):CG_INT[mod12(pc-state.root)];
+    const label=`${nn(pc,S.key)}, ${isChord?role:CG_INT_NAME[role]||role}, ${STR_LABELS[s]}-Saite, ${fret===0?'offen':'Bund '+fret}`;
+    const g=el('g',{class:'cg-extra cg-'+k,'data-string':s,'data-fret':fret,'data-pc':pc,role:'button',tabindex:0,'aria-label':label,style:'cursor:pointer'});
+    const style={chord:{r:10,fill:role==='R'?'#fbbf24':'#8cddcc',stroke:'#132032',text:'#0b211b'},pent:{r:8.5,fill:'#16314f',stroke:'#6aa7e8',text:'#cfe3ff'},scale:{r:8,fill:'#1d2733',stroke:'#7b8a9c',text:'#c4cfdb'},chrom:{r:7.5,fill:'#10151c',stroke:'#566170',text:'#8b97a6'}}[k];
+    g.appendChild(el('title',{},label));
+    g.appendChild(el('circle',{cx:x,cy:y,r:style.r,fill:style.fill,stroke:style.stroke,'stroke-width':1.5,'stroke-dasharray':k==='chrom'?'2 2':''}));
+    g.appendChild(el('text',{x,y:y+3,fill:style.text,'font-size':k==='chord'?8:7,'font-weight':'bold','text-anchor':'middle','pointer-events':'none',style:'user-select:none'},role));
+    const play=()=>{stopArpeggio();pluck(OPEN_MIDI[s]+fret,0,0.8,0.85);};
+    g.addEventListener('click',play);g.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();e.stopPropagation();play();}});
+    svg.appendChild(g);
+  }
+}
+// ── Quiz ──
+function cagedQuizSig(state,data){return [state.root,state.quality,state.form,state.formMode,state.level,S.key,S.scale,data.lo,data.hi].join('|');}
+function nextCagedQuestion(state,data) {
+  const {chord,extra}=cagedTones(state),have=new Set(cagedPositions(data).map(p=>p.pc));
+  let pool=[...chord,...extra].filter(pc=>have.has(pc));
+  if(!pool.length)pool=chord;
+  const last=cagedQuiz.q&&cagedQuiz.q.pc;
+  const pick=pool.filter(pc=>pc!==last);
+  const pc=(pick.length?pick:pool)[Math.floor(Math.random()*(pick.length||pool.length))];
+  const role=CG_INT[mod12(pc-state.root)];
+  cagedQuiz.q={pc,role,text:`Wo liegt: ${CG_INT_NAME[role]} von ${CL_ROOTS[state.root]+CL_QUALITIES[state.quality].suffix}?`};
+  cagedQuiz.sig=cagedQuizSig(state,data);cagedQuiz.missed=false;cagedQuiz.wrong=null;cagedQuiz.reveal=null;cagedQuiz.feedback='';
+}
+function stopCagedQuiz() {
+  clearTimeout(cagedQuiz.timer);cagedQuiz.active=false;cagedQuiz.q=null;cagedQuiz.reveal=null;cagedQuiz.wrong=null;cagedQuiz.feedback='';
+}
+function toggleCagedQuiz() {
+  if(cagedQuiz.active){stopCagedQuiz();render();return;}
+  const state=normalizeChordLab();if(state.mode!=='arp'||chordLabUnsupported)return;
+  stopArpeggio();chordLabRevealed=true;
+  cagedQuiz.active=true;cagedQuiz.ok=0;cagedQuiz.total=0;cagedQuiz.q=null;cagedQuiz.sig='';
+  renderChordLab();
+}
+function skipCagedQuiz() {
+  if(!cagedQuiz.active)return;
+  clearTimeout(cagedQuiz.timer);cagedQuiz.sig='';cagedQuiz.q=null;render();
+}
+function answerCagedQuiz(s,fret) {
+  const q=cagedQuiz.q;if(!cagedQuiz.active||!q||cagedQuiz.reveal!==null)return;
+  const state=normalizeChordLab(),pc=mod12(OPEN_PC[s]+fret);
+  stopArpeggio();pluck(OPEN_MIDI[s]+fret,0,0.9,0.9);
+  if(pc===q.pc) {
+    cagedQuiz.total++;if(!cagedQuiz.missed)cagedQuiz.ok++;
+    cagedQuiz.reveal=pc;cagedQuiz.wrong=null;
+    cagedQuiz.feedback=`✓ Richtig: ${nn(pc,S.key)}`+(cagedQuiz.missed?' (beim zweiten Versuch)':'');
+    render();
+    cagedQuiz.timer=setTimeout(()=>{cagedQuiz.sig='';cagedQuiz.q=null;render();},900);
+  } else {
+    cagedQuiz.missed=true;cagedQuiz.wrong=`${s}:${fret}`;
+    const role=CG_INT[mod12(pc-state.root)];
+    cagedQuiz.feedback=`✗ Das war ${nn(pc,S.key)} = ${CG_INT_NAME[role]}. Versuch es nochmal.`;
+    render();
+  }
+}
+function drawCagedQuiz(svg,state,data) {
+  const {chord,extra}=cagedTones(state),pool=new Set([...chord,...extra]);
+  for(const {s,fret,pc} of cagedPositions(data)) {
+    if(!pool.has(pc))continue;
+    const x=fx(fret),y=sy(s),key=`${s}:${fret}`;
+    const right=cagedQuiz.reveal!==null&&pc===cagedQuiz.reveal,wrong=cagedQuiz.wrong===key;
+    const g=el('g',{class:'cg-quiz-target'+(right?' right':'')+(wrong?' wrong':''),'data-string':s,'data-fret':fret,role:'button',tabindex:0,'aria-label':`${STR_LABELS[s]}-Saite, ${fret===0?'offen':'Bund '+fret}`,style:'cursor:pointer'});
+    g.appendChild(el('circle',{cx:x,cy:y,r:10,fill:right?'#22c55e':wrong?'#ef4444':'#1b2a3d',stroke:right?'#bbf7d0':wrong?'#fecaca':'#7aa2d6','stroke-width':1.5}));
+    const act=()=>answerCagedQuiz(s,fret);
+    g.addEventListener('click',act);g.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();e.stopPropagation();act();}});
+    svg.appendChild(g);
+  }
+}
+function renderCagedBar() {
+  const bar=document.getElementById('cagedBar');if(!bar)return;
+  const state=normalizeChordLab();
+  const on=chordLabOpen&&state.layers.caged&&!chordLabUnsupported&&!S.editing;
+  bar.hidden=!on;
+  if(!on){if(cagedQuiz.active)stopCagedQuiz();return;}
+  const arp=state.mode==='arp';
+  document.querySelectorAll('#cagedForms [data-form]').forEach(b=>{const a=arp&&b.dataset.form===state.form;b.classList.toggle('active',a);b.setAttribute('aria-pressed',String(a));});
+  document.querySelectorAll('#cagedFormMode [data-mode]').forEach(b=>{const a=b.dataset.mode===state.formMode;b.classList.toggle('active',a);b.setAttribute('aria-pressed',String(a));});
+  document.querySelectorAll('#cagedLevel [data-level]').forEach(b=>{const a=Number(b.dataset.level)===state.level;b.classList.toggle('active',a);b.setAttribute('aria-pressed',String(a));});
+  const keyName=CL_ROOTS[mod12(S.key)]+(S.scale==='minor'?'m':'');
+  document.getElementById('cagedKeyChord').textContent='('+keyName+')';
+  const info=document.getElementById('cagedInfo'),chordName=CL_ROOTS[state.root]+CL_QUALITIES[state.quality].suffix;
+  const btn=document.getElementById('cagedQuizBtn'),skip=document.getElementById('cagedQuizSkip'),qEl=document.getElementById('cagedQuizQ'),score=document.getElementById('cagedQuizScore');
+  if(!arp) {
+    if(cagedQuiz.active)stopCagedQuiz();
+    info.textContent='Freie Griffauswahl aktiv – wähle eine Form, um Halsbereich und Übungen zu sehen.';
+    document.getElementById('cagedLegend').textContent='';document.getElementById('cagedNext').textContent='';
+    btn.disabled=true;skip.hidden=true;qEl.textContent='';score.textContent='';return;
+  }
+  const data=currentArpeggio();
+  info.textContent=state.formMode==='fixed'
+    ?`${chordName}-Töne in der ${state.form}-Form von ${keyName} · Bünde ${data.lo}–${data.hi}`
+    :`${chordName} · ${state.form}-Form · Bünde ${data.lo}–${data.hi}`;
+  document.getElementById('cagedLegend').textContent=CG_LEGEND.slice(0,state.level+1).join(' ');
+  if(cagedQuiz.active&&(!cagedQuiz.q||(cagedQuiz.reveal===null&&cagedQuiz.sig!==cagedQuizSig(state,data))))nextCagedQuestion(state,data);
+  btn.disabled=false;btn.textContent=cagedQuiz.active?'Quiz beenden':'Quiz starten';btn.classList.toggle('active',cagedQuiz.active);skip.hidden=!cagedQuiz.active;
+  qEl.textContent=cagedQuiz.active&&cagedQuiz.q?cagedQuiz.q.text:'';
+  score.textContent=cagedQuiz.active?(cagedQuiz.feedback?cagedQuiz.feedback+' · ':'')+`Treffer beim ersten Versuch: ${cagedQuiz.ok} von ${cagedQuiz.total}`:'Ein Ton wird genannt, du klickst ihn in der Form an. Die Stufe oben bestimmt, welche Töne gefragt werden.';
+  const nx=cagedNextChord(state);let hint='';
+  if(nx) {
+    hint=`Nächster Akkord ${nx.name}: Zielton Terz = ${nx.note}`;
+    if(state.formMode==='follow'){try{const r=chordLabArpeggio(nx.root,nx.quality,state.form);hint+=` · ${state.form}-Form dort: Bünde ${r.lo}–${r.hi}`;}catch(e){}}
+    else hint+=' · gestrichelter Ring im Rahmen';
+  }
+  document.getElementById('cagedNext').textContent=hint;
+}
+
 function setFretboardLayer(layer,enabled) {
   if(!['caged','penta','triads'].includes(layer))return;
   stopArpeggio();endVoicingPractice();
@@ -7075,7 +7290,7 @@ function setFretboardLayer(layer,enabled) {
 function drawPentatonicLayer(svg) {
   // Use the song's key/scale, independently of the current progression chord.
   const tones=scaleSet(S.key,S.scale),occupied=new Set();
-  svg.querySelectorAll('.cl-note,.overview-grip-note,.overview-tone,.arp-note,.overview-current,.overview-next').forEach(g=>{
+  svg.querySelectorAll('.cl-note,.overview-grip-note,.overview-tone,.arp-note,.overview-current,.overview-next,.cg-extra').forEach(g=>{
     const c=g.querySelector('circle');if(c)occupied.add(c.getAttribute('cx')+':'+c.getAttribute('cy'));
   });
   for(let s=0;s<6;s++)for(let fret=0;fret<=FRETS;fret++){
@@ -7098,14 +7313,21 @@ function drawChordLabOnFretboard(svg) {
     if(label)svg.appendChild(el('text',{x:(x1+x2)/2,y:10,fill:selected?'#c5dbff':'#a5b1c2','font-size':9,'text-anchor':'middle'},label));
   };
   const data=currentArpeggio(),parts=[];
+  if(layers.caged&&!chordLabUnsupported&&state.mode==='arp'&&cagedQuiz.active&&cagedQuiz.q){
+    area(data.lo,data.hi,true,state.form+(state.formMode==='fixed'?'-Form · fest am Key-Akkord':'-Lage'));
+    drawCagedQuiz(svg,state,data);
+    status.textContent=`Quiz · ${name} · ${state.form}-${state.formMode==='fixed'?'Form (fest am Key-Akkord)':'Lage'} · Klicke den gesuchten Ton im Rahmen`;
+    return;
+  }
   if(layers.caged&&!chordLabUnsupported){
     if(state.mode==='arp'){
       if(state.display==='overview')drawCagedOverview(svg,state,data,area);
-      area(data.lo,data.hi,true,state.form+'-Lage');
+      area(data.lo,data.hi,true,state.form+(state.formMode==='fixed'?'-Form · fest am Key-Akkord':'-Lage'));
       if(state.display!=='grip')drawArpeggioOnFretboard(svg,data);
       if(state.display!=='arp'&&data.grip)drawFullGrip(svg,data.grip,state);
+      drawCagedExtras(svg,state,data);
     }else{const frets=grip.frets.filter(f=>f!=null);area(Math.min(...frets),Math.max(...frets),true);drawFullGrip(svg,grip,state);}
-    parts.push(`${name} · CAGED · aktive ${state.form}-Lage · Gold: Grundton`);
+    parts.push(`${name} · CAGED · aktive ${state.form}-${state.formMode==='fixed'?'Form (fest am Key-Akkord)':'Lage'} · Gold: Grundton`);
   }
   if(layers.triads&&!chordLabUnsupported){drawOverviewRecommendation(svg,state,data);parts.push('Triaden: aktuell + nächster Akkord');}
   if(chordLabUnsupported&&(layers.caged||layers.triads))parts.push(`${chordLabUnsupported.name} · Noch kein CAGED-Muster hinterlegt`);

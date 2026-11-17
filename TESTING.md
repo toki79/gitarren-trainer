@@ -11,6 +11,7 @@ node chord-lab.test.cjs
 node arpeggios.test.cjs
 node overview.test.cjs
 node layers.test.cjs
+node caged-practice.test.cjs
 ```
 
 - `ui-smoke.cjs`: bestehende Oberfläche, Transport, Progression, Countdown,
@@ -108,3 +109,12 @@ Griffpunkte erhalten keinen zweiten Marker.
 `layers.test.cjs` prüft alle acht Kombinationen, Tonzugehörigkeit, unveränderte
 Pentatonik bei Akkordwechsel, Tonartmoduswechsel, Speicherung, Tastatur und
 Verdecken. Manuell zusätzlich Checkboxen bei laufender Progression umschalten.
+
+## CAGED-Leiste: Form und Licks
+
+Unter dem Griffbrett erscheint bei aktivem CAGED die Leiste mit E-/A-/C-/D-/G-Form.
+„Form wandert mit dem Akkord“ sucht die Form für jeden Progressionsakkord neu;
+„Fest am Key-Akkord“ lässt den Halsbereich bei der Form des Key-Akkords und zeigt
+darin die Töne des aktiven Akkords. Rechts stehen Licks, deren Töne (±1 Bund) zu
+mindestens 70 % im Bereich der Form liegen; 50–70 % erscheinen als „Ausbruch“.
+`caged-practice.test.cjs` prüft Formwahl, beide Modi, Lick-Auswahl und Persistenz.
