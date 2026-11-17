@@ -562,14 +562,9 @@ body.play-mode #topBar #metroBtn { display: inline-block; }
 .cg-title { font-size:0.7rem; text-transform:uppercase; letter-spacing:1.5px; color:var(--muted); font-weight:600; margin-bottom:8px; }
 .cg-btns { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; }
 .cg-btns button { font-size:0.82rem; padding:6px 11px; }
-.cg-list { display:flex; flex-direction:column; gap:4px; max-height:210px; overflow-y:auto; padding-right:4px; }
-.cg-lick { display:flex; align-items:center; gap:6px; }
-.cg-lick .cg-pick { flex:1; min-width:0; display:flex; align-items:center; gap:8px; text-align:left; font-size:0.8rem; padding:5px 9px; }
-.cg-lick .cg-name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.cg-lick .cg-meta { color:var(--muted); font-size:0.7rem; white-space:nowrap; }
-.cg-lick .cg-pick.active .cg-meta { color:#dbe7ff; }
-.cg-lick.edge .cg-pick { opacity:0.7; border-style:dashed; }
-.cg-lick .cg-play { padding:5px 9px; font-size:0.8rem; }
+.cg-practice .cg-title:not(:first-child) { margin-top:14px; }
+.cg-q { font-size:1rem; font-weight:600; color:#e6edf6; margin:4px 0 6px; min-height:1.4em; }
+.cg-extra:hover circle { stroke:#fff; }
 @media (max-width:700px) { .caged-bar { grid-template-columns:1fr; } }
 #clArpBpm { width:70px; padding:8px; background:var(--panel2); color:var(--text); border:1px solid var(--border); border-radius:7px; }
 #clArpStatus { margin:14px 0; min-height:1.5em; color:#c5d9f6; }
@@ -702,10 +697,23 @@ body.chord-lab-open .fretboard-wrap.compact #fb { min-width:1000px; max-width:no
         </div>
         <p id="cagedInfo" class="hint" role="status"></p>
       </div>
-      <div class="cg-licks">
-        <div class="cg-title">Passende Licks <span id="cagedLickCount" class="hint"></span></div>
-        <div id="cagedLickList" class="cg-list" role="list" aria-label="Licks zu Akkord und CAGED-Form"></div>
-        <p id="cagedLickHint" class="hint"></p>
+      <div class="cg-practice">
+        <div class="cg-title">Zeige in der Form</div>
+        <div id="cagedLevel" class="cg-btns" role="group" aria-label="Was zusätzlich in der Form angezeigt wird">
+          <button type="button" data-level="0" onclick="setCagedLevel(0)">Akkordtöne</button>
+          <button type="button" data-level="1" onclick="setCagedLevel(1)">+ Pentatonik</button>
+          <button type="button" data-level="2" onclick="setCagedLevel(2)">+ Skala</button>
+          <button type="button" data-level="3" onclick="setCagedLevel(3)">+ Chromatik</button>
+        </div>
+        <p id="cagedLegend" class="hint"></p>
+        <div class="cg-title">Quiz</div>
+        <div class="cg-btns">
+          <button type="button" id="cagedQuizBtn" onclick="toggleCagedQuiz()">Quiz starten</button>
+          <button type="button" id="cagedQuizSkip" onclick="skipCagedQuiz()" hidden>Frage überspringen</button>
+        </div>
+        <p id="cagedQuizQ" class="cg-q" role="status" aria-live="polite"></p>
+        <p id="cagedQuizScore" class="hint"></p>
+        <p id="cagedNext" class="hint"></p>
       </div>
     </div>
     <div id="fbProg" style="display:none" role="group" aria-label="Akkordfolge – aktueller Akkord hervorgehoben" title="Klick springt zum Akkord · Leertaste: Start / Stop (außer in Eingabefeldern und im Lick-Editor)"></div>
@@ -3244,8 +3252,8 @@ function eighthTime(off, spb) {
   const within = frac <= 1 ? frac * (2 / 3) : 2 / 3 + (frac - 1) * (1 / 3);
   return (beat + within) * spb;
 }
-function playLickAt(lick, delaySec, quiet, notesOverride) {
-  const notes = notesOverride || transposeLick(lick);
+function playLickAt(lick, delaySec, quiet) {
+  const notes = transposeLick(lick);
   if (!notes) { if (!quiet) alert('Lick passt in dieser Tonart nicht aufs Griffbrett.'); return 0; }
   const spb = 60 / S.bpm;
   // Gebundene Folgetöne: klingen nicht selbst, sondern verlängern den Vorton
@@ -6687,6 +6695,7 @@ function normalizeChordLab() {
     playback:['up','down','both','chord'].includes(old.playback) ? old.playback : 'up',
     follow:old.follow !== false,
     formMode:old.formMode === 'fixed' ? 'fixed' : 'follow',
+    level:Math.min(3,Math.max(0,Math.round(Number(old.level))||0)),
     form:['C','A','G','E','D'].includes(old.form) ? old.form : 'E',
     overlay:['none','triad','penta'].includes(old.overlay) ? old.overlay : 'none',
     arpBpm:Number.isFinite(+old.arpBpm) ? Math.max(40,Math.min(160,+old.arpBpm)) : 90
@@ -7107,7 +7116,12 @@ function drawOverviewRecommendation(svg,state,data) {
   });
 }
 
-// ─── CAGED-Leiste: Formwahl + passende Licks ─────────────────────────────────
+// ─── CAGED-Leiste: Formwahl, Stufen (was zusätzlich in der Form steht) und Quiz ──
+const CG_INT=['R','♭2','2','♭3','3','4','♭5','5','♭6','6','♭7','7'];
+const CG_INT_NAME={R:'Grundton','♭2':'kleine Sekunde (♭2)','2':'große Sekunde (2)','♭3':'kleine Terz (♭3)','3':'große Terz (3)','4':'Quarte (4)','♭5':'♭5 (Blue Note)','5':'Quinte (5)','♭6':'kleine Sexte (♭6)','6':'große Sexte (6)','♭7':'kleine Septime (♭7)','7':'große Septime (7)'};
+const CG_SCALE={minor:[0,2,3,5,7,8,10],major:[0,2,4,5,7,9,11]};
+const CG_LEGEND=['Hell: Akkordtöne (Gold = Grundton).','Zusätzlich blau: Töne der Pentatonik.','Zusätzlich grau: übrige Töne der Skala.','Zusätzlich gestrichelt: Chromatik (Durchgangstöne).'];
+let cagedQuiz={active:false,q:null,sig:'',ok:0,total:0,missed:false,feedback:'',wrong:null,reveal:null,timer:0};
 function setCagedForm(form) {
   if(!['C','A','G','E','D'].includes(form))return;
   normalizeChordLab();
@@ -7120,117 +7134,150 @@ function setCagedFormMode(mode) {
   if(state.mode!=='arp')state.mode='arp';
   renderChordLab();saveSettings();
 }
-// Lick für die CAGED-Ansicht platzieren: in „wandert mit“ auf den aktiven Akkord transponiert
-// (wie Motiv-Reise), in „fest am Key-Akkord“ in der Tonart. Zusätzlich wird die Oktavlage
-// gewählt, in der die meisten Töne im Halsbereich der Form liegen (±1 Bund Toleranz).
-function cagedPlaceLick(lk, state, region) {
-  if(!lk||!lk.notes||!lk.notes.length)return null;
-  const src=state.formMode==='fixed'?lk:{...lk,key:mod12(lk.key-mod12(state.root-S.key))};
-  const base=transposeLick(src);if(!base)return null;
-  const shift=(n,by)=>n.rest?{...n}:{...n,fret:n.fret+by,add:n.add?n.add.map(a=>({...a,fret:a.fret+by})):undefined};
-  const lo=region.lo-1,hi=region.hi+1;
-  let best=null;
-  for(const oct of [0,-12,12]) {
-    const notes=oct?base.map(n=>shift(n,oct)):base;
-    const all=notes.flatMap(n=>n.rest?[]:[n.fret,...(n.add?n.add.map(a=>a.fret):[])]);
-    if(!all.length||all.some(f=>f<0||f>FRETS))continue;
-    const played=notes.filter(n=>!n.rest&&!n.tie);
-    const share=played.filter(n=>n.fret>=lo&&n.fret<=hi).length/Math.max(1,played.length);
-    if(!best||share>best.share+1e-9)best={notes,share,played};
-  }
-  if(!best)return null;
-  const chordTones=best.played.filter(n=>chordLabRole(state.root,state.quality,mod12(OPEN_PC[n.s]+n.fret))).length;
-  return {notes:best.notes,share:best.share,chordShare:chordTones/Math.max(1,best.played.length)};
+function setCagedLevel(level) {
+  const state=normalizeChordLab();
+  state.level=Math.min(3,Math.max(0,Math.round(level)||0));
+  renderChordLab();saveSettings();
 }
-function cagedLickRows(state, region) {
-  const rows=[];
-  for(const [l,lib] of [...BUILTIN_LICKS.map(l=>[l,true]),...S.licks.map(l=>[l,false])]) {
-    if(l.scale!==S.scale)continue;
-    const placed=cagedPlaceLick(l,state,region);
-    if(!placed||placed.share<0.5)continue;
-    rows.push({l,lib,placed,fit:placed.share>=0.7});
+// Töne, die in der Form zusätzlich zu den Akkordtönen gezeigt werden (je nach Stufe).
+function cagedTones(state) {
+  const chord=CL_QUALITIES[state.quality].tones.map(t=>mod12(state.root+t));
+  const pent=scaleSet(S.key,S.scale),scale=CG_SCALE[S.scale].map(i=>mod12(S.key+i));
+  const kind=pc=>chord.includes(pc)?'chord':pent.includes(pc)?'pent':scale.includes(pc)?'scale':'chrom';
+  const order=['chord','pent','scale','chrom'];
+  const extra=[...Array(12).keys()].filter(pc=>kind(pc)!=='chord'&&order.indexOf(kind(pc))<=state.level);
+  return {chord,extra,kind};
+}
+function cagedPositions(data) {
+  const out=[];
+  for(let s=0;s<6;s++)for(let fret=Math.max(0,data.lo);fret<=Math.min(FRETS,data.hi);fret++)out.push({s,fret,pc:mod12(OPEN_PC[s]+fret)});
+  return out;
+}
+function cagedNextChord(state) {
+  if(!state.follow||S.prog.length<2||S.progIdx<0)return null;
+  const nx=S.prog[(S.progIdx+1)%S.prog.length];
+  if(!nx||nx.rootPc==null)return null;
+  const role=nx.third===3?'♭3':'3',root=mod12(nx.rootPc);
+  return {name:nx.name,role,note:chordLabNote(root,role),pc:mod12(root+(nx.third===3?3:4)),root,quality:nx.third===3?'minor':'major'};
+}
+// Zusätzliche Töne der gewählten Stufe in der Form; Akkordtöne an weiteren Positionen hell, Rest gedimmt.
+function drawCagedExtras(svg,state,data) {
+  const {chord,extra,kind}=cagedTones(state),occupied=new Set();
+  svg.querySelectorAll('.cl-note,.overview-grip-note,.overview-tone,.arp-note,.overview-current,.overview-next').forEach(g=>{
+    const c=g.querySelector('circle');if(c)occupied.add(c.getAttribute('cx')+':'+c.getAttribute('cy'));
+  });
+  const next=state.formMode==='fixed'?cagedNextChord(state):null;
+  for(const {s,fret,pc} of cagedPositions(data)) {
+    const x=fx(fret),y=sy(s);
+    if(next&&pc===next.pc)svg.appendChild(el('circle',{class:'cg-target',cx:x,cy:y,r:16,fill:'none',stroke:'#fbbf24','stroke-width':2,'stroke-dasharray':'3 3','pointer-events':'none'}));
+    if(occupied.has(x+':'+y))continue;
+    const isChord=chord.includes(pc);
+    if(!isChord&&!extra.includes(pc))continue;
+    const k=kind(pc),role=isChord?chordLabRole(state.root,state.quality,pc):CG_INT[mod12(pc-state.root)];
+    const label=`${nn(pc,S.key)}, ${isChord?role:CG_INT_NAME[role]||role}, ${STR_LABELS[s]}-Saite, ${fret===0?'offen':'Bund '+fret}`;
+    const g=el('g',{class:'cg-extra cg-'+k,'data-string':s,'data-fret':fret,'data-pc':pc,role:'button',tabindex:0,'aria-label':label,style:'cursor:pointer'});
+    const style={chord:{r:10,fill:role==='R'?'#fbbf24':'#8cddcc',stroke:'#132032',text:'#0b211b'},pent:{r:8.5,fill:'#16314f',stroke:'#6aa7e8',text:'#cfe3ff'},scale:{r:8,fill:'#1d2733',stroke:'#7b8a9c',text:'#c4cfdb'},chrom:{r:7.5,fill:'#10151c',stroke:'#566170',text:'#8b97a6'}}[k];
+    g.appendChild(el('title',{},label));
+    g.appendChild(el('circle',{cx:x,cy:y,r:style.r,fill:style.fill,stroke:style.stroke,'stroke-width':1.5,'stroke-dasharray':k==='chrom'?'2 2':''}));
+    g.appendChild(el('text',{x,y:y+3,fill:style.text,'font-size':k==='chord'?8:7,'font-weight':'bold','text-anchor':'middle','pointer-events':'none',style:'user-select:none'},role));
+    const play=()=>{stopArpeggio();pluck(OPEN_MIDI[s]+fret,0,0.8,0.85);};
+    g.addEventListener('click',play);g.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();e.stopPropagation();play();}});
+    svg.appendChild(g);
   }
-  rows.sort((a,b)=>Number(b.fit)-Number(a.fit)||b.placed.chordShare-a.placed.chordShare||(b.l.rating||0)-(a.l.rating||0)||a.l.name.localeCompare(b.l.name,'de'));
-  return rows;
+}
+// ── Quiz ──
+function cagedQuizSig(state,data){return [state.root,state.quality,state.form,state.formMode,state.level,S.key,S.scale,data.lo,data.hi].join('|');}
+function nextCagedQuestion(state,data) {
+  const {chord,extra}=cagedTones(state),have=new Set(cagedPositions(data).map(p=>p.pc));
+  let pool=[...chord,...extra].filter(pc=>have.has(pc));
+  if(!pool.length)pool=chord;
+  const last=cagedQuiz.q&&cagedQuiz.q.pc;
+  const pick=pool.filter(pc=>pc!==last);
+  const pc=(pick.length?pick:pool)[Math.floor(Math.random()*(pick.length||pool.length))];
+  const role=CG_INT[mod12(pc-state.root)];
+  cagedQuiz.q={pc,role,text:`Wo liegt: ${CG_INT_NAME[role]} von ${CL_ROOTS[state.root]+CL_QUALITIES[state.quality].suffix}?`};
+  cagedQuiz.sig=cagedQuizSig(state,data);cagedQuiz.missed=false;cagedQuiz.wrong=null;cagedQuiz.reveal=null;cagedQuiz.feedback='';
+}
+function stopCagedQuiz() {
+  clearTimeout(cagedQuiz.timer);cagedQuiz.active=false;cagedQuiz.q=null;cagedQuiz.reveal=null;cagedQuiz.wrong=null;cagedQuiz.feedback='';
+}
+function toggleCagedQuiz() {
+  if(cagedQuiz.active){stopCagedQuiz();render();return;}
+  const state=normalizeChordLab();if(state.mode!=='arp'||chordLabUnsupported)return;
+  stopArpeggio();chordLabRevealed=true;
+  cagedQuiz.active=true;cagedQuiz.ok=0;cagedQuiz.total=0;cagedQuiz.q=null;cagedQuiz.sig='';
+  renderChordLab();
+}
+function skipCagedQuiz() {
+  if(!cagedQuiz.active)return;
+  clearTimeout(cagedQuiz.timer);cagedQuiz.sig='';cagedQuiz.q=null;render();
+}
+function answerCagedQuiz(s,fret) {
+  const q=cagedQuiz.q;if(!cagedQuiz.active||!q||cagedQuiz.reveal!==null)return;
+  const state=normalizeChordLab(),pc=mod12(OPEN_PC[s]+fret);
+  stopArpeggio();pluck(OPEN_MIDI[s]+fret,0,0.9,0.9);
+  if(pc===q.pc) {
+    cagedQuiz.total++;if(!cagedQuiz.missed)cagedQuiz.ok++;
+    cagedQuiz.reveal=pc;cagedQuiz.wrong=null;
+    cagedQuiz.feedback=`✓ Richtig: ${nn(pc,S.key)}`+(cagedQuiz.missed?' (beim zweiten Versuch)':'');
+    render();
+    cagedQuiz.timer=setTimeout(()=>{cagedQuiz.sig='';cagedQuiz.q=null;render();},900);
+  } else {
+    cagedQuiz.missed=true;cagedQuiz.wrong=`${s}:${fret}`;
+    const role=CG_INT[mod12(pc-state.root)];
+    cagedQuiz.feedback=`✗ Das war ${nn(pc,S.key)} = ${CG_INT_NAME[role]}. Versuch es nochmal.`;
+    render();
+  }
+}
+function drawCagedQuiz(svg,state,data) {
+  const {chord,extra}=cagedTones(state),pool=new Set([...chord,...extra]);
+  for(const {s,fret,pc} of cagedPositions(data)) {
+    if(!pool.has(pc))continue;
+    const x=fx(fret),y=sy(s),key=`${s}:${fret}`;
+    const right=cagedQuiz.reveal!==null&&pc===cagedQuiz.reveal,wrong=cagedQuiz.wrong===key;
+    const g=el('g',{class:'cg-quiz-target'+(right?' right':'')+(wrong?' wrong':''),'data-string':s,'data-fret':fret,role:'button',tabindex:0,'aria-label':`${STR_LABELS[s]}-Saite, ${fret===0?'offen':'Bund '+fret}`,style:'cursor:pointer'});
+    g.appendChild(el('circle',{cx:x,cy:y,r:10,fill:right?'#22c55e':wrong?'#ef4444':'#1b2a3d',stroke:right?'#bbf7d0':wrong?'#fecaca':'#7aa2d6','stroke-width':1.5}));
+    const act=()=>answerCagedQuiz(s,fret);
+    g.addEventListener('click',act);g.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();e.stopPropagation();act();}});
+    svg.appendChild(g);
+  }
 }
 function renderCagedBar() {
   const bar=document.getElementById('cagedBar');if(!bar)return;
   const state=normalizeChordLab();
   const on=chordLabOpen&&state.layers.caged&&!chordLabUnsupported&&!S.editing;
   bar.hidden=!on;
-  if(!on)return;
+  if(!on){if(cagedQuiz.active)stopCagedQuiz();return;}
   const arp=state.mode==='arp';
   document.querySelectorAll('#cagedForms [data-form]').forEach(b=>{const a=arp&&b.dataset.form===state.form;b.classList.toggle('active',a);b.setAttribute('aria-pressed',String(a));});
   document.querySelectorAll('#cagedFormMode [data-mode]').forEach(b=>{const a=b.dataset.mode===state.formMode;b.classList.toggle('active',a);b.setAttribute('aria-pressed',String(a));});
+  document.querySelectorAll('#cagedLevel [data-level]').forEach(b=>{const a=Number(b.dataset.level)===state.level;b.classList.toggle('active',a);b.setAttribute('aria-pressed',String(a));});
   const keyName=CL_ROOTS[mod12(S.key)]+(S.scale==='minor'?'m':'');
   document.getElementById('cagedKeyChord').textContent='('+keyName+')';
-  const list=document.getElementById('cagedLickList'),hint=document.getElementById('cagedLickHint'),info=document.getElementById('cagedInfo'),count=document.getElementById('cagedLickCount');
-  const chordName=CL_ROOTS[state.root]+CL_QUALITIES[state.quality].suffix;
+  const info=document.getElementById('cagedInfo'),chordName=CL_ROOTS[state.root]+CL_QUALITIES[state.quality].suffix;
+  const btn=document.getElementById('cagedQuizBtn'),skip=document.getElementById('cagedQuizSkip'),qEl=document.getElementById('cagedQuizQ'),score=document.getElementById('cagedQuizScore');
   if(!arp) {
-    info.textContent='Freie Griffauswahl aktiv – wähle eine Form, um Halsbereich und passende Licks zu sehen.';
-    count.textContent='';hint.textContent='';list.replaceChildren();list.dataset.sig='';return;
+    if(cagedQuiz.active)stopCagedQuiz();
+    info.textContent='Freie Griffauswahl aktiv – wähle eine Form, um Halsbereich und Übungen zu sehen.';
+    document.getElementById('cagedLegend').textContent='';document.getElementById('cagedNext').textContent='';
+    btn.disabled=true;skip.hidden=true;qEl.textContent='';score.textContent='';return;
   }
-  const region=currentArpeggio();
+  const data=currentArpeggio();
   info.textContent=state.formMode==='fixed'
-    ?`${chordName}-Töne in der ${state.form}-Form von ${keyName} · Bünde ${region.lo}–${region.hi}`
-    :`${chordName} · ${state.form}-Form · Bünde ${region.lo}–${region.hi}`;
-  const rows=cagedLickRows(state,region);
-  const sig=JSON.stringify([rows.map(r=>[r.l.id,r.fit,Math.round(r.placed.share*100),Math.round(r.placed.chordShare*100)]),S.selectedLick,S.lickShow,state.formMode]);
-  count.textContent=`${rows.filter(r=>r.fit).length} passend${rows.some(r=>!r.fit)?' · '+rows.filter(r=>!r.fit).length+' mit Ausbruch':''}`;
-  hint.textContent=state.formMode==='fixed'
-    ?'Licks liegen in der Tonart des Songs; sortiert nach Töne-im-Bereich und Akkordtönen des aktiven Akkords.'
-    :'Licks sind auf den aktiven Akkord transponiert (wie „Motiv-Reise“). „Ausbruch“: 50–70 % der Töne liegen in der Form.';
-  if(list.dataset.sig===sig)return;
-  list.dataset.sig=sig;
-  const scroll=list.scrollTop;
-  if(!rows.length){const p=document.createElement('p');p.className='hint';p.textContent='Für diese Form und diesen Akkord liegt kein Lick im Bereich. Wähle eine andere Form oder speichere eigene Licks.';list.replaceChildren(p);return;}
-  list.replaceChildren(...rows.map(({l,lib,placed,fit})=>{
-    const row=document.createElement('div');row.className='cg-lick'+(fit?'':' edge');row.setAttribute('role','listitem');
-    const pick=document.createElement('button');pick.type='button';pick.className='cg-pick'+(S.selectedLick===l.id?' active':'');
-    pick.setAttribute('aria-pressed',String(S.selectedLick===l.id));
-    pick.title=`${Math.round(placed.share*100)} % der Töne in der Form · ${Math.round(placed.chordShare*100)} % Akkordtöne · Klick zeigt das Lick am Griffbrett`;
-    const name=document.createElement('span');name.className='cg-name';name.textContent=(lib?'📖 ':'')+l.name;
-    const meta=document.createElement('span');meta.className='cg-meta';meta.textContent=(l.box?`Box ${l.box} · `:'')+(fit?'passt':'Ausbruch');
-    pick.append(name,meta);pick.addEventListener('click',()=>selectCagedLick(l.id));
-    const play=document.createElement('button');play.type='button';play.className='cg-play';play.textContent='▶';play.title='Abspielen, so wie am Griffbrett gezeigt';
-    play.addEventListener('click',()=>playCagedLick(l.id));
-    row.append(pick,play);return row;
-  }));
-  list.scrollTop=scroll;
-}
-function selectCagedLick(id) {
-  if(S.editing)return;
-  resetLickStep();
-  S.selectedLick=S.selectedLick===id?null:id;
-  if(S.selectedLick&&!S.lickShow){S.lickShow=true;const b=document.getElementById('btn-lickshow');if(b)b.classList.add('active');}
-  renderLickPanel();render();
-}
-function playCagedLick(id) {
-  const lk=findLick(id),state=normalizeChordLab();if(!lk)return;
-  const placed=cagedPlaceLick(lk,state,currentArpeggio());if(!placed)return;
-  playLickAt(lk,nextBarDelay(),false,placed.notes);
-  logPractice(id);
-}
-// Gewähltes Lick in der CAGED-Ansicht: nummerierte Töne mit gestrichelter Verbindung (wie im Trainingsmodus).
-function drawCagedLick(svg, state, region) {
-  if(!S.selectedLick||!S.lickShow)return null;
-  const lk=findLick(S.selectedLick);if(!lk)return null;
-  const placed=cagedPlaceLick(lk,state,region);if(!placed)return null;
-  const vis=[];placed.notes.forEach((n,i)=>{if(!n.rest&&!n.tie)vis.push({n,i});});
-  for(let k=0;k<vis.length-1;k++) {
-    if(vis[k+1].i!==vis[k].i+1)continue;
-    const a=vis[k].n,b=vis[k+1].n;
-    svg.appendChild(el('line',{class:'cg-lick-line',x1:fx(a.fret),y1:sy(a.s),x2:fx(b.fret),y2:sy(b.s),stroke:'rgba(34,211,238,0.55)','stroke-width':1.5,'stroke-dasharray':'2 3','pointer-events':'none'}));
+    ?`${chordName}-Töne in der ${state.form}-Form von ${keyName} · Bünde ${data.lo}–${data.hi}`
+    :`${chordName} · ${state.form}-Form · Bünde ${data.lo}–${data.hi}`;
+  document.getElementById('cagedLegend').textContent=CG_LEGEND.slice(0,state.level+1).join(' ');
+  if(cagedQuiz.active&&(!cagedQuiz.q||(cagedQuiz.reveal===null&&cagedQuiz.sig!==cagedQuizSig(state,data))))nextCagedQuestion(state,data);
+  btn.disabled=false;btn.textContent=cagedQuiz.active?'Quiz beenden':'Quiz starten';btn.classList.toggle('active',cagedQuiz.active);skip.hidden=!cagedQuiz.active;
+  qEl.textContent=cagedQuiz.active&&cagedQuiz.q?cagedQuiz.q.text:'';
+  score.textContent=cagedQuiz.active?(cagedQuiz.feedback?cagedQuiz.feedback+' · ':'')+`Treffer beim ersten Versuch: ${cagedQuiz.ok} von ${cagedQuiz.total}`:'Ein Ton wird genannt, du klickst ihn in der Form an. Die Stufe oben bestimmt, welche Töne gefragt werden.';
+  const nx=cagedNextChord(state);let hint='';
+  if(nx) {
+    hint=`Nächster Akkord ${nx.name}: Zielton Terz = ${nx.note}`;
+    if(state.formMode==='follow'){try{const r=chordLabArpeggio(nx.root,nx.quality,state.form);hint+=` · ${state.form}-Form dort: Bünde ${r.lo}–${r.hi}`;}catch(e){}}
+    else hint+=' · gestrichelter Ring im Rahmen';
   }
-  vis.forEach(({n},k)=>{
-    const x=fx(n.fret),y=sy(n.s),col=n.mute?'#64748b':n.grace?'#a78bfa':(n.bend||n.slide)?'#f59e0b':'#22d3ee';
-    const g=el('g',{class:'cg-lick-note','data-string':n.s,'data-fret':n.fret,style:'cursor:pointer'});
-    g.appendChild(el('circle',{cx:x,cy:y,r:n.grace?6:8.5,fill:col,stroke:'#083344','stroke-width':1.5}));
-    g.appendChild(el('text',{x,y,fill:'#083344','font-size':n.mute?10:n.grace?7:8.5,'font-weight':'bold','text-anchor':'middle','dominant-baseline':'middle',style:'user-select:none;pointer-events:none'},n.mute?'✕':String(k+1)));
-    g.addEventListener('click',()=>{if(n.mute)pluckDead(OPEN_MIDI[n.s]+n.fret,0,0.9,'lick');else pluck(OPEN_MIDI[n.s]+n.fret,0,n.grace?0.13:1.1,0.95,n.bend||0,false,'lick',n.slide||0,n.slideIn||0);});
-    svg.appendChild(g);
-  });
-  return {lk,placed};
+  document.getElementById('cagedNext').textContent=hint;
 }
 
 function setFretboardLayer(layer,enabled) {
@@ -7243,7 +7290,7 @@ function setFretboardLayer(layer,enabled) {
 function drawPentatonicLayer(svg) {
   // Use the song's key/scale, independently of the current progression chord.
   const tones=scaleSet(S.key,S.scale),occupied=new Set();
-  svg.querySelectorAll('.cl-note,.overview-grip-note,.overview-tone,.arp-note,.overview-current,.overview-next').forEach(g=>{
+  svg.querySelectorAll('.cl-note,.overview-grip-note,.overview-tone,.arp-note,.overview-current,.overview-next,.cg-extra').forEach(g=>{
     const c=g.querySelector('circle');if(c)occupied.add(c.getAttribute('cx')+':'+c.getAttribute('cy'));
   });
   for(let s=0;s<6;s++)for(let fret=0;fret<=FRETS;fret++){
@@ -7266,19 +7313,25 @@ function drawChordLabOnFretboard(svg) {
     if(label)svg.appendChild(el('text',{x:(x1+x2)/2,y:10,fill:selected?'#c5dbff':'#a5b1c2','font-size':9,'text-anchor':'middle'},label));
   };
   const data=currentArpeggio(),parts=[];
+  if(layers.caged&&!chordLabUnsupported&&state.mode==='arp'&&cagedQuiz.active&&cagedQuiz.q){
+    area(data.lo,data.hi,true,state.form+(state.formMode==='fixed'?'-Form · fest am Key-Akkord':'-Lage'));
+    drawCagedQuiz(svg,state,data);
+    status.textContent=`Quiz · ${name} · ${state.form}-${state.formMode==='fixed'?'Form (fest am Key-Akkord)':'Lage'} · Klicke den gesuchten Ton im Rahmen`;
+    return;
+  }
   if(layers.caged&&!chordLabUnsupported){
     if(state.mode==='arp'){
       if(state.display==='overview')drawCagedOverview(svg,state,data,area);
       area(data.lo,data.hi,true,state.form+(state.formMode==='fixed'?'-Form · fest am Key-Akkord':'-Lage'));
       if(state.display!=='grip')drawArpeggioOnFretboard(svg,data);
       if(state.display!=='arp'&&data.grip)drawFullGrip(svg,data.grip,state);
+      drawCagedExtras(svg,state,data);
     }else{const frets=grip.frets.filter(f=>f!=null);area(Math.min(...frets),Math.max(...frets),true);drawFullGrip(svg,grip,state);}
     parts.push(`${name} · CAGED · aktive ${state.form}-${state.formMode==='fixed'?'Form (fest am Key-Akkord)':'Lage'} · Gold: Grundton`);
   }
   if(layers.triads&&!chordLabUnsupported){drawOverviewRecommendation(svg,state,data);parts.push('Triaden: aktuell + nächster Akkord');}
   if(chordLabUnsupported&&(layers.caged||layers.triads))parts.push(`${chordLabUnsupported.name} · Noch kein CAGED-Muster hinterlegt`);
   if(layers.penta){drawPentatonicLayer(svg);parts.push(`${nn(S.key,S.key)}-${S.scale==='minor'?'Moll':'Dur'}-Pentatonik · blaue Ringe`);}
-  if(layers.caged&&!chordLabUnsupported&&state.mode==='arp'){const shown=drawCagedLick(svg,state,data);if(shown)parts.push(`Lick: ${shown.lk.name} (${Math.round(shown.placed.share*100)} % in der Form)`);}
   status.textContent=parts.join(' · ')||'Keine Ebene ausgewählt – CAGED, Pentatonik und Triaden lassen sich frei kombinieren.';
 }
 function drawFullGrip(svg,grip,state,options={}) {

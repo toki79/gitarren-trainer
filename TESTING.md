@@ -11,7 +11,7 @@ node chord-lab.test.cjs
 node arpeggios.test.cjs
 node overview.test.cjs
 node layers.test.cjs
-node caged-licks.test.cjs
+node caged-practice.test.cjs
 ```
 
 - `ui-smoke.cjs`: bestehende Oberfläche, Transport, Progression, Countdown,
@@ -117,4 +117,4 @@ Unter dem Griffbrett erscheint bei aktivem CAGED die Leiste mit E-/A-/C-/D-/G-Fo
 „Fest am Key-Akkord“ lässt den Halsbereich bei der Form des Key-Akkords und zeigt
 darin die Töne des aktiven Akkords. Rechts stehen Licks, deren Töne (±1 Bund) zu
 mindestens 70 % im Bereich der Form liegen; 50–70 % erscheinen als „Ausbruch“.
-`caged-licks.test.cjs` prüft Formwahl, beide Modi, Lick-Auswahl und Persistenz.
+`caged-practice.test.cjs` prüft Formwahl, beide Modi, Lick-Auswahl und Persistenz.
