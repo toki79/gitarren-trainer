@@ -2546,10 +2546,17 @@ function updateExerciseLabel() {
   document.getElementById('exLabel').textContent =
     'Übungen · ' + (S.scale === 'minor' ? 'Moll' : 'Dur') + '-Tonleiter (Stufendreiklänge)';
 }
+// Symbolleiste (Form) und CAGED-Feld unter dem Griffbrett sind gekoppelt: wer eine Form wählt, wählt sie in beiden.
 function setPos(v) {
   S.pos = v;
   S.anchor = null;
   document.querySelectorAll('#posBtns button').forEach(b => b.classList.toggle('active', +b.dataset.pos === v));
+  const form = formOfPos(v);                       // „Alle“ (0) lässt die Form im CAGED-Feld unverändert
+  if (form && normalizeChordLab().form !== form) {
+    S.chordLab.form = form;
+    stopArpeggio(); arpCursor = -1; arpShared.clear();
+    renderChordLab(false);
+  }
   renderChips();
   renderLickPanel();     // Anzeige der passenden Licks (CAGED-Form) aktualisieren
   render();
@@ -6814,7 +6821,17 @@ function setChordLab(field, value) {
   else if (field === 'arpBpm') S.chordLab.arpBpm = Number(value);
   else if (['quality','mode','form','overlay','display','playback'].includes(field)) S.chordLab[field] = value;
   if (field === 'root' || field === 'quality' || field === 'mode') S.chordLab.index = 0;
+  if (field === 'form') adoptFormInToolbar(value);
   renderChordLab(); saveSettings();
+}
+// CAGED-Form aus dem Akkord-Labor in die Symbolleiste übernehmen (Pentatonik-Lage, Anzeige, passende Licks)
+function adoptFormInToolbar(form) {
+  const pos = posOfForm(form);
+  if (!pos || S.pos === pos) return;
+  S.pos = pos; S.anchor = null;
+  document.querySelectorAll('#posBtns button').forEach(b => b.classList.toggle('active', +b.dataset.pos === pos));
+  renderChips();
+  renderLickPanel();
 }
 function stepChordLab(dir) {
   stopArpeggio();
@@ -7413,6 +7430,7 @@ function initChordLab() {
     sel.appendChild(o);
   });
   loadSettings();
+  if (S.pos > 0) normalizeChordLab().form = formOfPos(S.pos);   // Symbolleisten-Form gilt auch im CAGED-Feld
   initChordLab();
   loadLicks();
   applySettingsUI();

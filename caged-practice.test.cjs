@@ -64,6 +64,14 @@ const region=()=>ev('(({lo,hi})=>[lo,hi])(currentArpeggio())');
  w.toggleCagedQuiz();assert.equal(ev('cagedQuiz.active'),false);assert.ok($('.cg-extra').length>0);
  // Quiz endet, wenn CAGED ausgeschaltet wird
  w.toggleCagedQuiz();w.setFretboardLayer('caged',false);assert.equal(ev('cagedQuiz.active'),false);assert.equal(bar().hidden,true);
+ // Kopplung Symbolleiste ↔ CAGED-Feld
+ w.setFretboardLayer('caged',true);w.setScale('minor');w.setPos(2);
+ assert.equal(ev('S.chordLab.form'),'D');assert.equal(d.querySelector('#cagedForms .active').dataset.form,'D');
+ w.setCagedForm('C');assert.equal(ev('S.pos'),3);assert.equal(d.querySelector('#posBtns .active').textContent,'C-Form');
+ w.setScale('major');assert.equal(ev('formOfPos(S.pos)'),'C');assert.equal(ev('S.chordLab.form'),'C');
+ w.setCagedForm('G');assert.equal(ev('S.pos'),1);assert.equal(d.querySelector('#posBtns .active').textContent,'G-Form');
+ w.setPos(0);assert.equal(ev('S.chordLab.form'),'G','Alle lässt die Form im CAGED-Feld stehen');
+ w.setPos(3);assert.equal(ev('S.chordLab.form'),'D');w.setScale('minor');
  // Persistenz
  w.setFretboardLayer('caged',true);w.setCagedLevel(3);w.setCagedFormMode('fixed');w.saveSettings();
  const saved=JSON.parse(w.localStorage.getItem('gitarrenTraining.settings'));assert.equal(saved.chordLab.level,3);assert.equal(saved.chordLab.formMode,'fixed');
