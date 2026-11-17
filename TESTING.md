@@ -12,6 +12,7 @@ node arpeggios.test.cjs
 node overview.test.cjs
 node layers.test.cjs
 node caged-practice.test.cjs
+node caged-forms.test.cjs
 ```
 
 - `ui-smoke.cjs`: bestehende Oberfläche, Transport, Progression, Countdown,
@@ -118,3 +119,12 @@ Unter dem Griffbrett erscheint bei aktivem CAGED die Leiste mit E-/A-/C-/D-/G-Fo
 darin die Töne des aktiven Akkords. Rechts stehen Licks, deren Töne (±1 Bund) zu
 mindestens 70 % im Bereich der Form liegen; 50–70 % erscheinen als „Ausbruch“.
 `caged-practice.test.cjs` prüft Formwahl, beide Modi, Lick-Auswahl und Persistenz.
+
+## CAGED-Formen statt Boxen
+
+Die App spricht überall von CAGED-Formen. Die fünf Pentatonik-Lagen (intern Position 1–5, aufsteigend
+am Hals) sind die CAGED-Formen: Moll E‑D‑C‑A‑G, Dur G‑E‑D‑C‑A (Dur nutzt die Geometrie des relativen
+Molls). Licks speichern `form` („C“, „A“, „G“, „E“, „D“); alte Daten mit `box` 1–5 werden beim Laden
+und beim Import umgerechnet. `caged-forms.test.cjs` prüft die Zuordnung gegen die CAGED-Bereiche des
+Akkord-Labors in allen Tonarten, die Migration, Filter/Editor und dass kein „Box“ mehr sichtbar ist
+(Eigenname „BB-Box“ bleibt).

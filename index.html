@@ -324,7 +324,7 @@ button.mini.active { background: var(--accent); border-color: var(--accent); col
 .lick-filter-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 4px 0 8px; }
 #lfName { flex: 1 1 180px; background: var(--panel2); color: var(--text); border: 1px solid var(--border); padding: 7px 10px; border-radius: 7px; font-size: 0.85rem; }
 #lfName:focus { outline: none; border-color: var(--accent); }
-#lfBox, #lfScale { background: var(--panel2); color: var(--text); border: 1px solid var(--border); padding: 6px 8px; border-radius: 7px; font-size: 0.82rem; }
+#lfForm, #lfScale { background: var(--panel2); color: var(--text); border: 1px solid var(--border); padding: 6px 8px; border-radius: 7px; font-size: 0.82rem; }
 .lick-table { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
 .lick-table th { text-align: left; font-size: 0.64rem; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); font-weight: 600; padding: 6px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
 .lick-table th.sortable { cursor: pointer; }
@@ -602,7 +602,7 @@ body.chord-lab-open .fretboard-wrap.compact #fb { min-width:1000px; max-width:no
       <option value="walk">🎧 Licks-Durchlauf (vor-/nachspielen)</option>
       <option value="parcours">🎯 Lick-Parcours (über Backing)</option>
       <option value="grade">🎼 Lick bewerten (Ton &amp; Timing)</option>
-      <option value="trainer">🎤 Trainer (Ton finden / Boxen)</option>
+      <option value="trainer">🎤 Trainer (Ton finden / CAGED-Formen)</option>
       <option value="free">🎛 Frei (alles einblenden)</option>
     </select>
     <button id="metroBtnTop" class="flow" onclick="toggleMetro()" title="Backing/Metronom starten und stoppen – immer erreichbar">▶ Play</button>
@@ -621,7 +621,7 @@ body.chord-lab-open .fretboard-wrap.compact #fb { min-width:1000px; max-width:no
     <span class="tb-sep"></span>
       </div>
     </details>
-    <button id="btn-settings" class="active" onclick="toggleSettings()" title="Einstellungszeile (Tonart, Box, Tempo …) ein-/ausblenden">⚙ Einstellungen</button>
+    <button id="btn-settings" class="active" onclick="toggleSettings()" title="Einstellungszeile (Tonart, CAGED-Form, Tempo …) ein-/ausblenden">⚙ Einstellungen</button>
   </div>
   <div id="scenHint" style="display:none"></div>
   <div id="topBar">
@@ -633,14 +633,14 @@ body.chord-lab-open .fretboard-wrap.compact #fb { min-width:1000px; max-width:no
       <button id="btn-major" onclick="setScale('major')">Dur</button>
     </span>
     <span class="tb-sep"></span>
-    <span class="tb-label">Box</span>
+    <span class="tb-label" title="CAGED-Form: die fünf Pentatonik-Lagen entlang des Halses, aufsteigend sortiert. Bei Moll beginnt die Reihe mit der E-Form (E-D-C-A-G), bei Dur mit der G-Form (G-E-D-C-A).">Form</span>
     <span class="btn-row" id="posBtns">
       <button data-pos="0" onclick="setPos(0)">Alle</button>
-      <button data-pos="1" class="active" onclick="setPos(1)">1</button>
-      <button data-pos="2" onclick="setPos(2)">2</button>
-      <button data-pos="3" onclick="setPos(3)">3</button>
-      <button data-pos="4" onclick="setPos(4)">4</button>
-      <button data-pos="5" onclick="setPos(5)">5</button>
+      <button data-pos="1" class="active" onclick="setPos(1)">E-Form</button>
+      <button data-pos="2" onclick="setPos(2)">E-Form</button>
+      <button data-pos="3" onclick="setPos(3)">E-Form</button>
+      <button data-pos="4" onclick="setPos(4)">E-Form</button>
+      <button data-pos="5" onclick="setPos(5)">E-Form</button>
     </span>
     <span class="tb-sep"></span>
     <button id="metroBtn" class="flow" onclick="toggleMetro()" title="Metronom/Backing starten und stoppen – spielt eine geladene Progression im Takt mit">▶ Play</button>
@@ -860,7 +860,7 @@ body.chord-lab-open .fretboard-wrap.compact #fb { min-width:1000px; max-width:no
     <div id="fbLegend" class="fb-legend" style="display:none">
       <span class="leg"><span class="ldot" style="background:var(--root-col)"></span>Grundton</span>
       <span class="leg"><span class="ldot" style="background:var(--scale-col)"></span>Skalenton</span>
-      <span class="leg"><span class="ldot" style="background:#1f2937;border-color:#374151"></span>außerhalb Box</span>
+      <span class="leg"><span class="ldot" style="background:#1f2937;border-color:#374151"></span>außerhalb der Form</span>
       <span class="leg"><span class="ldot ring" style="background:#f43f5e"></span>Triade R</span>
       <span class="leg"><span class="ldot ring" style="background:#22c55e"></span>Terz 3</span>
       <span class="leg"><span class="ldot ring" style="background:#8b5cf6"></span>Quinte 5</span>
@@ -926,13 +926,13 @@ body.chord-lab-open .fretboard-wrap.compact #fb { min-width:1000px; max-width:no
         <option value="DGB" selected>D–G–B</option>
         <option value="ADG">A–D–G</option>
         <option value="EAD">E–A–D (tief)</option>
-        <option value="auto">Automatisch (Box-optimal)</option>
+        <option value="auto">Automatisch (Form-optimal)</option>
       </select>
     </div>
     <div class="ctrl">
       <label>Triaden-Lage (Progression)</label>
-      <div class="btn-row" title="Auto-Modus: Triaden in der Box halten (streng/±1) – oder unabhängig von der Box das Griffbrett hinauflaufen lassen">
-        <button id="btn-boxstrict" class="active" onclick="setBoxMode('strict')">In Box</button>
+      <div class="btn-row" title="Auto-Modus: Triaden in der CAGED-Form halten (streng/±1) – oder unabhängig von der Form das Griffbrett hinauflaufen lassen">
+        <button id="btn-boxstrict" class="active" onclick="setBoxMode('strict')">In Form</button>
         <button id="btn-boxvariety" onclick="setBoxMode('variety')">Vielfalt ±1</button>
         <button id="btn-boxascend" onclick="setBoxMode('ascend')">Aufsteigend ↗</button>
       </div>
@@ -940,7 +940,7 @@ body.chord-lab-open .fretboard-wrap.compact #fb { min-width:1000px; max-width:no
     <div class="ctrl">
       <label>Anspielen</label>
       <div class="btn-row">
-        <button onclick="playScale()" title="Pentatonik-Box auf/ab">♪ Skala</button>
+        <button onclick="playScale()" title="Pentatonik der gewählten CAGED-Form auf/ab">♪ Skala</button>
         <button onclick="playChord()" title="Aktive Triade anschlagen">♪ Triade</button>
       </div>
     </div>
@@ -1084,13 +1084,13 @@ body.chord-lab-open .fretboard-wrap.compact #fb { min-width:1000px; max-width:no
   </div>
   <div class="lick-filter-row">
     <input id="lfName" placeholder="🔎 Name filtern (z. B. „SRV“)" oninput="setLickFilter('text', this.value)">
-    <select id="lfBox" onchange="setLickFilter('box', +this.value)" title="Nach Pentatonik-Box filtern – die Box wird bei eigenen Licks automatisch erkannt und ist im Editor änderbar; Licks ohne eindeutige Box (–) erscheinen nur bei „alle“">
-      <option value="0">Box: alle</option>
-      <option value="1">Box 1</option>
-      <option value="2">Box 2</option>
-      <option value="3">Box 3</option>
-      <option value="4">Box 4</option>
-      <option value="5">Box 5</option>
+    <select id="lfForm" onchange="setLickFilter('form', this.value)" title="Nach CAGED-Form filtern – die Form wird bei eigenen Licks automatisch erkannt und ist im Editor änderbar; Licks ohne eindeutige Form (–) erscheinen nur bei „alle“">
+      <option value="">Form: alle</option>
+      <option value="C">C-Form</option>
+      <option value="A">A-Form</option>
+      <option value="G">G-Form</option>
+      <option value="E">E-Form</option>
+      <option value="D">D-Form</option>
     </select>
     <select id="lfScale" onchange="setLickFilter('scale', this.value)" title="Nach Tongeschlecht filtern">
       <option value="all">Moll &amp; Dur</option>
@@ -1105,7 +1105,7 @@ body.chord-lab-open .fretboard-wrap.compact #fb { min-width:1000px; max-width:no
     <table class="lick-table">
       <thead><tr>
         <th class="lt-pick" id="lickPickHead" onclick="clearLickSet()" title="Für den Lick-Parcours auswählen">🎯</th>
-        <th>Name</th><th>Box</th><th>Skala</th><th>Schläge</th>
+        <th>Name</th><th title="CAGED-Form, in der der Lick liegt">Form</th><th>Skala</th><th>Schläge</th>
         <th class="sortable" onclick="cycleLickSort('rating')" title="Klick sortiert nach Bewertung: beste zuerst → schlechteste zuerst → Standard-Reihenfolge">Bewertung <span id="lfSort_rating"></span></th>
         <th class="sortable" onclick="cycleLickSort('date')" title="Klick sortiert nach Anlage-Datum: neueste zuerst → älteste zuerst → Standard-Reihenfolge">Datum <span id="lfSort_date"></span></th>
         <th class="sortable" onclick="cycleLickSort('practice')" title="Wie oft geübt (manuelle ▶-Wiedergabe). Klick sortiert: meist geübt → am wenigsten → Standard-Reihenfolge">Geübt <span id="lfSort_practice"></span></th>
@@ -1122,10 +1122,10 @@ body.chord-lab-open .fretboard-wrap.compact #fb { min-width:1000px; max-width:no
   <div class="card-body" id="trainerBar">
   <div class="rec-row" style="margin-bottom:8px">
     <span class="rec-label">Griffbrett &amp; Gehör</span>
-    <button id="tr-box" class="flow" onclick="startTrainerMode('box')" title="Die Pentatonik-Box Ton für Ton auf- und absteigend nachspielen – der Zielton ist grün umrandet (Mikrofon)">📦 Box auf & ab</button>
+    <button id="tr-box" class="flow" onclick="startTrainerMode('box')" title="Die Pentatonik der gewählten CAGED-Form Ton für Ton auf- und absteigend nachspielen – der Zielton ist grün umrandet (Mikrofon)">📦 Form auf & ab</button>
     <button id="tr-arp" class="flow" onclick="startTrainerMode('arp')" title="Die aktive Triade als Arpeggio spielen (tief → hoch); bei Progression schaltet jeder geschaffte Akkord weiter (Mikrofon)">🎶 Triaden-Arpeggio</button>
     <button id="tr-find" class="flow" onclick="startTrainerMode('find')" title="Griffbrett-Kenntnis: die App nennt einen Ton, du findest ihn – beliebige Lage und Oktave (Mikrofon)">🔎 Ton finden</button>
-    <button id="tr-call" class="flow" onclick="startTrainerMode('call')" title="Gehörtraining: die App spielt eine kurze Phrase aus der Box vor, du spielst sie nach Gehör nach (Mikrofon)">👂 Call & Response</button>
+    <button id="tr-call" class="flow" onclick="startTrainerMode('call')" title="Gehörtraining: die App spielt eine kurze Phrase aus der gewählten CAGED-Form vor, du spielst sie nach Gehör nach (Mikrofon)">👂 Call & Response</button>
     <button id="tr-lick" class="flow" onclick="startTrainerMode('lick')" title="Den ausgewählten Lick nachspielen – Ton für Ton abgehakt (Mikrofon)">🎵 Lick nachspielen</button>
     <button id="tr-grade" class="flow" onclick="startGrade()" title="Das ausgewählte Lick im Takt mitspielen – die App bewertet Tonhöhe und Timing gegen die notierten Noten und zeigt am Ende eine Auswertung (Mikrofon/Kemper-Eingang)">🎼 Lick bewerten</button>
     <button id="tr-calib" class="flow" onclick="startCalibrate()" title="Timing kalibrieren: nach dem Einzähler auf jeden Klick einen Ton spielen – die App misst deine Eingangs-/Erkennungslatenz und rechnet sie beim Bewerten heraus. Einmal pro Setup nötig.">🎚 Kalibrieren</button>
@@ -1145,7 +1145,7 @@ body.chord-lab-open .fretboard-wrap.compact #fb { min-width:1000px; max-width:no
       <button data-limit="off" class="active" onclick="setLimit('off')" title="Keine Beschränkung">aus</button>
       <button data-limit="s2" onclick="setLimit('s2')" title="Nur die hohen e- und B-Saiten – Melodie statt Fingermuster">2 Saiten</button>
       <button data-limit="f4" onclick="setLimit('f4')" title="Nur ein 4-Bund-Fenster – kleiner Raum, große Fantasie">4 Bünde</button>
-      <button data-limit="n3" onclick="setLimit('n3')" title="Nur 3 zufällige Box-Töne – alles kommt aus Rhythmus, Dynamik und Vibrato. Nochmal klicken würfelt neu.">3 Töne</button>
+      <button data-limit="n3" onclick="setLimit('n3')" title="Nur 3 zufällige Töne der Form – alles kommt aus Rhythmus, Dynamik und Vibrato. Nochmal klicken würfelt neu.">3 Töne</button>
     </span>
   </div>
   <div id="crCfg" class="rec-row" style="display:none;margin-top:6px">
@@ -1267,14 +1267,14 @@ body.chord-lab-open .fretboard-wrap.compact #fb { min-width:1000px; max-width:no
   </div>
   <div class="edit-head">
     <input id="editName" placeholder="Name des Licks">
-    <label class="metro-field" title="Pentatonik-Box des Licks – wird beim Öffnen automatisch erkannt und kann hier übersteuert werden (– = keine eindeutige Box)">Box
-      <select id="editBox" onchange="S.editBox = +this.value">
-        <option value="0">–</option>
-        <option value="1">1</option>
-        <option value="2">2</option>
-        <option value="3">3</option>
-        <option value="4">4</option>
-        <option value="5">5</option>
+    <label class="metro-field" title="CAGED-Form des Licks – wird beim Öffnen automatisch erkannt und kann hier übersteuert werden (– = keine eindeutige Form)">Form
+      <select id="editForm" onchange="S.editForm = this.value">
+        <option value="">–</option>
+        <option value="C">C-Form</option>
+        <option value="A">A-Form</option>
+        <option value="G">G-Form</option>
+        <option value="E">E-Form</option>
+        <option value="D">D-Form</option>
       </select>
     </label>
     <span class="tb-sep"></span>
@@ -1294,7 +1294,7 @@ body.chord-lab-open .fretboard-wrap.compact #fb { min-width:1000px; max-width:no
     <b>0–9</b>&nbsp;Bund (zweistellig schnell tippen) · <b>←→</b>&nbsp;Position · <b>Alt+←→</b>&nbsp;Ton verschieben · <b>↑↓</b>&nbsp;Saite (Bund bleibt, Ton ändert sich) · <b>Shift+↑↓</b>&nbsp;Saite (gleiche Tonhöhe) ·
     <b>+/−</b>&nbsp;Dauer · <b>t</b>&nbsp;Triole · <b>b</b>&nbsp;Bend · <b>s</b>&nbsp;Slide · <b>i</b>&nbsp;Einschleifer · <b>h</b>&nbsp;Hammer/Pull · <b>d</b>&nbsp;Schlag binden ·
     <b>v</b>&nbsp;Vibrato · <b>x</b>&nbsp;tote Note · <b>c</b>&nbsp;Doppelgriff (dann 2. Saite klicken · auch Shift-Klick) · <b>n</b>&nbsp;Vorschlag · <b>.</b>&nbsp;Staccato · <b>g</b>&nbsp;Betonung · <b>p</b>&nbsp;Pause · <b>Entf</b>&nbsp;löschen ·
-    <b>Leertaste</b>&nbsp;anhören · <b>Esc</b>&nbsp;schließen. <b>Griffbrett-Klick fügt hinter dem Cursor ein</b> – jeder Bund ist anklickbar, auch außerhalb der Box.</div>
+    <b>Leertaste</b>&nbsp;anhören · <b>Esc</b>&nbsp;schließen. <b>Griffbrett-Klick fügt hinter dem Cursor ein</b> – jeder Bund ist anklickbar, auch außerhalb der Form.</div>
   <div id="editTools" class="edit-tools"></div>
   <div id="editStaff" class="edit-staff" style="display:none"></div>
   <div id="editSel" class="edit-sel"></div>
@@ -1319,7 +1319,7 @@ const DEGREE = {
   major: { 0:'R', 2:'2', 4:'3', 7:'5', 9:'6' }
 };
 
-// 5 Standard-Pentatonik-Boxen (2 Töne pro Saite).
+// 5 Standard-Pentatonik-Lagen (2 Töne pro Saite) = die fünf CAGED-Formen (Zuordnung: CAGED_ORDER unten).
 // Pro Box je Saite [E,A,D,G,B,e] zwei Bund-Offsets relativ zum Grundton-Bund
 // der tiefen E-Saite (rfE). Klassische CAGED-Pentatonik-Shapes.
 const BOX = {
@@ -1329,6 +1329,14 @@ const BOX = {
   4: [[7,10],[7,10],[7,9],[7,9],[8,10],[7,10]],
   5: [[10,12],[10,12],[9,12],[9,12],[10,12],[10,12]]
 };
+// CAGED ist das führende System: Die fünf Pentatonik-Lagen (intern Position 1–5, aufsteigend
+// am Hals) SIND die fünf CAGED-Formen. Moll nutzt die Geometrie der Tonart selbst:
+// Position 1–5 = E-, D-, C-, A-, G-Form. Dur nutzt die Geometrie des relativen Molls und liegt
+// deshalb vier Lagen versetzt: Position 1–5 = G-, E-, D-, C-, A-Form.
+const CAGED_ORDER = { minor: ['E','D','C','A','G'], major: ['G','E','D','C','A'] };
+const formOfPos = (pos, scale) => (CAGED_ORDER[scale || S.scale] || CAGED_ORDER.minor)[pos - 1] || '';
+const posOfForm = (form, scale) => (CAGED_ORDER[scale || S.scale] || CAGED_ORDER.minor).indexOf(form) + 1;   // 0 = keine
+const isCagedForm = f => typeof f === 'string' && 'CAGED'.includes(f) && f.length === 1;
 // BOX-Index oben ist [E,A,D,G,B,e]; mein Saiten-Index ist umgekehrt → Mapping:
 const BOX_STR_ORDER = [5,4,3,2,1,0]; // Position im BOX-Array → Saiten-Index
 
@@ -1358,10 +1366,10 @@ const S = { key: 9, scale: 'minor', pos: 1, triad: 'none', set: 'DGB', label: 'n
             staffShow: true, staffZoom: 1.4, staffView: 'both', playMode: false,
             lickSet: [], parcours: false, parcPlay: false, parcFollow: false, parcGap: 1,
             callResp: false, crBars: 1, crRandom: false, crDemo: false, crThird: false,   // Akkord-&-Lick-Übung
-            editing: null, editSel: -1, editKey: null, editBox: 0, stackNext: false, soloDraft: null, lickStep: -1,
+            editing: null, editSel: -1, editKey: null, editForm: '', stackNext: false, soloDraft: null, lickStep: -1,
             trading: false, motif: false, limit: null, limitNotes: [], limitFrets: [0, 3],
             trainer: null, micGate: 0.004, micBoost: 8, blue: false, blueArrows: false, third3: false,
-            lickFilter: { text: '', box: 0, scale: 'all', sort: '', sortKey: '' },
+            lickFilter: { text: '', form: '', scale: 'all', sort: '', sortKey: '' },
             superId: 'none', pair: false, approach: false,
             presetTab: 'vorlagen', showLegend: false, fbCompact: false, outDevice: '',
             settingsShow: true,
@@ -2410,7 +2418,7 @@ function updateInfo(grip) {
   const k = mod12(key);
   const keyName = nn(k, k);
   const scaleLabel = scale === 'minor' ? 'Moll-Pentatonik' : 'Dur-Pentatonik';
-  const posLabel = pos === 0 ? 'Alle Boxen' : `Box ${pos}`;
+  const posLabel = pos === 0 ? 'Alle CAGED-Formen' : `${formOfPos(pos)}-Form`;
   const active = (S.prog.length && S.progIdx >= 0) ? S.prog[S.progIdx] : null;
   const invUsed = (active && active.voice) ? active.voice.inv : (triad !== 'none' && triad !== 'auto' ? triad : 'root');
   const rolePill = (pc, role) => `<span class="pill" style="background:${ROLE_COL[role]};color:${ROLE_TXT[role]}">${nn(pc, k)} · ${role}</span>`;
@@ -2469,8 +2477,8 @@ function updateInfo(grip) {
       <div class="info-block">
         <h4>Übungs-Idee</h4>
         <div class="hint">
-          Wähle eine Box und schalte eine Triaden-Umkehrung dazu. Der grün umrandete
-          Akkord-Griff liegt dann <i>innerhalb</i> der Pentatonik-Box. Spiele die Box auf
+          Wähle eine CAGED-Form und schalte eine Triaden-Umkehrung dazu. Der grün umrandete
+          Akkord-Griff liegt dann <i>innerhalb</i> der Pentatonik der Form. Spiele die Form auf
           und ab und lande gezielt auf den Akkordtönen (R · 3 · 5) – so verbindest du
           Skalenläufe mit dem Akkordklang.
         </div>
@@ -2483,7 +2491,7 @@ function updateInfo(grip) {
       <div class="info-block">
         <h4>Skalentöne (5)</h4>
         <div class="note-pills">${scalePills}</div>
-        <div class="hint" style="margin-top:8px">2 Töne pro Saite · klassische CAGED-Box</div>
+        <div class="hint" style="margin-top:8px">2 Töne pro Saite · eine der fünf CAGED-Formen</div>
       </div>
       ${right}
     </div>`;
@@ -2509,8 +2517,22 @@ function setKey(v) {
   if (S.editing) renderEditor();       // Notennamen/Bünde in den Editor-Zeilen aktualisieren
   render();
 }
+// Beschriftung der Form-Buttons in der Symbolleiste (aufsteigend am Hals; Moll und Dur ordnen verschieden)
+function renderPosButtons() {
+  document.querySelectorAll('#posBtns button').forEach(b => {
+    const pos = +b.dataset.pos;
+    if (!pos) return;
+    const f = formOfPos(pos);
+    b.textContent = f + '-Form';
+    b.title = `${f}-Form · Pentatonik-Lage ${pos} von 5 am Hals`;
+  });
+}
 function setScale(v) {
+  const keepForm = formOfPos(S.pos);              // gewählte CAGED-Form bleibt beim Wechsel Moll ↔ Dur erhalten
   S.scale = v;
+  if (keepForm) S.pos = posOfForm(keepForm, v) || S.pos;
+  renderPosButtons();
+  document.querySelectorAll('#posBtns button').forEach(b => b.classList.toggle('active', +b.dataset.pos === S.pos));
   document.getElementById('btn-minor').classList.toggle('active', v === 'minor');
   document.getElementById('btn-major').classList.toggle('active', v === 'major');
   S.anchor = null;
@@ -2529,7 +2551,7 @@ function setPos(v) {
   S.anchor = null;
   document.querySelectorAll('#posBtns button').forEach(b => b.classList.toggle('active', +b.dataset.pos === v));
   renderChips();
-  renderLickPanel();     // Box-Filter der Lick-Bibliothek aktualisieren
+  renderLickPanel();     // Anzeige der passenden Licks (CAGED-Form) aktualisieren
   render();
 }
 function updateTriadButtons() {
@@ -2934,7 +2956,7 @@ function bluesTurnaround() { bluesPreset('turn'); }
 const SONG_STYLES = {
   thrill: { name: 'Thrill-Moll-Blues (Bm)', key: 11, scale: 'minor', bpm: 88, sig: '4', groove: 'straight', feel: 'slow12', pos: 2,
     prog: 'i | i | i | i | iv | iv | i | i | VI | V | i | i',
-    hint: 'Im Stil von „The Thrill Is Gone“: langsamer Moll-Blues in Bm, gerades Feel, die VI→V-Wendung (G→F♯) ist die Signature. Wenig Töne, viel Raum. Box 2 (BB-Box) ist geladen – öffne die Licks-Karte für das 🎩 Thrill-Style-Paket mit Bends.' },
+    hint: 'Im Stil von „The Thrill Is Gone“: langsamer Moll-Blues in Bm, gerades Feel, die VI→V-Wendung (G→F♯) ist die Signature. Wenig Töne, viel Raum. D-Form (BB-Box) ist geladen – öffne die Licks-Karte für das 🎩 Thrill-Style-Paket mit Bends.' },
   chicago: { name: 'Chicago-Shuffle (E)', key: 4, scale: 'major', bpm: 104, sig: '4', groove: 'shuffle', feel: 'chicago', pos: 1,
     prog: 'I | IV | I | I | IV | IV | I | I | V | IV | I | V',
     hint: 'Im Stil von „Sweet Home Chicago“: Quick-Change-Shuffle in E. Dur-Blues-Reibung (♭3→3) und treibende Achtel.' },
@@ -2960,15 +2982,15 @@ function applyStyle(id) {
   if (info) info.textContent = st.hint;
 }
 
-// ─── Lick-Bibliothek: gängige Phrasen mit Rhythmus, Box- und Kategorie-Tag ──
+// ─── Lick-Bibliothek: gängige Phrasen mit Rhythmus, CAGED-Form- und Kategorie-Tag ──
 // Referenz A (key 9). notes: [Saite (0=hohe e … 5=tiefe E), fret, Dauer in Achteln].
-// box = Pentatonik-Box, in der der Lick liegt; cat = Kategorie. Werden in die Tonart
+// Parameter 4 = Pentatonik-Lage 1–5 (→ CAGED-Form des Licks, siehe CAGED_ORDER); cat = Kategorie. Werden in die Tonart
 // transponiert und beim Abspielen dem Groove folgend geswingt.
 // notes-Einträge: [Saite, fret, Dauer, bend?, art?, slide?] – bend = Halbtöne hochziehen,
 // art = 'v' (Vibrato) / 's' (Staccato) / 'h' (Legato: Hammer-on/Pull-off) / 'g' (Ghost,
 // leise – z. B. Rake-x) / 'a' (Akzent), slide = ±Halbtöne rutschen. ['r', Dauer] = Pause.
-const _lk = (id, name, scale, box, cat, notes) =>
-  ({ id, name, scale, box, cat, key: 9, builtin: true,
+const _lk = (id, name, scale, pos, cat, notes) =>
+  ({ id, name, scale, form: formOfPos(pos, scale), cat, key: 9, builtin: true,
      notes: notes.map(t => {
        if (t[0] === 'r') return { rest: 1, d: t[1] };
        const [s, fret, d, bend, art, slide] = t;
@@ -2990,13 +3012,13 @@ const BUILTIN_LICKS = [
     [[0,8,1],[0,5,1],[1,8,1],[1,5,1],[0,5,1],[1,8,1],[1,5,1],[2,7,1],[1,8,1],[1,5,1],[2,7,1],[2,5,1],[1,5,1],[2,7,1],[2,5,1],[3,7,1]]),
   _lk('m-b1-asc', 'Aufwärts-Sequenz (3er)', 'minor', 1, 'Läufe & Sequenzen',
     [[5,5,1],[5,8,1],[4,5,1],[5,8,1],[4,5,1],[4,7,1],[3,5,1],[3,7,1]]),
-  _lk('m-b2-run', 'Box-2-Lauf abwärts', 'minor', 2, 'Läufe & Sequenzen',
+  _lk('m-b2-run', 'D-Form-Lauf abwärts', 'minor', 2, 'Läufe & Sequenzen',
     [[0,10,1],[0,8,1],[1,10,1],[1,8,1],[2,9,1],[2,7,1],[3,10,1],[3,7,1]]),
-  _lk('m-b3-run', 'Box-3-Lauf', 'minor', 3, 'Läufe & Sequenzen',
+  _lk('m-b3-run', 'C-Form-Lauf', 'minor', 3, 'Läufe & Sequenzen',
     [[0,12,1],[0,10,1],[1,10,1],[2,12,1],[2,9,1],[3,10,1],[4,10,1],[4,12,1]]),
-  _lk('m-b4-run', 'Box-4-Lauf', 'minor', 4, 'Läufe & Sequenzen',
+  _lk('m-b4-run', 'A-Form-Lauf', 'minor', 4, 'Läufe & Sequenzen',
     [[0,15,1],[0,12,1],[1,15,1],[1,13,1],[2,14,1],[2,12,1],[3,14,1],[4,12,1]]),
-  _lk('m-b5-run', 'Box-5-Lauf', 'minor', 5, 'Läufe & Sequenzen',
+  _lk('m-b5-run', 'G-Form-Lauf', 'minor', 5, 'Läufe & Sequenzen',
     [[0,5,1],[0,3,1],[1,5,1],[1,3,1],[2,5,1],[2,2,1],[3,5,1],[3,2,1]]),
   _lk('d-b1-run', 'Dur-Lauf aufwärts', 'major', 1, 'Läufe & Sequenzen',
     [[5,2,1],[5,5,1],[4,2,1],[4,4,1],[3,2,1],[3,4,1],[2,2,1],[2,4,1]]),
@@ -3005,9 +3027,9 @@ const BUILTIN_LICKS = [
     [[3,7,1],[2,5,1],[2,7,1],[4,6,1],[4,7,2],[3,5,1],[5,5,1]]),
   _lk('m-b1-blue2', 'Synkopierte Blues-Frage', 'minor', 1, 'Blues-Licks & Blue Notes',
     [[3,5,1],[3,7,1.5],[2,5,0.5],[2,7,1],[4,6,1],[4,7,3]]),
-  _lk('m-b2-blue', 'Box-2 durch die ♭5', 'minor', 2, 'Blues-Licks & Blue Notes',
+  _lk('m-b2-blue', 'D-Form durch die ♭5', 'minor', 2, 'Blues-Licks & Blue Notes',
     [[4,7,1],[3,7,1],[2,7,1],[2,8,1],[2,9,2],[1,8,2]]),
-  _lk('m-b3-blue', 'Box-3 Blue Note oben', 'minor', 3, 'Blues-Licks & Blue Notes',
+  _lk('m-b3-blue', 'C-Form Blue Note oben', 'minor', 3, 'Blues-Licks & Blue Notes',
     [[2,9,1],[3,10,1],[0,11,1],[0,12,2],[0,10,1],[1,10,2]]),
   _lk('d-b1-maj3', 'Dur-Blues ♭3→3', 'major', 1, 'Blues-Licks & Blue Notes',
     [[4,2,1],[4,3,0.5],[4,4,0.5],[3,4,1],[2,2,1],[2,4,1],[3,2,3]]),
@@ -3020,8 +3042,8 @@ const BUILTIN_LICKS = [
     [[0,8,1],[0,5,1],[1,8,1],[1,5,1],[0,8,1],[0,5,1],[1,8,1],[1,5,1]]),
   _lk('d-b1-country', 'Dur-Lick mit Auflösung', 'major', 1, 'Phrasen (BB-Box)',
     [[2,4,1],[2,2,1],[3,4,1],[3,2,1],[4,4,2],[4,2,1],[5,5,1]]),
-  // ── 🎩 Thrill-Style (Bm-BB-Box, mit Bends) · Box 2, Moll ──
-  // In A-Referenz (Box 2, Bund 7–10); der Thrill-Stil (Bm) transponiert sie nach Box 2 in Bm.
+  // ── 🎩 Thrill-Style (Bm-BB-Box, mit Bends) · D-Form, Moll ──
+  // In A-Referenz (D-Form, Bund 7–10); der Thrill-Stil (Bm) transponiert sie in die D-Form von Bm.
   _lk('t-bend5', 'Thrill: Bend ♭7→Grundton', 'minor', 2, '🎩 Thrill-Style (Bends)',
     [[1,8,2,2],[0,8,1],[1,10,1],[2,9,4]]),                       // G↗A, C, A, E (halten)
   _lk('t-curl', 'Thrill: ♭3-Curl', 'minor', 2, '🎩 Thrill-Style (Bends)',
@@ -3122,7 +3144,7 @@ function loadLicks() {
   if (!Array.isArray(S.licks)) S.licks = [];
   S.licks.forEach(l => {
     if (!l.created) l.created = new Date().toISOString();      // Datum immer vorhanden
-    if (!l.box) { const b = detectBox(l); if (b) l.box = b; }  // Box für Alt-Licks nachbestimmen
+    migrateLickForm(l);                                        // Alt-Licks: Box 1–5 → CAGED-Form
   });
 }
 function saveLicks() {
@@ -3416,7 +3438,8 @@ function importLicks(file) {
         if (existing.has(l.id)) continue;      // Duplikate (gleiche id) überspringen
         const imp = { ...l, key: mod12(l.key || 0), scale: l.scale === 'major' ? 'major' : 'minor',
           created: l.created || new Date().toISOString() };    // Datum immer vorhanden
-        if (!imp.box) imp.box = detectBox(imp) || undefined;   // Box automatisch bestimmen
+        migrateLickForm(imp);                                  // Form übernehmen (Alt-Export: Box) bzw. bestimmen
+        if (!imp.form) delete imp.form;
         S.licks.push(imp);
         added++;
       }
@@ -3594,7 +3617,7 @@ function importMusicXML(file) {
         nl.name = `${title}${many ? ' #' + (i + 1) : ''}${nl._chord ? ' · ' + nl._chord : ''}`;
         const barTxt = nl._bars > 1 ? ` (${nl._bars} Takte)` : '';
         delete nl._chord; delete nl._bars;
-        nl.box = detectBox(nl) || undefined;
+        nl.form = detectForm(nl) || undefined;
         nl.name += barTxt;
       });
       S.licks.push(...fresh);
@@ -3607,7 +3630,19 @@ function importMusicXML(file) {
   rd.readAsText(file);
 }
 
-// Passendste Pentatonik-Box eines Licks bestimmen: Bund-Fenster jeder Box in der
+// Alt-Daten: früher speicherte ein Lick die Pentatonik-Box 1–5 (lick.box). Jetzt gilt die CAGED-Form.
+function migrateLickForm(l) {
+  if (!isCagedForm(l.form)) {
+    delete l.form;
+    const pos = Number.isInteger(+l.box) && +l.box >= 1 && +l.box <= 5 ? +l.box : detectBox(l);
+    const f = pos ? formOfPos(pos, l.scale) : '';
+    if (f) l.form = f;
+  }
+  delete l.box;
+}
+// CAGED-Form, in der ein Lick liegt ('' = unklar, Lick läuft über mehrere Formen)
+function detectForm(lick) { return formOfPos(detectBox(lick), lick.scale); }
+// Passendste Pentatonik-Lage (1–5) eines Licks bestimmen: Bund-Fenster jeder Box in der
 // Tonart des Licks (±1 Bund Toleranz für Blue Notes/Chromatik) gegen die Lick-Töne.
 // 0 = unklar (Lick läuft über mehrere Lagen).
 function detectBox(lick) {
@@ -3622,12 +3657,12 @@ function detectBox(lick) {
   }
   return bestHits >= frets.length * 0.7 ? best : 0;
 }
-// Passt der Lick zur aktuellen Auswahl? (Tongeschlecht immer; Box, sofern hinterlegt)
+// Passt der Lick zur aktuellen Auswahl? (Tongeschlecht immer; CAGED-Form, sofern hinterlegt)
 function lickMatches(l, lib) {
-  return l.scale === S.scale && (S.pos === 0 || !l.box || l.box === S.pos);
+  return l.scale === S.scale && (S.pos === 0 || !l.form || l.form === formOfPos(S.pos));
 }
 // Lick-Tabelle: Bibliothek + eigene Sammlung in einer filterbaren Ansicht.
-// Filter (Name/Box/Skala) und Datums-Sortierung leben in S.lickFilter (Session).
+// Filter (Name/Form/Skala) und Datums-Sortierung leben in S.lickFilter (Session).
 function setLickFilter(k, v) { S.lickFilter[k] = v; renderLickPanel(); }
 // Spalte sortieren: absteigend → aufsteigend → Standard-Reihenfolge
 function cycleLickSort(key) {
@@ -3659,7 +3694,7 @@ function lickRows() {
     ...S.licks.map(l => ({ l, lib: false }))
   ].filter(({ l }) => {
     if (f.text && !l.name.toLowerCase().includes(f.text.toLowerCase())) return false;
-    if (f.box && l.box !== f.box) return false;   // Licks ohne Box-Tag nur bei „alle"
+    if (f.form && l.form !== f.form) return false;   // Licks ohne Form-Tag nur bei „alle"
     if (f.scale !== 'all' && l.scale !== f.scale) return false;
     return true;
   });
@@ -3698,11 +3733,11 @@ function renderLickPanel() {
          <button onclick="event.stopPropagation();beginEdit('${l.id}')" title="Im Lick-Editor bearbeiten">✎</button>
          <button onclick="event.stopPropagation();deleteLick('${l.id}')" title="Löschen">🗑</button>`;
     return `<tr class="${S.selectedLick === l.id ? 'active' : ''} ${match ? '' : 'dim'}" onclick="selectLick('${l.id}')"
-                title="${match ? 'Klick: auswählen (Anzeige am Griffbrett)' : 'Passt nicht zur aktuellen Tonart-/Box-Auswahl – Klick wählt trotzdem aus'}">
+                title="${match ? 'Klick: auswählen (Anzeige am Griffbrett)' : 'Passt nicht zur aktuellen Tonart-/Form-Auswahl – Klick wählt trotzdem aus'}">
       <td class="lt-pick"><input type="checkbox" ${S.lickSet.includes(l.id) ? 'checked' : ''}
           onclick="event.stopPropagation();toggleLickInSet('${l.id}')" title="Für den Parcours auswählen"></td>
       <td class="lt-name">${name}${l.comment ? ` <span class="lt-note" title="${l.comment.replace(/"/g, '&quot;').replace(/</g, '&lt;')}">💬</span>` : ''}</td>
-      <td>${l.box || '–'}</td>
+      <td${l.form ? ` title="${l.form}-Form"` : ''}>${l.form || '–'}</td>
       <td>${l.scale === 'minor' ? 'Moll' : 'Dur'}</td>
       <td>${beats}</td>
       <td>${starsHtml(l, lib)}</td>
@@ -3711,7 +3746,7 @@ function renderLickPanel() {
       <td class="lt-cat">${lib ? l.cat.replace(/</g, '&lt;') : 'Eigene'}</td>
       <td class="lt-actions">${act}</td>
     </tr>`;
-  }).join('') : '<tr><td colspan="10" class="prog-empty" style="padding:12px 8px">Keine Licks für diesen Filter – Suchtext leeren oder Box/Skala auf „alle" stellen.</td></tr>';
+  }).join('') : '<tr><td colspan="10" class="prog-empty" style="padding:12px 8px">Keine Licks für diesen Filter – Suchtext leeren oder Form/Skala auf „alle" stellen.</td></tr>';
   updateParcInfo();
 }
 // Kompakte Lick-Auswahl unter dem Griffbrett – Licks wechseln ohne zur Tabelle zu scrollen.
@@ -3798,7 +3833,7 @@ function copyLibLick(id) {
   const src = BUILTIN_LICKS.find(l => l.id === id);
   if (!src) return null;
   const nl = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-    name: src.name, key: src.key, scale: src.scale, box: src.box,
+    name: src.name, key: src.key, scale: src.scale, form: src.form,
     notes: src.notes.map(n => ({ ...n })), created: new Date().toISOString() };
   S.licks.push(nl);
   if (!saveLicks()) { S.licks.pop(); return null; }
@@ -3934,7 +3969,7 @@ function saveSoloDraft() {
     id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
     name: `Solo-Vorschlag ${nn(S.key, S.key)}${S.scale === 'minor' ? 'm' : ''} · ${new Date().toLocaleDateString('de-DE')}`,
     key: S.soloDraft.key, scale: S.soloDraft.scale,
-    box: S.pos || detectBox(S.soloDraft) || undefined,   // Generator läuft in der gewählten Box
+    form: formOfPos(S.pos) || detectForm(S.soloDraft) || undefined,   // Generator läuft in der gewählten CAGED-Form
     notes: S.soloDraft.notes.map(n => ({ ...n })),
     created: new Date().toISOString()
   };
@@ -4037,7 +4072,7 @@ const SCENARIOS = {
   callresp: { panels: ['fb', 'prog', 'licks', 'trainer'],
     go() { ensureBacking(); toggleCallResp(); scenMsg('🗣 <b>Akkord &amp; Lick</b> – auf jeder Eins kommt der Akkord, dann bist du dran. Schalter im Bereich <b>Trainer</b>.'); } },
   trainer:  { panels: ['fb', 'trainer'],
-    go() { openCard('trainer'); scenMsg('🎤 <b>Trainer</b>: wähle oben eine Übung – Box auf &amp; ab, Ton finden, Akkordton/Terz auf die 1 … (Mikrofon/Kemper-Eingang).'); } },
+    go() { openCard('trainer'); scenMsg('🎤 <b>Trainer</b>: wähle oben eine Übung – Form auf &amp; ab, Ton finden, Akkordton/Terz auf die 1 … (Mikrofon/Kemper-Eingang).'); } },
   solo:     { panels: ['fb', 'prog', 'trainer', 'ton'],
     go() { ensureBacking(); openCard('trainer'); scenMsg('🎧 <b>Solo aufnehmen</b>: im Bereich <b>Trainer</b> auf <b>⏺ Solo aufnehmen</b>, frei übers Backing spielen, dann <b>⏹ stoppen</b> – danach kommt die objektive Auswertung (Skala, Timing, Akkordtöne, Umfang).'); } },
   free:     { panels: ALL_PANELS, go() { scenMsg(''); } },
@@ -4247,7 +4282,7 @@ function beginEdit(id) {
   const t = transposeLick(lk);             // Arbeitskopie – erst beim Speichern übernommen
   S.lickRec = (t || lk.notes).map(n => ({ ...n }));
   S.editKey = t ? S.key : lk.key;
-  S.editBox = lk.box || detectBox(lk) || 0;               // hinterlegte Box, sonst Auto-Vorschlag
+  S.editForm = lk.form || detectForm(lk) || '';            // hinterlegte Form, sonst Auto-Vorschlag
   openEditor(lk.name, lk.comment || '');
 }
 // Neuen Lick im Editor anlegen: leerer Buffer, Töne kommen per Griffbrett-Klick.
@@ -4260,13 +4295,13 @@ function beginNewLick() {
   resetLickStep();
   S.lickRec = [];
   S.editKey = S.key;
-  S.editBox = 0;
+  S.editForm = '';
   openEditor('Lick ' + (S.licks.length + 1), '');
 }
 function openEditor(name, comment) {
   if(chordLabOpen)closeChordLabForTraining();
   endVoicingPractice();
-  document.getElementById('editBox').value = S.editBox;
+  document.getElementById('editForm').value = S.editForm;
   document.getElementById('editName').value = name;
   document.getElementById('editComment').value = comment || '';
   document.getElementById('editorRow').style.display = 'block';   // angedockte Leiste unten
@@ -4929,7 +4964,7 @@ function saveEdit() {
       comment: (document.getElementById('editComment').value || '').trim() || undefined,
       notes: S.lickRec.map(n => ({ ...n })), created: new Date().toISOString()
     };
-    nl.box = S.editBox || detectBox(nl) || undefined;
+    nl.form = S.editForm || detectForm(nl) || undefined;
     S.licks.push(nl);
     if (saveLicks()) { S.selectedLick = nl.id; closeEdit(); }
     return;
@@ -4941,7 +4976,8 @@ function saveEdit() {
   lk.key = S.editKey ?? S.key;               // Tonart des Buffers; scale (Dur/Moll-Kennung) bleibt
   const cm = (document.getElementById('editComment').value || '').trim();
   if (cm) lk.comment = cm; else delete lk.comment;
-  if (S.editBox) lk.box = S.editBox; else delete lk.box;
+  if (S.editForm) lk.form = S.editForm; else delete lk.form;
+  delete lk.box;
   lk.edited = new Date().toISOString();
   if (saveLicks()) { S.selectedLick = lk.id; closeEdit(); }
 }
@@ -4952,7 +4988,7 @@ function saveEditAsNew() {
   const nl = {
     id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
     name: base + ' (Kopie)', key: S.editKey ?? S.key, scale: src ? src.scale : S.scale,
-    box: S.editBox || undefined,
+    form: S.editForm || undefined,
     comment: (document.getElementById('editComment').value || '').trim() || undefined,
     notes: S.lickRec.map(n => ({ ...n })), created: new Date().toISOString()
   };
@@ -4961,7 +4997,7 @@ function saveEditAsNew() {
 }
 function closeEdit() {
   const wasEditing = S.editing;                 // für die Auswahl nach dem Schließen merken
-  S.editing = null; S.editSel = -1; S.editKey = null; S.editBox = 0; S.lickRec = []; S.stackNext = false;
+  S.editing = null; S.editSel = -1; S.editKey = null; S.editForm = ''; S.lickRec = []; S.stackNext = false;
   // Ohne frische Auswahl (also kein Speichern) das bearbeitete Lick weiter zeigen –
   // sonst verschwindet es beim Schließen vom Griffbrett.
   if (!S.selectedLick && wasEditing && wasEditing !== '_new' && findLick(wasEditing)) S.selectedLick = wasEditing;
@@ -4980,17 +5016,17 @@ function closeEdit() {
 }
 
 // ─── Song-Lernpfad: geführte Schritt-für-Schritt-Anleitung ──────────────────
-// Jeder Schritt richtet die App per apply() ein (Tonart, Skala, Box, Backing,
+// Jeder Schritt richtet die App per apply() ein (Tonart, Skala, CAGED-Form, Backing,
 // Triaden, Licks, Trainer) und erklärt Warum + „Das machst du“.
 function syncKeyUI(k) { document.getElementById('keySelect').value = k; }
 const SONG_PATHS = {
   thrill: {
     name: 'The Thrill Is Gone (B.B. King)',
-    intro: 'Langsamer Moll-Blues in Bm. In 7 Schritten vom ersten Ton zum Solo: Heimat-Box → Blue Note → Backing → Akkorde → Signature → Licks → Improvisation. „▶ Diesen Schritt einrichten“ stellt die App jeweils passend ein.',
+    intro: 'Langsamer Moll-Blues in Bm. In 7 Schritten vom ersten Ton zum Solo: Heimat-Form → Blue Note → Backing → Akkorde → Signature → Licks → Improvisation. „▶ Diesen Schritt einrichten“ stellt die App jeweils passend ein.',
     steps: [
-      { title: '1 · Die Heimat-Box: Bm-Pentatonik',
-        why: 'B.&nbsp;B. King spielt den Song fast komplett aus einer Lage: der B-Moll-Pentatonik in Box&nbsp;2 rund um den 7.&nbsp;Bund (die „BB-Box“). Alle Song-Töne liegen hier in Reichweite – das ist dein Zuhause.',
-        todo: 'Spiele die Box langsam auf und ab, ein Ton pro Schlag. Der rote Ton ist der Grundton&nbsp;B. Zum Abhaken: Trainer-Karte → „📦 Box auf &amp; ab“.',
+      { title: '1 · Die Heimat-Form: Bm-Pentatonik',
+        why: 'B.&nbsp;B. King spielt den Song fast komplett aus einer Lage: der B-Moll-Pentatonik in der D-Form rund um den 7.&nbsp;Bund (die „BB-Box“). Alle Song-Töne liegen hier in Reichweite – das ist dein Zuhause.',
+        todo: 'Spiele die Form langsam auf und ab, ein Ton pro Schlag. Der rote Ton ist der Grundton&nbsp;B. Zum Abhaken: Trainer-Karte → „📦 Form auf &amp; ab“.',
         apply() { setScale('minor'); setKey(11); syncKeyUI(11); setPos(2); setTriad('none'); if (S.blue) toggleBlue(); document.getElementById('card-triad').open = true; } },
       { title: '2 · Die Blues-Würze: ♭5',
         why: 'Die Blue Note ♭5 (das F) ist die Spannung, die den Blues ausmacht. Sie klingt „schmutzig“ und will sich einen Halbton hoch in die 5 (F♯) auflösen.',
@@ -5002,7 +5038,7 @@ const SONG_PATHS = {
         apply() { setPresetTab('stile'); applyStyle('thrill'); document.getElementById('card-prog').open = true; } },
       { title: '4 · Die Akkorde sehen: Triaden',
         why: 'Statt nur zu „nudeln“, zeig dir die Akkordtöne. Wer die Changes i → iv → VI → V als Dreiklänge kennt, kann sie gezielt antargeten – der Ton sitzt dann nie daneben.',
-        todo: 'Die Triaden-Anzeige ist an („In Box“). Lass „▶ Play“ laufen und finde zu jedem Akkord den passenden Dreiklang. „♪ Triade“ schlägt ihn an.',
+        todo: 'Die Triaden-Anzeige ist an („In Form“). Lass „▶ Play“ laufen und finde zu jedem Akkord den passenden Dreiklang. „♪ Triade“ schlägt ihn an.',
         apply() { setScale('minor'); setKey(11); syncKeyUI(11); if (!S.prog.length) { setPresetTab('stile'); applyStyle('thrill'); } setTriad('auto'); setBoxMode('strict'); document.getElementById('card-triad').open = true; document.getElementById('card-prog').open = true; } },
       { title: '5 · Die Signature: G → F♯ (VI → V)',
         why: 'Der Klang, der den Song unverwechselbar macht, ist der Abstieg VI → V – in Bm also G-Dur nach F♯. Dieser Halbtonschritt ist das eigentliche „Thrill“-Gefühl.',
@@ -5013,8 +5049,8 @@ const SONG_PATHS = {
         todo: 'Die Licks-Karte ist offen, ein Thrill-Bend-Lick ist gewählt. „▶ Lick“ zum Anhören, dann Ton für Ton nachspielen – sauber ziehen, am Ende Vibrato. Mit ✎ kannst du ihn im Lick-Editor an dich anpassen.',
         apply() { setScale('minor'); setKey(11); syncKeyUI(11); setPos(2); S.selectedLick = 't-bend45'; document.getElementById('card-licks').open = true; renderLickPanel(); render(); } },
       { title: '7 · Alles zusammen: dein Solo',
-        why: 'Jetzt improvisierst du: Heimat-Box + Blue Note als Würze + Akkordtöne auf den Schwerpunkten. Weniger ist mehr – lass Töne stehen und atmen.',
-        todo: 'Starte „▶ Play“. Spiele frei in Box&nbsp;2, streue die ♭5 ein, aber lande auf jeder „1“ auf einem Akkordton. Trainer-Karte → „🎯 Zielton auf die 1“ prüft dich per Mikrofon.',
+        why: 'Jetzt improvisierst du: Heimat-Form + Blue Note als Würze + Akkordtöne auf den Schwerpunkten. Weniger ist mehr – lass Töne stehen und atmen.',
+        todo: 'Starte „▶ Play“. Spiele frei in der D-Form, streue die ♭5 ein, aber lande auf jeder „1“ auf einem Akkordton. Trainer-Karte → „🎯 Zielton auf die 1“ prüft dich per Mikrofon.',
         apply() { setPresetTab('stile'); applyStyle('thrill'); if (!S.blue) toggleBlue(); document.getElementById('card-prog').open = true; document.getElementById('card-trainer').open = true; } }
     ]
   }
@@ -5242,7 +5278,7 @@ function trainerSetup() {
     setTrainerStatus('Spiele Ton 1 – der Zielton ist grün umrandet.');
   } else if (tr.mode === 'box') {
     tr.targets = boxTargets();
-    setTrainerStatus(`Box ${S.pos || 1} auf & ab (${tr.targets.length} Töne) – der Zielton ist grün umrandet.`);
+    setTrainerStatus(`${formOfPos(S.pos || 1)}-Form auf & ab (${tr.targets.length} Töne) – der Zielton ist grün umrandet.`);
   } else if (tr.mode === 'arp') {
     tr.targets = arpTargets();
     if (!tr.targets.length) {
@@ -6557,6 +6593,7 @@ function applySettingsUI() {
   document.getElementById('keySelect').value = S.key;
   document.getElementById('btn-minor').classList.toggle('active', S.scale === 'minor');
   document.getElementById('btn-major').classList.toggle('active', S.scale === 'major');
+  renderPosButtons();
   document.querySelectorAll('#posBtns button').forEach(b => b.classList.toggle('active', +b.dataset.pos === S.pos));
   updateTriadButtons();
   document.getElementById('setSelect').value = S.set;
