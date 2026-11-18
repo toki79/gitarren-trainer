@@ -569,6 +569,15 @@ body.play-mode #topBar #metroBtn { display: inline-block; }
 .cg-gripbox { margin-top:6px; }
 .cg-grip { width:150px; height:150px; display:block; }
 .cg-anchor text { user-select:none; }
+.cg-select { font-size:0.95rem; padding:7px 10px; border-radius:8px; background:#1b2a3d; color:#e6edf6; border:1px solid #6386b1; min-width:12em; }
+.cg-scaleinfo { margin:2px 0 8px; }
+.cg-scaleinfo .cg-sname { font-size:1.05rem; font-weight:700; color:#e6edf6; }
+.cg-scaleinfo .cg-suse { font-size:0.85rem; color:var(--muted); margin:2px 0 6px; }
+.cg-chips { display:flex; flex-wrap:wrap; gap:6px; }
+.cg-chip { display:inline-flex; flex-direction:column; align-items:center; min-width:2.6em; padding:3px 7px; border-radius:8px; background:#1e4f9c; border:2px solid #7fb2ff; color:#fff; font-weight:700; font-size:1rem; line-height:1.15; }
+.cg-chip small { font-size:0.68rem; font-weight:600; opacity:0.85; }
+.cg-chip.root { background:#8a6410; border-color:#fbbf24; }
+.cg-chip.char { background:#7a3a0b; border-color:#fb923c; color:#ffe2c2; }
 @media (max-width:700px) { .caged-bar { grid-template-columns:1fr; } }
 #clArpBpm { width:70px; padding:8px; background:var(--panel2); color:var(--text); border:1px solid var(--border); border-radius:7px; }
 #clArpStatus { margin:14px 0; min-height:1.5em; color:#c5d9f6; }
@@ -710,15 +719,27 @@ body.chord-lab-open .fretboard-wrap.compact #fb { min-width:1000px; max-width:no
         <div class="cg-title">Zeige in der Form</div>
         <div id="cagedLevel" class="cg-btns" role="group" aria-label="Was zusätzlich in der Form angezeigt wird">
           <button type="button" data-level="0" onclick="setCagedLevel(0)">Akkordtöne</button>
-          <button type="button" data-level="1" onclick="setCagedLevel(1)">+ Pentatonik</button>
-          <button type="button" data-level="2" onclick="setCagedLevel(2)">+ Skala</button>
-          <button type="button" data-level="3" onclick="setCagedLevel(3)">+ Chromatik</button>
+          <button type="button" data-level="1" onclick="setCagedLevel(1)">+ Skala</button>
+          <button type="button" data-level="2" onclick="setCagedLevel(2)">+ Chromatik</button>
         </div>
-        <div class="cg-title">Skala über dem Akkord</div>
-        <div id="cagedScaleMode" class="cg-btns" role="group" aria-label="Welche Skala die Stufen zeigen">
-          <button type="button" data-smode="key" onclick="setCagedScaleMode('key')" title="Pentatonik und Skala der Tonart des Stücks.">Tonart</button>
-          <button type="button" data-smode="mixo" onclick="setCagedScaleMode('mixo')" title="Bei Dur- und Dominantakkorden: Mixolydisch (Dur mit ♭7) und Dur-Pentatonik vom Akkord-Grundton aus.">Akkord-Mixolydisch</button>
+        <div class="cg-title">Skala</div>
+        <div class="cg-btns">
+          <select id="cagedScale" class="cg-select" onchange="setCagedScale(this.value)" aria-label="Skala wählen">
+            <option value="minpent">Moll-Pentatonik</option><option value="majpent">Dur-Pentatonik</option>
+            <option value="minblues">Moll-Blues</option><option value="majblues">Dur-Blues</option>
+            <option value="natmin">Natürlich Moll</option><option value="harmin">Harmonisch Moll</option>
+            <option value="mixo">Mixolydisch</option><option value="dorian">Dorisch</option><option value="major">Dur (Ionisch)</option>
+          </select>
         </div>
+        <div id="cagedScaleRoot" class="cg-btns" role="group" aria-label="Grundton der Skala">
+          <button type="button" data-sroot="key" onclick="setCagedScaleRoot('key')" title="Die Skala bleibt über der ganzen Progression auf dem Grundton der Tonart, wie beim klassischen Blues.">Von der Tonart <span id="cagedScaleKey"></span></button>
+          <button type="button" data-sroot="chord" onclick="setCagedScaleRoot('chord')" title="Die Skala wandert mit und beginnt auf dem Grundton des aktiven Akkords (z. B. Mixolydisch über jedem Dominantakkord).">Vom aktiven Akkord <span id="cagedScaleChord"></span></button>
+        </div>
+        <div id="cagedLabels" class="cg-btns" role="group" aria-label="Beschriftung der Töne">
+          <button type="button" data-labels="int" onclick="setCagedLabels('int')">Intervalle</button>
+          <button type="button" data-labels="name" onclick="setCagedLabels('name')">Tonnamen</button>
+        </div>
+        <div id="cagedScaleInfo" class="cg-scaleinfo" role="status"></div>
         <p id="cagedLegend" class="hint"></p>
         <div class="cg-title">Quiz</div>
         <div class="cg-btns">
@@ -6753,8 +6774,11 @@ function normalizeChordLab() {
     playback:['up','down','both','chord'].includes(old.playback) ? old.playback : 'up',
     follow:old.follow !== false,
     formMode:old.formMode === 'fixed' ? 'fixed' : 'follow',
-    level:Math.min(3,Math.max(0,Math.round(Number(old.level))||0)),
-    scaleMode:old.scaleMode==='mixo'?'mixo':'key',
+    lvl:2,
+    level:Math.min(2,Math.max(0,old.lvl===2?Math.round(Number(old.level))||0:({1:1,2:1,3:2})[Math.round(Number(old.level))]||0)),
+    scale:old.scale==='auto'||Object.hasOwn(CG_SCALES,old.scale)?old.scale:(old.scaleMode==='mixo'?'mixo':'auto'),
+    scaleRoot:old.scaleRoot==='chord'||old.scaleRoot==='key'?old.scaleRoot:(old.scaleMode==='mixo'?'chord':'key'),
+    labels:old.labels==='name'?'name':'int',
     form:['C','A','G','E','D'].includes(old.form) ? old.form : 'E',
     overlay:['none','triad','penta'].includes(old.overlay) ? old.overlay : 'none',
     arpBpm:Number.isFinite(+old.arpBpm) ? Math.max(40,Math.min(160,+old.arpBpm)) : 90
@@ -7188,12 +7212,21 @@ function drawOverviewRecommendation(svg,state,data) {
 // ─── CAGED-Leiste: Formwahl, Stufen (was zusätzlich in der Form steht) und Quiz ──
 const CG_INT=['R','♭2','2','♭3','3','4','♭5','5','♭6','6','♭7','7'];
 const CG_INT_NAME={R:'Grundton','♭2':'kleine Sekunde (♭2)','2':'große Sekunde (2)','♭3':'kleine Terz (♭3)','3':'große Terz (3)','4':'Quarte (4)','♭5':'♭5 (Blue Note)','5':'Quinte (5)','♭6':'kleine Sexte (♭6)','6':'große Sexte (6)','♭7':'kleine Septime (♭7)','7':'große Septime (7)'};
-const CG_SCALE={minor:[0,2,3,5,7,8,10],major:[0,2,4,5,7,9,11]};
-// Mixolydisch gilt über Dur- und Dominantakkorden: Dur mit ♭7, dazu die Dur-Pentatonik des Akkord-Grundtons.
-const CG_MIXO_Q=['major','7','9','13'];
-const CG_MIXO={pent:[0,2,4,7,9],scale:[0,2,4,5,7,9,10]};
-const cagedMixo=state=>state.scaleMode==='mixo'&&CG_MIXO_Q.includes(state.quality);
-const CG_LEGEND=['Hell: Akkordtöne (Gold = Grundton).','Zusätzlich blau: Töne der Pentatonik.','Zusätzlich grau: übrige Töne der Skala.','Zusätzlich gestrichelt: Chromatik (Durchgangstöne).'];
+// Wählbare Skalen: Intervalle ab dem Skalengrundton, charakteristische Töne (orange) und Einsatz.
+const CG_SCALES={
+  minpent:{name:'Moll-Pentatonik',iv:[0,3,5,7,10],ch:[],use:'Der Blues-Klassiker über Moll- und Dominantakkorden.'},
+  majpent:{name:'Dur-Pentatonik',iv:[0,2,4,7,9],ch:[],use:'Offen und freundlich, über Dur-Akkorden (Country, Dur-Blues).'},
+  minblues:{name:'Moll-Blues',iv:[0,3,5,6,7,10],ch:[6],use:'Moll-Pentatonik plus Blue Note ♭5; der Standard über dem ganzen 12-Takt-Blues.'},
+  majblues:{name:'Dur-Blues',iv:[0,2,3,4,7,9],ch:[3],use:'Dur-Pentatonik plus Blue Note ♭3; klingt über Dur- und Dominantakkorden.'},
+  natmin:{name:'Natürlich Moll',iv:[0,2,3,5,7,8,10],ch:[8],use:'Über Moll-Akkorden; die ♭6 gibt die dunkle Farbe.'},
+  harmin:{name:'Harmonisch Moll',iv:[0,2,3,5,7,8,11],ch:[11],use:'Über dem Dominantakkord in Moll (V7); die große Septime (7) ist das Typische.'},
+  mixo:{name:'Mixolydisch',iv:[0,2,4,5,7,9,10],ch:[10],use:'Über Dur- und Dominantakkorden (I7, IV7, V7); die ♭7 macht den Dominantklang.'},
+  dorian:{name:'Dorisch',iv:[0,2,3,5,7,9,10],ch:[9],use:'Über Moll-7-Akkorden (Funk, Santana); die große Sexte (6) unterscheidet es von Natürlich Moll.'},
+  major:{name:'Dur (Ionisch)',iv:[0,2,4,5,7,9,11],ch:[],use:'Über Dur-7-Akkorden und für Dur-Melodien.'}
+};
+const cagedScaleId=state=>state.scale!=='auto'&&CG_SCALES[state.scale]?state.scale:(S.scale==='minor'?'minpent':'majpent');
+const cagedScaleRootPc=state=>state.scaleRoot==='chord'?state.root:mod12(S.key);
+const CG_LEGEND=['Hell: Akkordtöne (Gold = Grundton).','Blau: Töne der gewählten Skala, orange: ihre Charakterstöne, weißer Ring: Skalengrundton.','Gestrichelt: Chromatik (Durchgangstöne).'];
 let cagedQuiz={active:false,q:null,sig:'',ok:0,total:0,missed:false,feedback:'',wrong:null,reveal:null,timer:0};
 function setCagedForm(form) {
   if(!['C','A','G','E','D'].includes(form))return;
@@ -7207,28 +7240,37 @@ function setCagedFormMode(mode) {
   if(state.mode!=='arp')state.mode='arp';
   renderChordLab();saveSettings();
 }
-function setCagedScaleMode(mode) {
+function setCagedScale(id) {
   const state=normalizeChordLab();
-  state.scaleMode=mode==='mixo'?'mixo':'key';
+  state.scale=CG_SCALES[id]?id:'auto';
+  renderChordLab();saveSettings();
+}
+function setCagedScaleRoot(r) {
+  const state=normalizeChordLab();
+  state.scaleRoot=r==='chord'?'chord':'key';
+  renderChordLab();saveSettings();
+}
+function setCagedLabels(m) {
+  const state=normalizeChordLab();
+  state.labels=m==='name'?'name':'int';
   renderChordLab();saveSettings();
 }
 function setCagedLevel(level) {
   const state=normalizeChordLab();
-  state.level=Math.min(3,Math.max(0,Math.round(level)||0));
+  state.level=Math.min(2,Math.max(0,Math.round(level)||0));
   renderChordLab();saveSettings();
 }
 // Töne, die in der Form zusätzlich zu den Akkordtönen gezeigt werden (je nach Stufe).
 function cagedTones(state) {
   const chord=CL_QUALITIES[state.quality].tones.map(t=>mod12(state.root+t));
-  const mixo=cagedMixo(state);
-  const pent=mixo?CG_MIXO.pent.map(i=>mod12(state.root+i)):scaleSet(S.key,S.scale);
-  const scale=mixo?CG_MIXO.scale.map(i=>mod12(state.root+i)):CG_SCALE[S.scale].map(i=>mod12(S.key+i));
-  const kind=pc=>chord.includes(pc)?'chord':pent.includes(pc)?'pent':scale.includes(pc)?'scale':'chrom';
-  const order=['chord','pent','scale','chrom'];
+  const def=CG_SCALES[cagedScaleId(state)],rootPc=cagedScaleRootPc(state);
+  const scale=def.iv.map(i=>mod12(rootPc+i)),charPcs=def.ch.map(i=>mod12(rootPc+i));
+  const kind=pc=>chord.includes(pc)?'chord':scale.includes(pc)?'scale':'chrom';
+  const order=['chord','scale','chrom'];
   const extra=[...Array(12).keys()].filter(pc=>kind(pc)!=='chord'&&order.indexOf(kind(pc))<=state.level);
-  return {chord,extra,kind,mixo};
+  return {chord,extra,kind,scale,charPcs,rootPc,def};
 }
-// Fenster für Skalentöne ab Stufe „+ Pentatonik“: 5 Bünde ab einem Bund unter dem tiefsten Griff-Anker
+// Fenster für Skalentöne ab Stufe „+ Skala“: 5 Bünde ab einem Bund unter dem tiefsten Griff-Anker
 // (H-Dur: A-Form 1–5, G-Form 3–7, E-Form 6–10). Ohne Stufe bleibt der Bereich der Akkordtöne.
 function cagedWindow(state,data) {
   if(!state||state.level<1)return [data.lo,data.hi];
@@ -7254,7 +7296,7 @@ function cagedNextChord(state) {
 }
 // Zusätzliche Töne der gewählten Stufe in der Form; Akkordtöne an weiteren Positionen hell, Rest gedimmt.
 function drawCagedExtras(svg,state,data) {
-  const {chord,extra,kind,mixo}=cagedTones(state),occupied=new Set();
+  const {chord,extra,kind,charPcs,rootPc}=cagedTones(state),occupied=new Set();
   svg.querySelectorAll('.cl-note,.overview-grip-note,.overview-tone,.arp-note,.overview-current,.overview-next').forEach(g=>{
     const c=g.querySelector('circle');if(c)occupied.add(c.getAttribute('cx')+':'+c.getAttribute('cy'));
   });
@@ -7268,19 +7310,21 @@ function drawCagedExtras(svg,state,data) {
     const k=kind(pc),role=isChord?chordLabRole(state.root,state.quality,pc):CG_INT[mod12(pc-state.root)];
     const label=`${nn(pc,S.key)}, ${isChord?role:CG_INT_NAME[role]||role}, ${STR_LABELS[s]}-Saite, ${fret===0?'offen':'Bund '+fret}`;
     const g=el('g',{class:'cg-extra cg-'+k,'data-string':s,'data-fret':fret,'data-pc':pc,role:'button',tabindex:0,'aria-label':label,style:'cursor:pointer'});
-    const style={chord:{r:10,fill:role==='R'?'#fbbf24':'#8cddcc',stroke:'#132032',text:'#0b211b'},pent:{r:8.5,fill:'#16314f',stroke:'#6aa7e8',text:'#cfe3ff'},scale:{r:8,fill:'#1d2733',stroke:'#7b8a9c',text:'#c4cfdb'},chrom:{r:7.5,fill:'#10151c',stroke:'#566170',text:'#8b97a6'}}[k];
+    const isChar=!isChord&&charPcs.includes(pc),isSRoot=!isChord&&k==='scale'&&pc===rootPc;
+    const style={chord:{r:10,fill:role==='R'?'#fbbf24':'#8cddcc',stroke:'#132032',text:'#0b211b',fs:8},scale:{r:12,fill:'#1e4f9c',stroke:'#8ec0ff',text:'#ffffff',fs:10},chrom:{r:8,fill:'#161d27',stroke:'#7b8797',text:'#aeb9c7',fs:7}}[k];
+    if(isChar)g.classList.add('cg-char');
     g.appendChild(el('title',{},label));
-    const b7=mixo&&!isChord&&role==='♭7';
-    if(b7)g.classList.add('cg-b7');
-    g.appendChild(el('circle',{cx:x,cy:y,r:b7?style.r+1.5:style.r,fill:b7?'#3a2410':style.fill,stroke:b7?'#fb923c':style.stroke,'stroke-width':b7?2.5:1.5,'stroke-dasharray':k==='chrom'?'2 2':''}));
-    g.appendChild(el('text',{x,y:y+3,fill:b7?'#fdba74':style.text,'font-size':k==='chord'?8:7,'font-weight':'bold','text-anchor':'middle','pointer-events':'none',style:'user-select:none'},role));
+    if(isSRoot)g.appendChild(el('circle',{class:'cg-sroot',cx:x,cy:y,r:style.r+3.5,fill:'none',stroke:'#fff','stroke-width':2}));
+    g.appendChild(el('circle',{cx:x,cy:y,r:isChar?style.r+1:style.r,fill:isChar?'#7a3a0b':style.fill,stroke:isChar?'#fb923c':style.stroke,'stroke-width':isChar?3:2,'stroke-dasharray':k==='chrom'?'2 2':''}));
+    const txt=state.labels==='name'?nn(pc,S.key):role;
+    g.appendChild(el('text',{x,y:y+(style.fs>=9?3.5:3),fill:isChar?'#ffe2c2':style.text,'font-size':style.fs,'font-weight':'bold','text-anchor':'middle','pointer-events':'none',style:'user-select:none'},txt));
     const play=()=>{stopArpeggio();pluck(OPEN_MIDI[s]+fret,0,0.8,0.85);};
     g.addEventListener('click',play);g.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();e.stopPropagation();play();}});
     svg.appendChild(g);
   }
 }
 // ── Quiz ──
-function cagedQuizSig(state,data){return [state.root,state.quality,state.form,state.formMode,state.level,state.scaleMode,S.key,S.scale,data.lo,data.hi,...cagedWindow(state,data)].join('|');}
+function cagedQuizSig(state,data){return [state.root,state.quality,state.form,state.formMode,state.level,cagedScaleId(state),state.scaleRoot,S.key,S.scale,data.lo,data.hi,...cagedWindow(state,data)].join('|');}
 function nextCagedQuestion(state,data) {
   const {chord,extra}=cagedTones(state),have=new Set(cagedPositions(data,state).map(p=>p.pc));
   let pool=[...chord,...extra].filter(pc=>have.has(pc));
@@ -7392,6 +7436,25 @@ function renderCagedGrip(state,data) {
   svg.setAttribute('aria-label',label);
   info.textContent=`${names.join(' · ')} · Anker-Bünde ${anchors.join(' und ')} (gelbe Marken unter dem Griffbrett)`;
 }
+// Lesbare Übersicht der gewählten Skala: Name, Einsatz und alle Töne als große Kärtchen.
+function renderCagedScaleInfo(state) {
+  const box=document.getElementById('cagedScaleInfo');if(!box)return;
+  const {def,rootPc,charPcs}=cagedTones(state);
+  box.replaceChildren();
+  const mk=(cls,txt)=>{const e=d_el('div');e.className=cls;e.textContent=txt;return e;};
+  box.appendChild(mk('cg-sname',`${nn(rootPc,S.key)}-${def.name}`));
+  box.appendChild(mk('cg-suse',def.use));
+  const chips=d_el('div');chips.className='cg-chips';
+  def.iv.forEach(i=>{
+    const pc=mod12(rootPc+i),c=d_el('span');
+    c.className='cg-chip'+(i===0?' root':'')+(charPcs.includes(pc)?' char':'');
+    c.textContent=nn(pc,S.key);
+    const sm=d_el('small');sm.textContent=CG_INT[i];c.appendChild(sm);
+    chips.appendChild(c);
+  });
+  box.appendChild(chips);
+}
+const d_el=t=>document.createElement(t);
 function renderCagedBar() {
   const bar=document.getElementById('cagedBar');if(!bar)return;
   const state=normalizeChordLab();
@@ -7402,12 +7465,13 @@ function renderCagedBar() {
   document.querySelectorAll('#cagedForms [data-form]').forEach(b=>{const a=arp&&b.dataset.form===state.form;b.classList.toggle('active',a);b.setAttribute('aria-pressed',String(a));});
   document.querySelectorAll('#cagedFormMode [data-mode]').forEach(b=>{const a=b.dataset.mode===state.formMode;b.classList.toggle('active',a);b.setAttribute('aria-pressed',String(a));});
   document.querySelectorAll('#cagedLevel [data-level]').forEach(b=>{const a=Number(b.dataset.level)===state.level;b.classList.toggle('active',a);b.setAttribute('aria-pressed',String(a));});
-  const mixoOk=CG_MIXO_Q.includes(state.quality);
-  document.querySelectorAll('#cagedScaleMode [data-smode]').forEach(b=>{
-    const a=b.dataset.smode==='mixo'?cagedMixo(state):!cagedMixo(state);
-    b.classList.toggle('active',a);b.setAttribute('aria-pressed',String(a));
-    if(b.dataset.smode==='mixo')b.classList.toggle('dim',!mixoOk);
-  });
+  const sid=cagedScaleId(state);
+  document.getElementById('cagedScale').value=sid;
+  document.querySelectorAll('#cagedScaleRoot [data-sroot]').forEach(b=>{const a=b.dataset.sroot===state.scaleRoot;b.classList.toggle('active',a);b.setAttribute('aria-pressed',String(a));});
+  document.querySelectorAll('#cagedLabels [data-labels]').forEach(b=>{const a=b.dataset.labels===state.labels;b.classList.toggle('active',a);b.setAttribute('aria-pressed',String(a));});
+  document.getElementById('cagedScaleKey').textContent='('+nn(mod12(S.key),S.key)+')';
+  document.getElementById('cagedScaleChord').textContent='('+CL_ROOTS[state.root]+')';
+  renderCagedScaleInfo(state);
   const keyName=CL_ROOTS[mod12(S.key)]+(S.scale==='minor'?'m':'');
   document.getElementById('cagedKeyChord').textContent='('+keyName+')';
   const info=document.getElementById('cagedInfo'),chordName=CL_ROOTS[state.root]+CL_QUALITIES[state.quality].suffix;
@@ -7422,9 +7486,7 @@ function renderCagedBar() {
   info.textContent=state.formMode==='fixed'
     ?`${chordName}-Töne in der ${state.form}-Form von ${keyName} · Bünde ${win[0]}–${win[1]}`
     :`${chordName} · ${state.form}-Form · Bünde ${win[0]}–${win[1]}`;
-  const mixo=cagedMixo(state),chordLbl=CL_ROOTS[state.root];
-  const legend=mixo?['Hell: Akkordtöne (Gold = Grundton).',`Zusätzlich blau: Dur-Pentatonik von ${chordLbl}.`,`Zusätzlich grau: ${chordLbl}-Mixolydisch (Dur mit ♭7); die ♭7 ist orange markiert.`,CG_LEGEND[3]]:CG_LEGEND;
-  document.getElementById('cagedLegend').textContent=legend.slice(0,state.level+1).join(' ')+(state.scaleMode==='mixo'&&!mixoOk?' Mixolydisch gilt nur für Dur- und Dominantakkorde; hier zeigt die Leiste die Skala der Tonart.':'');
+  document.getElementById('cagedLegend').textContent=state.level===0?CG_LEGEND[0]:CG_LEGEND.slice(0,state.level+1).join(' ');
   renderCagedGrip(state,data);
   if(cagedQuiz.active&&(!cagedQuiz.q||(cagedQuiz.reveal===null&&cagedQuiz.sig!==cagedQuizSig(state,data))))nextCagedQuestion(state,data);
   btn.disabled=false;btn.textContent=cagedQuiz.active?'Quiz beenden':'Quiz starten';btn.classList.toggle('active',cagedQuiz.active);skip.hidden=!cagedQuiz.active;

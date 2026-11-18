@@ -129,17 +129,22 @@ und beim Import umgerechnet. `caged-forms.test.cjs` prüft die Zuordnung gegen d
 Akkord-Labors in allen Tonarten, die Migration, Filter/Editor und dass kein „Box“ mehr sichtbar ist
 (Eigenname „BB-Box“ bleibt).
 
-## Griffkästchen, Anker und Akkord-Mixolydisch
+## Griffkästchen, Anker und Skalenwahl
 
 Die CAGED-Leiste zeigt unter der Formwahl den Akkordgriff der Form als Kästchen (Fingersatz, Barré,
 Startbund; Grundton gold). Als Anker gelten der tiefste und der höchste gegriffene Bund des Griffs
 (H-Dur: A-Form 2/4, G-Form 4/7, E-Form 7/9); sie erscheinen als gelbe Marken unter dem Griffbrett.
-„Skala über dem Akkord“ schaltet zwischen „Tonart“ (Pentatonik/Skala der Tonart) und
-„Akkord-Mixolydisch“ um: Dur-Pentatonik und Mixolydisch (Dur mit ♭7, ♭7 orange) vom Akkord-Grundton
-aus, nur bei Dur, 7, 9 und 13; bei anderen Akkorden Rückfall auf die Tonart samt Hinweis. Das Quiz
-fragt die gewählten Töne ab. `caged-mixolydian.test.cjs` prüft Anker, Kästchen, beide Skalenmodi,
-Rückfall, Quiz und Persistenz. Manuell: Screenshot der Leiste mit G-Form in H-Dur ansehen.
 
-Skalenfenster: Ab der Stufe „+ Pentatonik“ zeigt die Leiste die zusätzlichen Töne in 5 Bünden ab einem
-Bund unter dem tiefsten Anker (H-Dur: A-Form 1–5, G-Form 3–7, E-Form 6–10, wie im Lehrvideo); der Rahmen
-umfasst Fenster und Akkordbereich. Die Akkordtöne und die Arpeggio-Übung behalten ihren Bereich.
+Stufen: Akkordtöne · + Skala · + Chromatik. Die Skala wählst du im Auswahlfeld: Moll- und Dur-Pentatonik,
+Moll- und Dur-Blues, Natürlich Moll, Harmonisch Moll, Mixolydisch, Dorisch, Dur (Ionisch). Der Grundton
+kommt „von der Tonart“ (eine Skala über die ganze Progression) oder „vom aktiven Akkord“ (wandert mit).
+Skalentöne sind große blaue Kreise (Beschriftung Intervalle oder Tonnamen), Charakterstöne (Mixolydisch ♭7,
+Dorisch 6, Harmonisch Moll 7, Natürlich Moll ♭6, Moll-Blues ♭5, Dur-Blues ♭3) orange, der Skalengrundton
+trägt einen weißen Ring. Unter dem Auswahlfeld stehen Name, Einsatz und alle Töne als Kärtchen.
+
+Skalenfenster: Ab „+ Skala“ zeigt die Leiste die Skalentöne in 5 Bünden ab einem Bund unter dem
+tiefsten Anker (H-Dur: A-Form 1–5, G-Form 3–7, E-Form 6–10, wie im Lehrvideo); der Rahmen umfasst Fenster
+und Akkordbereich. Die Akkordtöne und die Arpeggio-Übung behalten ihren Bereich. Alte Einstellungen werden
+umgerechnet (Level 2 → Skala, Level 3 → Chromatik, „Akkord-Mixolydisch“ → Mixolydisch vom Akkord).
+`caged-scales.test.cjs` prüft alle Skalen in beiden Grundton-Modi, Kärtchen, Charakterstöne, Beschriftung,
+Lesbarkeit, Fenster, Anker, Griffkästchen, Quiz, Migration und Persistenz.

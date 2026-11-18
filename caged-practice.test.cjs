@@ -22,19 +22,20 @@ const region=()=>ev('(({lo,hi})=>[lo,hi])(currentArpeggio())');
  // Stufen: nur zusätzliche Töne innerhalb der Form, nie auf belegten Positionen
  const pcAt=g=>ev(`(OPEN_PC[${g.dataset.string}]+${g.dataset.fret})%12`);
  const counts=[];
- for(const lvl of [0,1,2,3]){
+ for(const lvl of [0,1,2]){
   w.setCagedLevel(lvl);assert.equal(d.querySelector('#cagedLevel .active').dataset.level,String(lvl));assert.equal(ev('S.chordLab.level'),lvl);
   const [lo,hi]=ev('cagedWindow(S.chordLab,currentArpeggio())'),extras=[...$('.cg-extra')];counts.push(extras.length);
   const seen=new Set();extras.forEach(g=>{assert.ok(+g.dataset.fret>=lo&&+g.dataset.fret<=hi);const k=g.dataset.string+':'+g.dataset.fret;assert.ok(!seen.has(k));seen.add(k);});
-  const allowed={0:['chord'],1:['chord','pent'],2:['chord','pent','scale'],3:['chord','pent','scale','chrom']}[lvl];
+  const allowed={0:['chord'],1:['chord','scale'],2:['chord','scale','chrom']}[lvl];
   extras.forEach(g=>assert.ok(allowed.some(k=>g.classList.contains('cg-'+k)),'Klasse passt zur Stufe'));
   const occupied=new Set([...$('.cl-note,.arp-note,.overview-grip-note')].map(g=>{const c=g.querySelector('circle');return c.getAttribute('cx')+':'+c.getAttribute('cy')}));
   extras.forEach(g=>{const c=g.querySelector('circle');assert.ok(!occupied.has(c.getAttribute('cx')+':'+c.getAttribute('cy')))});
  }
- assert.ok(counts[3]>counts[2]&&counts[2]>=counts[1]&&counts[1]>=counts[0],'Stufen blenden mehr ein: '+counts);
- // Skala: Am natürlich Moll (A H C D E F G), Pentatonik ohne H und F
- w.setCagedLevel(2);$('.cg-extra').forEach(g=>assert.ok([9,11,0,2,4,5,7].includes(pcAt(g))));
+ assert.ok(counts[2]>counts[1]&&counts[1]>=counts[0],'Stufen blenden mehr ein: '+counts);
+ // Standard in Moll: Moll-Pentatonik der Tonart (A C D E G); gewählt: Natürlich Moll (A H C D E F G)
  w.setCagedLevel(1);$('.cg-extra').forEach(g=>assert.ok([9,0,2,4,7].includes(pcAt(g))));
+ w.setCagedScale('natmin');$('.cg-extra').forEach(g=>assert.ok([9,11,0,2,4,5,7].includes(pcAt(g))));
+ w.setCagedScale('minpent');
  // Zielton-Hinweis
  assert.match(d.getElementById('cagedNext').textContent,/Nächster Akkord Dm: Zielton Terz = F/);
  w.setCagedFormMode('fixed');assert.ok(d.querySelector('.cg-target'));
@@ -73,8 +74,8 @@ const region=()=>ev('(({lo,hi})=>[lo,hi])(currentArpeggio())');
  w.setPos(0);assert.equal(ev('S.chordLab.form'),'G','Alle lässt die Form im CAGED-Feld stehen');
  w.setPos(3);assert.equal(ev('S.chordLab.form'),'D');w.setScale('minor');
  // Persistenz
- w.setFretboardLayer('caged',true);w.setCagedLevel(3);w.setCagedFormMode('fixed');w.saveSettings();
- const saved=JSON.parse(w.localStorage.getItem('gitarrenTraining.settings'));assert.equal(saved.chordLab.level,3);assert.equal(saved.chordLab.formMode,'fixed');
+ w.setFretboardLayer('caged',true);w.setCagedLevel(2);w.setCagedFormMode('fixed');w.saveSettings();
+ const saved=JSON.parse(w.localStorage.getItem('gitarrenTraining.settings'));assert.equal(saved.chordLab.level,2);assert.equal(saved.chordLab.formMode,'fixed');
  assert.deepEqual(errors,[]);
- console.log('PASS: CAGED practice (forms, follow/fixed, levels 0-3 incl. scale sets, next-chord hint, quiz flow, persistence).');
+ console.log('PASS: CAGED practice (forms, follow/fixed, levels 0-2 incl. scale sets, next-chord hint, quiz flow, persistence).');
 }catch(e){console.error(e);process.exitCode=1}finally{dom.window.close();}})();
