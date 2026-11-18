@@ -139,3 +139,7 @@ Startbund; Grundton gold). Als Anker gelten der tiefste und der höchste gegriff
 aus, nur bei Dur, 7, 9 und 13; bei anderen Akkorden Rückfall auf die Tonart samt Hinweis. Das Quiz
 fragt die gewählten Töne ab. `caged-mixolydian.test.cjs` prüft Anker, Kästchen, beide Skalenmodi,
 Rückfall, Quiz und Persistenz. Manuell: Screenshot der Leiste mit G-Form in H-Dur ansehen.
+
+Skalenfenster: Ab der Stufe „+ Pentatonik“ zeigt die Leiste die zusätzlichen Töne in 5 Bünden ab einem
+Bund unter dem tiefsten Anker (H-Dur: A-Form 1–5, G-Form 3–7, E-Form 6–10, wie im Lehrvideo); der Rahmen
+umfasst Fenster und Akkordbereich. Die Akkordtöne und die Arpeggio-Übung behalten ihren Bereich.

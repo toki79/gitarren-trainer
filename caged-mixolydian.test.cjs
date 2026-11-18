@@ -55,6 +55,22 @@ try{
  w.setCagedScaleMode('mixo');w.toggleCagedQuiz();
  const seen=new Set();for(let i=0;i<60&&!seen.has('♭7');i++){seen.add(ev('cagedQuiz.q.role'));w.skipCagedQuiz();}
  assert.ok(seen.has('♭7'),'♭7 kommt im Quiz vor');w.toggleCagedQuiz();
+ // Skalenfenster wie im Video: 5 Bünde ab einem Bund unter dem tiefsten Anker (H-Dur: A 1–5, G 3–7, E 6–10)
+ w.selectChord(0);w.setCagedLevel(2);w.setCagedScaleMode('mixo');
+ for(const [f,win] of Object.entries({A:[1,5],G:[3,7],E:[6,10]})){
+  w.setCagedForm(f);
+  assert.equal(JSON.stringify(ev('cagedWindow(S.chordLab,currentArpeggio())')),JSON.stringify(win),'Fenster '+f);
+  const fr=[...$('.cg-extra')].map(g=>+g.dataset.fret);
+  fr.forEach(x=>assert.ok(x>=win[0]&&x<=win[1],f+': Extra im Fenster'));
+  const rect=[...$('.cl-region')].find(r=>r.getAttribute('stroke')==='#8ab5ff'),x1=+rect.getAttribute('x');
+  assert.ok(x1<=ev(`fx(${win[0]})`)-20+0.01,'Rahmen enthält das Fenster');
+ }
+ // A-Form: Bund 1 zeigt D# (D-Saite) und G# (G-Saite), wie im Video
+ w.setCagedForm('A');
+ const at1=[...$('.cg-extra,.arp-note,.cl-note,.overview-tone')].filter(g=>g.dataset.fret==='1').map(g=>g.dataset.string+':'+pcAt(g)).sort();
+ assert.equal(at1.join(','),'2:8,3:3','Bund 1: G-Saite G#, D-Saite D#');
+ // ohne Stufe bleibt der Akkordbereich
+ w.setCagedLevel(0);assert.equal(JSON.stringify(ev('cagedWindow(S.chordLab,currentArpeggio())')),JSON.stringify(ev('(({lo,hi})=>[lo,hi])(currentArpeggio())')));
  // Persistenz (normalizeChordLab behält den Modus)
  assert.equal(ev('normalizeChordLab().scaleMode'),'mixo');
  // freie Griffauswahl: Kästchen verschwindet

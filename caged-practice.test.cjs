@@ -24,7 +24,7 @@ const region=()=>ev('(({lo,hi})=>[lo,hi])(currentArpeggio())');
  const counts=[];
  for(const lvl of [0,1,2,3]){
   w.setCagedLevel(lvl);assert.equal(d.querySelector('#cagedLevel .active').dataset.level,String(lvl));assert.equal(ev('S.chordLab.level'),lvl);
-  const [lo,hi]=region(),extras=[...$('.cg-extra')];counts.push(extras.length);
+  const [lo,hi]=ev('cagedWindow(S.chordLab,currentArpeggio())'),extras=[...$('.cg-extra')];counts.push(extras.length);
   const seen=new Set();extras.forEach(g=>{assert.ok(+g.dataset.fret>=lo&&+g.dataset.fret<=hi);const k=g.dataset.string+':'+g.dataset.fret;assert.ok(!seen.has(k));seen.add(k);});
   const allowed={0:['chord'],1:['chord','pent'],2:['chord','pent','scale'],3:['chord','pent','scale','chrom']}[lvl];
   extras.forEach(g=>assert.ok(allowed.some(k=>g.classList.contains('cg-'+k)),'Klasse passt zur Stufe'));

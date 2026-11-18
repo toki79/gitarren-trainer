@@ -7228,9 +7228,21 @@ function cagedTones(state) {
   const extra=[...Array(12).keys()].filter(pc=>kind(pc)!=='chord'&&order.indexOf(kind(pc))<=state.level);
   return {chord,extra,kind,mixo};
 }
-function cagedPositions(data) {
-  const out=[];
-  for(let s=0;s<6;s++)for(let fret=Math.max(0,data.lo);fret<=Math.min(FRETS,data.hi);fret++)out.push({s,fret,pc:mod12(OPEN_PC[s]+fret)});
+// Fenster für Skalentöne ab Stufe „+ Pentatonik“: 5 Bünde ab einem Bund unter dem tiefsten Griff-Anker
+// (H-Dur: A-Form 1–5, G-Form 3–7, E-Form 6–10). Ohne Stufe bleibt der Bereich der Akkordtöne.
+function cagedWindow(state,data) {
+  if(!state||state.level<1)return [data.lo,data.hi];
+  const an=cagedAnchors(data),a=an.length?an[0]:data.lo,lo=Math.max(0,a-1);
+  return [lo,Math.min(FRETS,lo+4)];
+}
+// Rahmen im Griffbrett: Bereich der Akkordtöne und Skalenfenster zusammen.
+function cagedFrame(state,data) {
+  const [a,b]=cagedWindow(state,data);
+  return [Math.min(data.lo,a),Math.max(data.hi,b)];
+}
+function cagedPositions(data,state) {
+  const out=[],[lo,hi]=cagedWindow(state,data);
+  for(let s=0;s<6;s++)for(let fret=Math.max(0,lo);fret<=Math.min(FRETS,hi);fret++)out.push({s,fret,pc:mod12(OPEN_PC[s]+fret)});
   return out;
 }
 function cagedNextChord(state) {
@@ -7247,7 +7259,7 @@ function drawCagedExtras(svg,state,data) {
     const c=g.querySelector('circle');if(c)occupied.add(c.getAttribute('cx')+':'+c.getAttribute('cy'));
   });
   const next=state.formMode==='fixed'?cagedNextChord(state):null;
-  for(const {s,fret,pc} of cagedPositions(data)) {
+  for(const {s,fret,pc} of cagedPositions(data,state)) {
     const x=fx(fret),y=sy(s);
     if(next&&pc===next.pc)svg.appendChild(el('circle',{class:'cg-target',cx:x,cy:y,r:16,fill:'none',stroke:'#fbbf24','stroke-width':2,'stroke-dasharray':'3 3','pointer-events':'none'}));
     if(occupied.has(x+':'+y))continue;
@@ -7268,9 +7280,9 @@ function drawCagedExtras(svg,state,data) {
   }
 }
 // ── Quiz ──
-function cagedQuizSig(state,data){return [state.root,state.quality,state.form,state.formMode,state.level,state.scaleMode,S.key,S.scale,data.lo,data.hi].join('|');}
+function cagedQuizSig(state,data){return [state.root,state.quality,state.form,state.formMode,state.level,state.scaleMode,S.key,S.scale,data.lo,data.hi,...cagedWindow(state,data)].join('|');}
 function nextCagedQuestion(state,data) {
-  const {chord,extra}=cagedTones(state),have=new Set(cagedPositions(data).map(p=>p.pc));
+  const {chord,extra}=cagedTones(state),have=new Set(cagedPositions(data,state).map(p=>p.pc));
   let pool=[...chord,...extra].filter(pc=>have.has(pc));
   if(!pool.length)pool=chord;
   const last=cagedQuiz.q&&cagedQuiz.q.pc;
@@ -7313,7 +7325,7 @@ function answerCagedQuiz(s,fret) {
 }
 function drawCagedQuiz(svg,state,data) {
   const {chord,extra}=cagedTones(state),pool=new Set([...chord,...extra]);
-  for(const {s,fret,pc} of cagedPositions(data)) {
+  for(const {s,fret,pc} of cagedPositions(data,state)) {
     if(!pool.has(pc))continue;
     const x=fx(fret),y=sy(s),key=`${s}:${fret}`;
     const right=cagedQuiz.reveal!==null&&pc===cagedQuiz.reveal,wrong=cagedQuiz.wrong===key;
@@ -7406,10 +7418,10 @@ function renderCagedBar() {
     document.getElementById('cagedLegend').textContent='';document.getElementById('cagedNext').textContent='';renderCagedGrip(state,null);
     btn.disabled=true;skip.hidden=true;qEl.textContent='';score.textContent='';return;
   }
-  const data=currentArpeggio();
+  const data=currentArpeggio(),win=cagedWindow(state,data);
   info.textContent=state.formMode==='fixed'
-    ?`${chordName}-Töne in der ${state.form}-Form von ${keyName} · Bünde ${data.lo}–${data.hi}`
-    :`${chordName} · ${state.form}-Form · Bünde ${data.lo}–${data.hi}`;
+    ?`${chordName}-Töne in der ${state.form}-Form von ${keyName} · Bünde ${win[0]}–${win[1]}`
+    :`${chordName} · ${state.form}-Form · Bünde ${win[0]}–${win[1]}`;
   const mixo=cagedMixo(state),chordLbl=CL_ROOTS[state.root];
   const legend=mixo?['Hell: Akkordtöne (Gold = Grundton).',`Zusätzlich blau: Dur-Pentatonik von ${chordLbl}.`,`Zusätzlich grau: ${chordLbl}-Mixolydisch (Dur mit ♭7); die ♭7 ist orange markiert.`,CG_LEGEND[3]]:CG_LEGEND;
   document.getElementById('cagedLegend').textContent=legend.slice(0,state.level+1).join(' ')+(state.scaleMode==='mixo'&&!mixoOk?' Mixolydisch gilt nur für Dur- und Dominantakkorde; hier zeigt die Leiste die Skala der Tonart.':'');
@@ -7461,7 +7473,7 @@ function drawChordLabOnFretboard(svg) {
   };
   const data=currentArpeggio(),parts=[];
   if(layers.caged&&!chordLabUnsupported&&state.mode==='arp'&&cagedQuiz.active&&cagedQuiz.q){
-    area(data.lo,data.hi,true,state.form+(state.formMode==='fixed'?'-Form · fest am Key-Akkord':'-Lage'));
+    area(...cagedFrame(state,data),true,state.form+(state.formMode==='fixed'?'-Form · fest am Key-Akkord':'-Lage'));
     drawCagedQuiz(svg,state,data);
     status.textContent=`Quiz · ${name} · ${state.form}-${state.formMode==='fixed'?'Form (fest am Key-Akkord)':'Lage'} · Klicke den gesuchten Ton im Rahmen`;
     return;
@@ -7469,7 +7481,7 @@ function drawChordLabOnFretboard(svg) {
   if(layers.caged&&!chordLabUnsupported){
     if(state.mode==='arp'){
       if(state.display==='overview')drawCagedOverview(svg,state,data,area);
-      area(data.lo,data.hi,true,state.form+(state.formMode==='fixed'?'-Form · fest am Key-Akkord':'-Lage'));
+      area(...cagedFrame(state,data),true,state.form+(state.formMode==='fixed'?'-Form · fest am Key-Akkord':'-Lage'));
       if(state.display!=='grip')drawArpeggioOnFretboard(svg,data);
       if(state.display!=='arp'&&data.grip)drawFullGrip(svg,data.grip,state);
       drawCagedExtras(svg,state,data);
