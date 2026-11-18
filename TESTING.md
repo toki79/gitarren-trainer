@@ -128,3 +128,14 @@ Molls). Licks speichern `form` („C“, „A“, „G“, „E“, „D“); al
 und beim Import umgerechnet. `caged-forms.test.cjs` prüft die Zuordnung gegen die CAGED-Bereiche des
 Akkord-Labors in allen Tonarten, die Migration, Filter/Editor und dass kein „Box“ mehr sichtbar ist
 (Eigenname „BB-Box“ bleibt).
+
+## Griffkästchen, Anker und Akkord-Mixolydisch
+
+Die CAGED-Leiste zeigt unter der Formwahl den Akkordgriff der Form als Kästchen (Fingersatz, Barré,
+Startbund; Grundton gold). Als Anker gelten der tiefste und der höchste gegriffene Bund des Griffs
+(H-Dur: A-Form 2/4, G-Form 4/7, E-Form 7/9); sie erscheinen als gelbe Marken unter dem Griffbrett.
+„Skala über dem Akkord“ schaltet zwischen „Tonart“ (Pentatonik/Skala der Tonart) und
+„Akkord-Mixolydisch“ um: Dur-Pentatonik und Mixolydisch (Dur mit ♭7, ♭7 orange) vom Akkord-Grundton
+aus, nur bei Dur, 7, 9 und 13; bei anderen Akkorden Rückfall auf die Tonart samt Hinweis. Das Quiz
+fragt die gewählten Töne ab. `caged-mixolydian.test.cjs` prüft Anker, Kästchen, beide Skalenmodi,
+Rückfall, Quiz und Persistenz. Manuell: Screenshot der Leiste mit G-Form in H-Dur ansehen.
